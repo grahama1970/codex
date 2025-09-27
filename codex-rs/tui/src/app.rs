@@ -306,6 +306,24 @@ impl App {
             AppEvent::FileSearchResult { query, matches } => {
                 self.chat_widget.apply_file_search_result(query, matches);
             }
+            AppEvent::OpenResumePicker(filter) => {
+                let selection = crate::resume_picker::run_resume_picker_with_filter(
+                    tui,
+                    &self.config.codex_home,
+                    filter.as_deref(),
+                )
+                .await?;
+                if let crate::resume_picker::ResumeSelection::Resume(path) = selection {
+                    let msg = format!(
+                        "Selected resume file: {} (use 'codex resume --last' or ID to continue)",
+                        path.display()
+                    );
+                    let cell = crate::history_cell::new_info_event(msg, None);
+                    self.app_event_tx
+                        .send(AppEvent::InsertHistoryCell(Box::new(cell)));
+                }
+                tui.frame_requester().schedule_frame();
+            }
             AppEvent::UpdateReasoningEffort(effort) => {
                 self.on_update_reasoning_effort(effort);
             }

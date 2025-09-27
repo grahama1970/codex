@@ -65,13 +65,29 @@ enum BackgroundEvent {
 /// Interactive session picker that lists recorded rollout files with simple
 /// search and pagination. Shows the first user input as the preview, relative
 /// time (e.g., "5 seconds ago"), and the absolute path.
-pub async fn run_resume_picker(tui: &mut Tui, codex_home: &Path) -> Result<ResumeSelection> {
+pub async fn run_resume_picker_with_filter(
+    tui: &mut Tui,
+    codex_home: &Path,
+    filter: Option<&str>,
+) -> Result<ResumeSelection> {
     // Plain, non-interactive verification mode: print rows and exit.
     // Enables checking the '[project]' tag & preview without onboarding/TUI.
     if env::var("CODEX_TUI_PLAIN").as_deref() == Ok("1") {
         match RolloutRecorder::list_conversations(codex_home, PAGE_SIZE, None).await {
             Ok(page) => {
-                let rows: Vec<Row> = page.items.iter().map(|it| head_to_row(it)).collect();
+                let iter = page.items.iter();
+                let filtered = if let Some(q) = filter.map(str::trim) {
+                    if !q.is_empty() {
+                        iter.clone()
+                            .filter(|it| item_matches(it, q))
+                            .collect::<Vec<_>>()
+                    } else {
+                        iter.collect::<Vec<_>>()
+                    }
+                } else {
+                    iter.collect::<Vec<_>>()
+                };
+                let rows: Vec<Row> = filtered.into_iter().map(|it| head_to_row(it)).collect();
                 let no_color = env::var("NO_COLOR").is_ok();
                 let dumb = env::var("TERM").unwrap_or_default() == "dumb";
                 let use_color = !no_color && !dumb;
@@ -128,8 +144,7 @@ pub async fn run_resume_picker(tui: &mut Tui, codex_home: &Path) -> Result<Resum
         page_loader,
     );
     state.load_initial_page().await?;
-    if let Ok(q) = env::var("CODEX_TUI_FILTER") {
-        let q = q.trim();
+    if let Some(q) = filter.map(str::trim) {
         if !q.is_empty() {
             state.set_query(q.to_string());
         }
@@ -171,6 +186,24 @@ pub async fn run_resume_picker(tui: &mut Tui, codex_home: &Path) -> Result<Resum
 
     // Fallback – treat as cancel/new
     Ok(ResumeSelection::StartFresh)
+}
+
+pub async fn run_resume_picker(tui: &mut Tui, codex_home: &Path) -> Result<ResumeSelection> {
+    run_resume_picker_with_filter(tui, codex_home, None).await
+}
+
+fn item_matches(it: &ConversationItem, q: &str) -> bool {
+    let ql = q.to_lowercase();
+    let row = head_to_row(it);
+    let mut hay = String::new();
+    hay.push_str(&it.path.display().to_string());
+    if let Some(p) = row.project.as_ref() {
+        hay.push(' ');
+        hay.push_str(p);
+    }
+    hay.push(' ');
+    hay.push_str(&row.preview);
+    hay.to_lowercase().contains(&ql)
 }
 
 /// RAII guard that ensures we leave the alt-screen on scope exit.

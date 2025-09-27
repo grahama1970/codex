@@ -25,6 +25,8 @@ pub enum SlashCommand {
     Mcp,
     Logout,
     Quit,
+    /// Open the resume picker to continue a previous session.
+    Resume,
     #[cfg(debug_assertions)]
     TestApproval,
 }
@@ -46,6 +48,7 @@ impl SlashCommand {
             SlashCommand::Approvals => "choose what Codex can do without approval",
             SlashCommand::Mcp => "list configured MCP tools",
             SlashCommand::Logout => "log out of Codex",
+            SlashCommand::Resume => "open the resume picker to continue a session",
             #[cfg(debug_assertions)]
             SlashCommand::TestApproval => "test approval request",
         }
@@ -72,7 +75,8 @@ impl SlashCommand {
             | SlashCommand::Mention
             | SlashCommand::Status
             | SlashCommand::Mcp
-            | SlashCommand::Quit => true,
+            | SlashCommand::Quit
+            | SlashCommand::Resume => true,
 
             #[cfg(debug_assertions)]
             SlashCommand::TestApproval => true,

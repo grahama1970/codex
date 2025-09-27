@@ -1135,6 +1135,10 @@ impl ChatWidget {
             SlashCommand::Mcp => {
                 self.add_mcp_output();
             }
+            SlashCommand::Resume => {
+                // For now, open the resume picker without a filter (Phase 1).
+                self.app_event_tx.send(AppEvent::OpenResumePicker(None));
+            }
             #[cfg(debug_assertions)]
             SlashCommand::TestApproval => {
                 use codex_core::protocol::EventMsg;

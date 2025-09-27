@@ -76,4 +76,7 @@ pub(crate) enum AppEvent {
 
     /// Open the custom prompt option from the review popup.
     OpenReviewCustomPrompt,
+
+    /// Open the resume picker UI; optional filter string to pre-filter rows.
+    OpenResumePicker(Option<String>),
 }
