@@ -52,6 +52,7 @@ use codex_protocol::config_types::ReasoningEffort as ReasoningEffortConfig;
 use codex_protocol::config_types::ReasoningSummary as ReasoningSummaryConfig;
 use codex_protocol::models::ResponseItem;
 use std::sync::Arc;
+mod memory_prehook;
 
 #[derive(Debug, Deserialize)]
 struct ErrorResponse {
@@ -122,6 +123,27 @@ impl ModelClient {
     /// the provider config.  Public callers always invoke `stream()` – the
     /// specialised helpers are private to avoid accidental misuse.
     pub async fn stream(&self, prompt: &Prompt) -> Result<ResponseStream> {
+        // Non-optional Memory prehook: retrieve bounded context before any model call
+        if memory_prehook::is_enabled(&self.config) {
+            let conv_id = self.conversation_id.clone();
+            match memory_prehook::run(&self.config, prompt, &conv_id).await {
+                Ok(Some(augmented_input)) => {
+                    let mut p = prompt.clone();
+                    p.input = augmented_input;
+                    return self.stream_responses_or_chat(&p).await;
+                }
+                Ok(None) => { /* no augmentation; proceed */ }
+                Err(e) => {
+                    if memory_prehook::fail_on_error(&self.config) {
+                        return Err(CodexErr::other(format!("memory prehook failed: {e:#}")));
+                    }
+                }
+            }
+        }
+        return self.stream_responses_or_chat(prompt).await;
+    }
+
+    async fn stream_responses_or_chat(&self, prompt: &Prompt) -> Result<ResponseStream> {
         match self.provider.wire_api {
             WireApi::Responses => self.stream_responses(prompt).await,
             WireApi::Chat => {
