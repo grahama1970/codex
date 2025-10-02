@@ -64,19 +64,8 @@ pub struct Cli {
     pub color: Color,
 
     /// Print events to stdout as JSONL.
-    #[arg(
-        long = "json",
-        default_value_t = false,
-        conflicts_with = "experimental_json"
-    )]
+    #[arg(long = "json", alias = "experimental-json", default_value_t = false)]
     pub json: bool,
-
-    #[arg(
-        long = "experimental-json",
-        default_value_t = false,
-        conflicts_with = "json"
-    )]
-    pub experimental_json: bool,
 
     /// Whether to include the plan tool in the conversation.
     #[arg(long = "include-plan-tool", default_value_t = false)]
@@ -90,6 +79,43 @@ pub struct Cli {
     /// if `-` is used), instructions are read from stdin.
     #[arg(value_name = "PROMPT")]
     pub prompt: Option<String>,
+
+    // --- Prehook options (MVP) ---
+    /// Enable the mandatory pre-hook gate before running.
+    #[arg(long = "prehook-enabled", default_value_t = false)]
+    pub prehook_enabled: bool,
+
+    /// Prehook backend to use: mcp | script | chained.
+    #[arg(long = "prehook-backend", default_value = "mcp")]
+    pub prehook_backend: String,
+
+    /// On error policy: fail | warn | skip.
+    #[arg(long = "prehook-on-error", default_value = "fail")]
+    pub prehook_on_error: String,
+
+    /// MCP server endpoint (stdio:prog [args...]).
+    #[arg(long = "prehook-mcp-server")]
+    pub prehook_mcp_server: Option<String>,
+
+    /// MCP tool name to call (default: codex.prehook.review).
+    #[arg(long = "prehook-mcp-tool")]
+    pub prehook_mcp_tool: Option<String>,
+
+    /// Script command to execute for script backend.
+    #[arg(long = "prehook-script")]
+    pub prehook_script_cmd: Option<String>,
+
+    /// Prehook timeout (ms).
+    #[arg(long = "prehook-timeout-ms", default_value_t = 5000)]
+    pub prehook_timeout_ms: u64,
+
+    /// MCP connect timeout (ms). Overrides connect timeout when set.
+    #[arg(long = "prehook-mcp-connect-timeout-ms")]
+    pub prehook_mcp_connect_timeout_ms: Option<u64>,
+
+    /// MCP call timeout (ms). Overrides call timeout when set.
+    #[arg(long = "prehook-mcp-call-timeout-ms")]
+    pub prehook_mcp_call_timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, clap::Subcommand)]

@@ -1,13 +1,8 @@
 mod cli;
 mod event_processor;
 mod event_processor_with_human_output;
-pub mod event_processor_with_json_output;
+pub mod event_processor_with_jsonl_output;
 pub mod exec_events;
-pub mod experimental_event_processor_with_json_output;
-
-use std::io::IsTerminal;
-use std::io::Read;
-use std::path::PathBuf;
 
 pub use cli::Cli;
 use codex_core::AuthManager;
@@ -26,20 +21,37 @@ use codex_core::protocol::TaskCompleteEvent;
 use codex_ollama::DEFAULT_OSS_MODEL;
 use codex_protocol::config_types::SandboxMode;
 use event_processor_with_human_output::EventProcessorWithHumanOutput;
-use experimental_event_processor_with_json_output::ExperimentalEventProcessorWithJsonOutput;
+use event_processor_with_jsonl_output::EventProcessorWithJsonOutput;
+use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use serde_json::Value;
+use std::io::IsTerminal;
+use std::io::Read;
+use std::path::PathBuf;
 use tracing::debug;
 use tracing::error;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::prelude::*;
 
 use crate::cli::Command as ExecCommand;
 use crate::event_processor::CodexStatus;
 use crate::event_processor::EventProcessor;
-use crate::event_processor_with_json_output::EventProcessorWithJsonOutput;
+use codex_core::default_client::set_default_originator;
 use codex_core::find_conversation_path_by_id_str;
+use codex_prehook as prehook;
+
+// Prehook exit codes (non-zero for blocking outcomes)
+const EXIT_DENY: i32 = 10;
+const EXIT_ASK: i32 = 11;
+const EXIT_PATCH: i32 = 12;
+const EXIT_DEFER: i32 = 13;
+const EXIT_RATE_LIMIT: i32 = 14;
 
 pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> anyhow::Result<()> {
+    if let Err(err) = set_default_originator("codex_exec") {
+        tracing::warn!(?err, "Failed to set codex exec originator override {err:?}");
+    }
+
     let Cli {
         command,
         images,
@@ -53,12 +65,20 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         color,
         last_message_file,
         json: json_mode,
-        experimental_json,
         sandbox_mode: sandbox_mode_cli_arg,
         prompt,
         output_schema: output_schema_path,
         include_plan_tool,
         config_overrides,
+        prehook_enabled,
+        prehook_backend,
+        prehook_on_error,
+        prehook_mcp_server,
+        prehook_mcp_tool,
+        prehook_script_cmd,
+        prehook_timeout_ms,
+        prehook_mcp_connect_timeout_ms,
+        prehook_mcp_call_timeout_ms,
     } = cli;
 
     // Determine the prompt source (parent or subcommand) and read from stdin if needed.
@@ -114,19 +134,18 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         ),
     };
 
-    // TODO(mbolin): Take a more thoughtful approach to logging.
+    // Build fmt layer (existing logging) to compose with OTEL layer.
     let default_level = "error";
-    let _ = tracing_subscriber::fmt()
-        // Fallback to the `default_level` log filter if the environment
-        // variable is not set _or_ contains an invalid value
-        .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .or_else(|_| EnvFilter::try_new(default_level))
-                .unwrap_or_else(|_| EnvFilter::new(default_level)),
-        )
+
+    // Build env_filter separately and attach via with_filter.
+    let env_filter = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new(default_level))
+        .unwrap_or_else(|_| EnvFilter::new(default_level));
+
+    let fmt_layer = tracing_subscriber::fmt::layer()
         .with_ansi(stderr_with_ansi)
         .with_writer(std::io::stderr)
-        .try_init();
+        .with_filter(env_filter);
 
     let sandbox_mode = if full_auto {
         Some(SandboxMode::WorkspaceWrite)
@@ -182,17 +201,153 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     };
 
     let config = Config::load_with_cli_overrides(cli_kv_overrides, overrides)?;
-    let mut event_processor: Box<dyn EventProcessor> = match (json_mode, experimental_json) {
-        (_, true) => Box::new(ExperimentalEventProcessorWithJsonOutput::new(
-            last_message_file.clone(),
-        )),
-        (true, _) => {
-            eprintln!(
-                "The existing `--json` output format is being deprecated. Please try the new format using `--experimental-json`."
-            );
 
-            Box::new(EventProcessorWithJsonOutput::new(last_message_file.clone()))
+    // --- Prehook gate (MVP) ---
+    if prehook_enabled {
+        let on_error = match prehook_on_error.as_str() {
+            "warn" => prehook::OnErrorPolicy::Warn,
+            "skip" => prehook::OnErrorPolicy::Skip,
+            _ => prehook::OnErrorPolicy::Fail,
+        };
+        let mut cfg = prehook::PrehookConfig::default();
+        cfg.enabled = true;
+        cfg.backend = prehook_backend.clone();
+        cfg.on_error = on_error;
+        if let Some(s) = prehook_mcp_server.clone() {
+            cfg.mcp.server = Some(s);
         }
+        if let Some(t) = prehook_mcp_tool.clone() {
+            cfg.mcp.tool = Some(t);
+        }
+        cfg.mcp.connect_timeout_ms =
+            prehook_mcp_connect_timeout_ms.unwrap_or(prehook_timeout_ms.min(2_000));
+        cfg.mcp.call_timeout_ms = prehook_mcp_call_timeout_ms.unwrap_or(prehook_timeout_ms);
+        if let Some(cmd) = prehook_script_cmd.clone() {
+            cfg.script.cmd = Some(cmd);
+        }
+        cfg.script.timeout_ms = prehook_timeout_ms;
+
+        let ctx = prehook::Context {
+            id: uuid::Uuid::now_v7().to_string(),
+            timestamp_ms: chrono::Utc::now().timestamp_millis(),
+            command_kind: prehook::CommandKind::Exec,
+            args: std::env::args().collect(),
+            cwd: config.cwd.clone(),
+            os: std::env::consts::OS.to_string(),
+            user: std::env::var("USER").ok(),
+            env_profile: prehook::EnvProfile {
+                approval_policy: Some(format!("{:?}", config.approval_policy)),
+                sandbox: Some(format!("{:?}", config.sandbox_policy)),
+                model: Some(config.model.clone()),
+            },
+            git_summary: None,
+            repo_root: codex_core::git_info::get_git_repo_root(&config.cwd),
+            relpath: None,
+            task_metadata: None,
+            correlation_id: None,
+            tty: Some(std::io::stdout().is_terminal()),
+            ci: Some(std::env::var("CI").is_ok()),
+            dry_run: Some(false),
+            sanitized_env: std::collections::HashMap::new(),
+        };
+        let dispatcher = prehook::PreHookDispatcher::new(cfg);
+        // Copy for logging without relying on private fields.
+        let backend_for_log;
+        let tool_for_log;
+        {
+            // Pull from our cfg clone inside dispatcher using what we constructed above.
+            // PreHookDispatcher does not expose config; we mirror from the values we set.
+            backend_for_log = prehook_backend.clone();
+            tool_for_log = prehook_mcp_tool.clone().unwrap_or_else(|| "".to_string());
+        }
+        let started = std::time::Instant::now();
+        let res = dispatcher.run(&ctx).await;
+        let duration_ms = started.elapsed().as_millis() as u64;
+        match res {
+            Ok(prehook::Outcome::Allow { .. }) => {}
+            Ok(prehook::Outcome::Augment { .. }) => {
+                // MVP: ignore augmentation in exec; continue
+                tracing::info!(backend=%backend_for_log, decision="augment", duration_ms, correlation_id=%ctx.id, tool=%tool_for_log, "prehook");
+            }
+            Ok(prehook::Outcome::Defer { .. }) => {
+                tracing::info!(backend=%backend_for_log, decision="defer", duration_ms, correlation_id=%ctx.id, tool=%tool_for_log, "prehook");
+                eprintln!(
+                    "Prehook returned defer in exec mode; aborting (use chained backend to fallback)."
+                );
+                std::process::exit(EXIT_DEFER);
+            }
+            Ok(prehook::Outcome::Ask { message }) => {
+                tracing::info!(backend=%backend_for_log, decision="ask", duration_ms, correlation_id=%ctx.id, tool=%tool_for_log, "prehook");
+                eprintln!("Prehook requires approval: {message}");
+                std::process::exit(EXIT_ASK);
+            }
+            Ok(prehook::Outcome::Patch { .. }) => {
+                tracing::info!(backend=%backend_for_log, decision="patch", duration_ms, correlation_id=%ctx.id, tool=%tool_for_log, "prehook");
+                eprintln!("Prehook suggested a patch; unsupported in exec mode. Aborting.");
+                std::process::exit(EXIT_PATCH);
+            }
+            Ok(prehook::Outcome::Deny { reason }) => {
+                tracing::info!(backend=%backend_for_log, decision="deny", duration_ms, correlation_id=%ctx.id, tool=%tool_for_log, "prehook");
+                eprintln!("Prehook denied execution: {reason}");
+                std::process::exit(EXIT_DENY);
+            }
+            Ok(prehook::Outcome::RateLimit {
+                retry_after_ms,
+                message,
+            }) => {
+                tracing::info!(backend=%backend_for_log, decision="rate_limit", duration_ms, correlation_id=%ctx.id, tool=%tool_for_log, retry_after_ms, "prehook");
+                if let Some(m) = message {
+                    eprintln!("Prehook rate limit: {m}");
+                }
+                eprintln!("Retry after: {retry_after_ms} ms");
+                std::process::exit(EXIT_RATE_LIMIT);
+            }
+            Err(e) => {
+                match on_error {
+                    prehook::OnErrorPolicy::Fail => {
+                        tracing::info!(backend=%backend_for_log, decision="error_fail", duration_ms, correlation_id=%ctx.id, tool=%tool_for_log, error=%format!("{e:#}"), "prehook");
+                        eprintln!("Prehook error: {e:#}");
+                        std::process::exit(EXIT_DENY);
+                    }
+                    prehook::OnErrorPolicy::Warn => {
+                        tracing::info!(backend=%backend_for_log, decision="error_warn", duration_ms, correlation_id=%ctx.id, tool=%tool_for_log, error=%format!("{e:#}"), "prehook");
+                        eprintln!("Warning: prehook error: {e:#}");
+                    }
+                    prehook::OnErrorPolicy::Skip => {
+                        tracing::info!(backend=%backend_for_log, decision="error_skip", duration_ms, correlation_id=%ctx.id, tool=%tool_for_log, error=%format!("{e:#}"), "prehook");
+                        // silently continue
+                    }
+                }
+            }
+        }
+    }
+
+    let otel = codex_core::otel_init::build_provider(&config, env!("CARGO_PKG_VERSION"));
+
+    #[allow(clippy::print_stderr)]
+    let otel = match otel {
+        Ok(otel) => otel,
+        Err(e) => {
+            eprintln!("Could not create otel exporter: {e}");
+            std::process::exit(1);
+        }
+    };
+
+    if let Some(provider) = otel.as_ref() {
+        let otel_layer = OpenTelemetryTracingBridge::new(&provider.logger).with_filter(
+            tracing_subscriber::filter::filter_fn(codex_core::otel_init::codex_export_filter),
+        );
+
+        let _ = tracing_subscriber::registry()
+            .with(fmt_layer)
+            .with(otel_layer)
+            .try_init();
+    } else {
+        let _ = tracing_subscriber::registry().with(fmt_layer).try_init();
+    }
+
+    let mut event_processor: Box<dyn EventProcessor> = match json_mode {
+        true => Box::new(EventProcessorWithJsonOutput::new(last_message_file.clone())),
         _ => Box::new(EventProcessorWithHumanOutput::create_with_ansi(
             stdout_with_ansi,
             &config,
