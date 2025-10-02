@@ -1,0 +1,31 @@
+name: knowledge-first-check
+
+on:
+  push:
+    branches: [ feat/knowledge-first-prehook ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  prehook-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        run: |
+          pipx install uv >/dev/null 2>&1 || python -m pip install -q uv || true
+      - name: Run Knowledge First (CLI fallback OK)
+        env:
+          # Leave ARANGO_* unset to allow CLI fallback or MCP skip; script should still produce JSON
+          MEMORY_SCOPE: tabbed
+        run: |
+          python local/feature_recipes/knowledge_first.py "cdp puppeteer" > out.json || true
+          cat out.json
+          python - <<'PY'
+import json,sys
+with open('out.json','r') as f:
+  data=json.loads(f.read())
+assert isinstance(data,dict)
+assert 'items' in data
+print('OK')
+PY
