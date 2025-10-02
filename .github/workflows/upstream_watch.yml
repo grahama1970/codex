@@ -1,0 +1,55 @@
+name: Upstream Watch (analyze upstream/main)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Target branch to analyze (default main)'
+        required: false
+        default: 'main'
+  schedule:
+    - cron: '15 6 * * *'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [main, feat/integration-prehook-agent-bus]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Add upstream
+        run: |
+          git remote add upstream https://github.com/openai/codex.git || true
+          git fetch upstream main
+      - name: Run upstream analysis
+        env:
+          TARGET_BRANCH: ${{ matrix.target }}
+          UPSTREAM_REF: upstream/main
+        run: |
+          python3 scripts/upstream_check.py | tee report.md
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-report-${{ matrix.target }}
+          path: _upstream_report/
+      - name: Open/Update tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE="Upstream sync report: ${{ matrix.target }} vs upstream/main"
+          BODY="$(cat report.md)"
+          # Try to find existing open issue with same title
+          NUM=$(gh issue list --search "$TITLE in:title state:open" --json number,title | jq -r '.[0].number // empty')
+          if [ -z "$NUM" ]; then
+            gh issue create -t "$TITLE" -b "$BODY" -l github_actions || true
+          else
+            gh issue comment "$NUM" -b "$BODY" || true
+          fi
+
