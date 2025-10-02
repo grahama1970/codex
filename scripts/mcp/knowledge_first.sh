@@ -2,12 +2,14 @@
 set -euo pipefail
 
 # Thin wrapper to launch your Knowledge‑First MCP server in stdio mode.
-# EDIT the path below to your agent's server entrypoint.
+# Uses a system-installed stdio server binary by default. Override with MCP_SERVER_BIN.
 
-KF_DIR="/home/graham/workspace/experiments/memory"
-KF_BIN="node"
-KF_ENTRY="dist/mcp_server.js"
+MCP_SERVER_BIN="${MCP_SERVER_BIN:-/usr/local/bin/memory-mcp}"
 
-cd "$KF_DIR"
-exec "$KF_BIN" "$KF_ENTRY" --stdio "$@"
+if [[ ! -x "$MCP_SERVER_BIN" ]]; then
+  echo "[knowledge_first] ERROR: MCP server not found or not executable: $MCP_SERVER_BIN" >&2
+  echo "Hint: set MCP_SERVER_BIN=/abs/path/to/your/server or install to /usr/local/bin/memory-mcp" >&2
+  exit 1
+fi
 
+exec "$MCP_SERVER_BIN" --stdio "$@"
