@@ -36,6 +36,19 @@ route_command = "/notify"
 cooldown_sec = 600
 include_sample = false
 
+# Public GitHub rate limit example (no secrets)
+[monitor.github_rate]
+type = "http"
+method = "GET"
+url = "https://api.github.com/rate_limit"
+poll_interval_sec = 600
+json_path = "resources.core.remaining"
+operator = "lt"
+value = 100
+route_command = "/notify"
+cooldown_sec = 900
+include_sample = false
+
 # Optional templates (disabled by default)
 
 # [monitor.slack_incoming]
