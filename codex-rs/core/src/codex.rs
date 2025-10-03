@@ -910,6 +910,25 @@ impl Session {
         };
         self.send_event(event).await;
 
+        // Record bounded journey entry for exec/apply
+        let latency_ms = output.duration.as_millis() as i64;
+        let success = *exit_code == 0;
+        let kind = if is_apply_patch { "apply" } else { "shell" };
+        crate::tool_journey::record_exec_end(
+            sub_id,
+            kind,
+            if is_apply_patch {
+                "apply_patch"
+            } else {
+                "shell"
+            },
+            call_id,
+            latency_ms,
+            success,
+            0,
+            None,
+        );
+
         // If this is an apply_patch, after we emit the end patch, emit a second event
         // with the full turn diff if there is one.
         if is_apply_patch {
@@ -1767,6 +1786,28 @@ pub(crate) async fn run_task(
                                 .kill_on_drop(true);
                             let _ = cmd.spawn();
                         });
+                        if std::env::var("CODEX_POSTHOOK_NOTIFY_SLACK")
+                            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                            .unwrap_or(false)
+                        {
+                            let summary = format!(
+                                "[codex] turn complete: decision={}, tools={}, scope={}",
+                                decision,
+                                tool_calls.len(),
+                                scope
+                            );
+                            let _ = tokio::spawn(async move {
+                                use tokio::process::Command;
+                                let mut cmd = Command::new("python3");
+                                cmd.arg("scripts/agent_bus.py")
+                                    .env("AGENT_BUS_COMMAND", "/notify_slack")
+                                    .env(
+                                        "AGENT_BUS_PAYLOAD",
+                                        serde_json::json!({"text": summary}).to_string(),
+                                    );
+                                let _ = cmd.spawn();
+                            });
+                        }
                     }
                 }
                 let limit = turn_context
@@ -2454,6 +2495,8 @@ async fn handle_response_item(
 
 async fn handle_unified_exec_tool_call(
     sess: &Session,
+    sub_id: &str,
+    call_id: &str,
     session_id: Option<String>,
     arguments: Vec<String>,
     timeout_ms: Option<u64>,
@@ -2477,6 +2520,7 @@ async fn handle_unified_exec_tool_call(
         timeout_ms,
     };
 
+    let start = std::time::Instant::now();
     let value = sess
         .services
         .unified_exec_manager
@@ -2485,6 +2529,17 @@ async fn handle_unified_exec_tool_call(
         .map_err(|err| {
             FunctionCallError::RespondToModel(format!("unified exec failed: {err:?}"))
         })?;
+    let latency_ms = start.elapsed().as_millis() as i64;
+    crate::tool_journey::record_exec_end(
+        sub_id,
+        "unified_exec",
+        "unified_exec",
+        call_id,
+        latency_ms,
+        true,
+        0,
+        None,
+    );
 
     #[derive(Serialize)]
     struct SerializedUnifiedExecResult {
@@ -2542,7 +2597,15 @@ async fn handle_function_call(
                 ))
             })?;
 
-            handle_unified_exec_tool_call(sess, args.session_id, args.input, args.timeout_ms).await
+            handle_unified_exec_tool_call(
+                sess,
+                &sub_id,
+                &call_id,
+                args.session_id,
+                args.input,
+                args.timeout_ms,
+            )
+            .await
         }
         "view_image" => {
             #[derive(serde::Deserialize)]

@@ -338,6 +338,23 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
             Ok(prehook::Outcome::Ask { message }) => {
                 tracing::info!(backend=%backend_for_log, decision="ask", duration_ms, correlation_id=%ctx.id, tool=%tool_for_log, "prehook");
                 eprintln!("Prehook requires approval: {message}");
+                // If configured, enqueue a research plan via Agent Bus (non-blocking)
+                if std::env::var("CODEX_AUTOMATE_RESEARCH_PLAN")
+                    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                    .unwrap_or(false)
+                {
+                    let payload = std::env::var("CODEX_PREHOOK_PLAN_PAYLOAD")
+                        .ok()
+                        .unwrap_or_else(|| serde_json::json!({"message": message}).to_string());
+                    let _ = std::thread::spawn(move || {
+                        use std::process::Command;
+                        let _ = Command::new("python3")
+                            .arg("scripts/agent_bus.py")
+                            .env("AGENT_BUS_COMMAND", "/research_plan")
+                            .env("AGENT_BUS_PAYLOAD", payload)
+                            .spawn();
+                    });
+                }
                 std::process::exit(EXIT_ASK);
             }
             Ok(prehook::Outcome::Patch { .. }) => {
