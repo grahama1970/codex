@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "trace_id": "abc-123",
+  "turn_id": "turn-1",
+  "session_id": "turn-1",
+  "scope": "experiments/codex",
+  "repo": "openai/codex",
+  "branch": "feat/prehook-mvp",
+  "commit": "5d115261",
+  "model": "",
+  "decision": "augment",
+  "decision_meta": {"last_user_msg_bytes": 12, "token_usage": "in:10 out:20"},
+  "started_at": "2025-10-03T00:00:00Z",
+  "latency_ms": 0,
+  "idempotency_key": "turn-1:turn-1:5d115261",
+  "tool_calls": [
+    {"name":"codex.prehook.review","kind":"mcp","call_id":"tc1","latency_ms":600,"success":true,"retries":0},
+    {"name":"shell","kind":"shell","call_id":"tc2","latency_ms":50,"success":true,"retries":0}
+  ]
+}
+
