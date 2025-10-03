@@ -22,7 +22,11 @@ IDEMP_HEADER = "X-Idempotency-Key"
 
 from scripts.connectors.github_conn import pr_status, pr_comment, rerun_placeholder
 from scripts.connectors.http_conn import http_post
-from scripts.connectors.mcp_conn import call_tool_stdio
+
+def _is_slack_base(url: str | None) -> bool:
+    if not isinstance(url, str):
+        return False
+    return url.strip().lower().startswith("https://hooks.slack.com")
 
 
 def load_cfg():
@@ -121,23 +125,30 @@ def handle_command(cfg, command: str):
     elif command in ('/handoff', '/notify', '/research_plan', '/notify_slack'):
         http = cfg.get('agents', {}).get('http_ops') or {}
         if command == '/notify_slack':
+            # Slack: enforce base_url and provide a minimal default payload
+            if not _is_slack_base(http.get('base_url')):
+                print("[agent-bus] Slack notify requires base_url=https://hooks.slack.com")
+                return
             path = os.environ.get('SLACK_WEBHOOK_PATH', '')
+            payload = {"text": f"[agent-bus] repo={repo} pr={pr} ts={int(time.time())}"}
         else:
             path = HTTP_DEFAULT_PATH if command in ('/handoff', '/notify') else HTTP_RESEARCH_PATH
+            payload = {
+                "source": "agent-bus",
+                "pr": pr,
+                "repo": repo,
+                "ts": int(time.time()),
+                "command": command,
+            }
         if not http_path_allowed(cfg, path):
             print(f"[agent-bus] http path not allowed by config: {path}")
             return
         now = int(time.time())
         idem_ts = ts_bucket(now)
         idem_key = make_idempotency_key(repo, pr, command, idem_ts, path)
-        payload = {
-            "source": "agent-bus",
-            "pr": pr,
-            "repo": repo,
-            "ts": now,
-            "command": command,
-            "idempotency_key": idem_key,
-        }
+        # Add idempotency metadata unless Slack payload already provided by caller
+        if isinstance(payload, dict):
+            payload.setdefault("idempotency_key", idem_key)
         headers = (http.get('headers') or {}).copy()
         headers[IDEMP_HEADER] = idem_key
         http_post(
@@ -165,8 +176,8 @@ def main():
     # Accept command from env, default to /status
     command = os.environ.get('AGENT_BUS_COMMAND', '/status')
     payload = os.environ.get('AGENT_BUS_PAYLOAD')
-    # If payload present and command is /notify or /handoff, forward via http_ops (still gated)
-    if payload and command in ('/notify', '/handoff'):
+    # If payload present, forward via http_ops (still gated)
+    if payload and command in ('/notify', '/handoff', '/research_plan', '/notify_slack'):
         # Enforce command allowlist before forwarding (prevents bypass via env)
         allowed = set(cfg.get('security', {}).get('allow_commands', []))
         if command not in allowed:
@@ -177,7 +188,13 @@ def main():
         except Exception:
             data = {"payload": payload}
         http = cfg.get('agents', {}).get('http_ops') or {}
-        path = os.environ.get('SLACK_WEBHOOK_PATH', '') if command == '/notify_slack' else (HTTP_DEFAULT_PATH if command in ('/handoff', '/notify') else HTTP_RESEARCH_PATH)
+        if command == '/notify_slack':
+            if not _is_slack_base(http.get('base_url')):
+                print("[agent-bus] Slack notify requires base_url=https://hooks.slack.com")
+                return 0
+            path = os.environ.get('SLACK_WEBHOOK_PATH', '')
+        else:
+            path = HTTP_DEFAULT_PATH if command in ('/handoff', '/notify') else HTTP_RESEARCH_PATH
         if not http_path_allowed(cfg, path):
             print(f"[agent-bus] http path not allowed by config: {path}")
             return 0
@@ -187,6 +204,8 @@ def main():
         idem_ts = ts_bucket(now)
         idem_key = make_idempotency_key(repo, pr, command, idem_ts, path)
         if isinstance(data, dict):
+            if command == '/notify_slack':
+                data.setdefault("text", f"[agent-bus] repo={repo} pr={pr} ts={now}")
             data.setdefault("ts", now)
             data.setdefault("idempotency_key", idem_key)
             data.setdefault("source", "agent-bus")
