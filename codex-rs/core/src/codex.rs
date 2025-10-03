@@ -1732,6 +1732,8 @@ pub(crate) async fn run_task(
                         } else {
                             format!("{}:{}:{}", session_id, turn_id, commit)
                         };
+                        // Drain any recorded tool calls for this sub_id (bounded to 16 entries)
+                        let tool_calls = crate::tool_journey::drain_for_sub_id(&sub_id);
                         let args_obj = serde_json::json!({
                             "version": "1.0.0",
                             "trace_id": format!("{}:{}", turn_id, std::process::id()),
@@ -1747,8 +1749,7 @@ pub(crate) async fn run_task(
                             "started_at": chrono::Utc::now().to_rfc3339(),
                             "latency_ms": 0,
                             "idempotency_key": idempotency_key,
-                            // Placeholder: populate when tool journey collection is available
-                            "tool_calls": serde_json::json!([]),
+                            "tool_calls": tool_calls,
                         });
                         let params =
                             serde_json::json!({ "tool": tool, "args": args_obj }).to_string();

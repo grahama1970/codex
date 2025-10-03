@@ -31,10 +31,23 @@ def load_cfg():
         return tomllib.load(f)
 
 
+def _expand_env_path(p: str) -> str:
+    # Support $VAR or ${VAR} expansion for allowlist entries
+    import os
+    if p.startswith("$"):
+        key = p[1:].strip("{}")
+        return os.environ.get(key, "")
+    if p.startswith("${") and p.endswith("}"):
+        key = p[2:-1]
+        return os.environ.get(key, "")
+    return p
+
+
 def http_path_allowed(cfg: dict, path: str) -> bool:
     agents = cfg.get("agents", {})
     http_ops = agents.get("http_ops") or {}
-    allow = set(http_ops.get("allow_paths") or [])
+    allow_cfg = http_ops.get("allow_paths") or []
+    allow = { _expand_env_path(a) for a in allow_cfg }
     # Require explicit allowlist; refuse if none
     if not allow:
         return False
@@ -105,9 +118,12 @@ def handle_command(cfg, command: str):
         elif command == '/rerun':
             rerun_placeholder(repo, pr, gh_token)
         touch_lock()
-    elif command in ('/handoff', '/notify', '/research_plan'):
+    elif command in ('/handoff', '/notify', '/research_plan', '/notify_slack'):
         http = cfg.get('agents', {}).get('http_ops') or {}
-        path = HTTP_DEFAULT_PATH if command in ('/handoff', '/notify') else HTTP_RESEARCH_PATH
+        if command == '/notify_slack':
+            path = os.environ.get('SLACK_WEBHOOK_PATH', '')
+        else:
+            path = HTTP_DEFAULT_PATH if command in ('/handoff', '/notify') else HTTP_RESEARCH_PATH
         if not http_path_allowed(cfg, path):
             print(f"[agent-bus] http path not allowed by config: {path}")
             return
@@ -129,7 +145,7 @@ def handle_command(cfg, command: str):
             path,
             payload,
             headers=headers,
-            allowed_paths=http.get('allow_paths') or [],
+            allowed_paths=[_expand_env_path(p) for p in (http.get('allow_paths') or [])],
             hmac_secret_env=http.get('hmac_secret_env'),
             hmac_header=http.get('hmac_header', 'X-Hub-Signature-256'),
         )
@@ -161,7 +177,7 @@ def main():
         except Exception:
             data = {"payload": payload}
         http = cfg.get('agents', {}).get('http_ops') or {}
-        path = HTTP_DEFAULT_PATH if command in ('/handoff', '/notify') else HTTP_RESEARCH_PATH
+        path = os.environ.get('SLACK_WEBHOOK_PATH', '') if command == '/notify_slack' else (HTTP_DEFAULT_PATH if command in ('/handoff', '/notify') else HTTP_RESEARCH_PATH)
         if not http_path_allowed(cfg, path):
             print(f"[agent-bus] http path not allowed by config: {path}")
             return 0
@@ -184,7 +200,7 @@ def main():
             path,
             data,
             headers=headers,
-            allowed_paths=http.get('allow_paths') or [],
+            allowed_paths=[_expand_env_path(p) for p in (http.get('allow_paths') or [])],
             hmac_secret_env=http.get('hmac_secret_env'),
             hmac_header=http.get('hmac_header', 'X-Hub-Signature-256'),
         )

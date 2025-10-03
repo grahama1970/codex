@@ -872,6 +872,7 @@ dependencies = [
  "futures",
  "indexmap 2.11.4",
  "landlock",
+ "lazy_static",
  "libc",
  "maplit",
  "mcp-types",
