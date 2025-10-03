@@ -1,0 +1,23 @@
+name: Guard allow_paths (no literal Slack paths)
+
+on:
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure Slack webhook paths are env-injected
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Fail if any allow_paths contains a literal Slack services path.
+          bad=$(rg -n "allow_paths\s*=.*hooks\.slack\.com/|allow_paths\s*=.*\\/services\\/" -g "**/*" || true)
+          if [[ -n "$bad" ]]; then
+            echo "Found literal Slack webhook path in allow_paths. Use \${SLACK_WEBHOOK_PATH} instead:" >&2
+            echo "$bad" >&2
+            exit 1
+          fi
+          echo "OK: no literal Slack webhook paths found in allow_paths."

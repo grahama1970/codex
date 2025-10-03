@@ -1,0 +1,8 @@
+{
+  "plan": "Use arXiv + YouTube to gather context for topic X; return summary and 5 links.",
+  "scope": "experiments/codex",
+  "session_id": "sess-abc",
+  "turn_id": "turn-001",
+  "idempotency_key": "sess-abc:turn-001:research"
+}
+

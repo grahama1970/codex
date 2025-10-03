@@ -1,0 +1,3 @@
+[monitor]
+# example_monitor = { url = "https://status.example.com/health", method = "GET", contains = "OK", poll_interval_sec = 300, cooldown_sec = 900, route_command = "/notify" }
+

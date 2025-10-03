@@ -8,6 +8,7 @@ use crate::protocol::EventMsg;
 use crate::protocol::McpInvocation;
 use crate::protocol::McpToolCallBeginEvent;
 use crate::protocol::McpToolCallEndEvent;
+use crate::tool_journey::record_mcp_end;
 use codex_protocol::models::FunctionCallOutputPayload;
 use codex_protocol::models::ResponseInputItem;
 
@@ -67,6 +68,10 @@ pub(crate) async fn handle_mcp_tool_call(
     });
 
     notify_mcp_tool_call_event(sess, sub_id, tool_call_end_event.clone()).await;
+    // Record bounded journey summary for posthook ingestion (use local values)
+    let latency_ms = start.elapsed().as_millis() as i64;
+    let success = result.is_ok();
+    record_mcp_end(sub_id, &tool_name, &call_id, latency_ms, success);
 
     ResponseInputItem::McpToolCallOutput { call_id, result }
 }

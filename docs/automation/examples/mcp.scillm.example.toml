@@ -1,0 +1,6 @@
+[mcp_servers.scillm]
+transport = "stdio"
+command = "/usr/local/bin/scillm-mcp"   # wrapper that starts your Node/Python MCP server
+args = []
+# Tools typically exposed (adjust to your server):
+# scillm.moderate, scillm.tokenize, scillm.embeddings, scillm.rerank, scillm.generate

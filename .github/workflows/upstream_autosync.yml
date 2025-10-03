@@ -1,0 +1,43 @@
+name: Upstream Auto-Sync (conflict-free)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Target branch to sync (default main)'
+        required: false
+        default: 'main'
+  schedule:
+    - cron: '0 5 * * 2,5'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  autosync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Add upstream
+        run: |
+          git remote add upstream https://github.com/openai/codex.git || true
+          git fetch upstream main
+      - name: Prepare Python for tests
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pytest
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+      - name: Run auto-sync (conflict-free only)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_BRANCH: ${{ inputs.target || 'main' }}
+          UPSTREAM_REF: upstream/main
+        run: |
+          bash scripts/upstream_autosync.sh
+

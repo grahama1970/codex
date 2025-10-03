@@ -1,0 +1,25 @@
+upstream_repo = "openai/codex"
+pr_number = 4522
+
+[security]
+allow_commands = ["/status", "/rerun", "/handoff", "/notify", "/research_plan", "/notify_slack"]
+min_seconds_between_posts = 120
+
+[agents.http_ops]
+type = "http"
+base_url = "https://hooks.slack.com"
+headers = { X-Agent = "codex-bus/1" }
+allow_paths = ["${SLACK_WEBHOOK_PATH}"]
+hmac_secret_env = "OPS_WEBHOOK_SECRET"
+hmac_header = "X-Hub-Signature-256"
+
+[review]
+owners = ["@your-handle"]
+barriers = [
+  "build-test",
+  "Format / etc",
+  "ubuntu-24.04 - x86_64-unknown-linux-gnu",
+  "macos-14 - aarch64-apple-darwin",
+  "macos-14 - x86_64-apple-darwin",
+]
+

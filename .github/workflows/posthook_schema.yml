@@ -1,0 +1,19 @@
+name: Validate posthook payload schema
+
+on:
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install ajv-cli
+        run: npm i -g ajv-cli@5
+      - name: Validate sample against schema
+        run: |
+          ajv validate -s docs/schemas/codex.posthook.record.schema.json -d docs/schemas/posthook_sample.json --valid

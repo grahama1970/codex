@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/codex.posthook.record.schema.json",
+  "title": "Codex Posthook Record",
+  "type": "object",
+  "required": [
+    "version",
+    "trace_id",
+    "turn_id",
+    "session_id",
+    "scope",
+    "decision",
+    "idempotency_key",
+    "tool_calls"
+  ],
+  "properties": {
+    "version": { "type": "string" },
+    "trace_id": { "type": "string" },
+    "turn_id": { "type": "string" },
+    "session_id": { "type": "string" },
+    "scope": { "type": "string" },
+    "repo": { "type": "string" },
+    "branch": { "type": "string" },
+    "commit": { "type": "string" },
+    "model": { "type": "string" },
+    "decision": { "type": "string", "enum": ["allow","augment","deny","ask","patch","rate_limit"] },
+    "decision_meta": { "type": "object" },
+    "started_at": { "type": "string" },
+    "latency_ms": { "type": "integer", "minimum": 0 },
+    "idempotency_key": { "type": "string" },
+    "tool_calls": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "required": ["name","kind","call_id","latency_ms","success","retries"],
+        "properties": {
+          "name": { "type": "string" },
+          "kind": { "type": "string" },
+          "call_id": { "type": "string" },
+          "latency_ms": { "type": "integer" },
+          "success": { "type": "boolean" },
+          "retries": { "type": "integer" },
+          "error_code": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
+

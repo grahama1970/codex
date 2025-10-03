@@ -16,7 +16,7 @@ use codex_core::config::persist_model_selection;
 use codex_core::model_family::find_family_for_model;
 use codex_core::protocol::TokenUsage;
 use codex_core::protocol_config_types::ReasoningEffort as ReasoningEffortConfig;
-use codex_protocol::mcp_protocol::ConversationId;
+use codex_protocol::ConversationId;
 use color_eyre::eyre::Result;
 use color_eyre::eyre::WrapErr;
 use crossterm::event::KeyCode;
@@ -306,6 +306,24 @@ impl App {
             AppEvent::FileSearchResult { query, matches } => {
                 self.chat_widget.apply_file_search_result(query, matches);
             }
+            AppEvent::OpenResumePicker(filter) => {
+                let selection = crate::resume_picker::run_resume_picker_with_filter(
+                    tui,
+                    &self.config.codex_home,
+                    filter.as_deref(),
+                )
+                .await?;
+                if let crate::resume_picker::ResumeSelection::Resume(path) = selection {
+                    let msg = format!(
+                        "Selected resume file: {} (use 'codex resume --last' or ID to continue)",
+                        path.display()
+                    );
+                    let cell = crate::history_cell::new_info_event(msg, None);
+                    self.app_event_tx
+                        .send(AppEvent::InsertHistoryCell(Box::new(cell)));
+                }
+                tui.frame_requester().schedule_frame();
+            }
             AppEvent::UpdateReasoningEffort(effort) => {
                 self.on_update_reasoning_effort(effort);
             }
@@ -451,7 +469,7 @@ mod tests {
     use codex_core::CodexAuth;
     use codex_core::ConversationManager;
     use codex_core::protocol::SessionConfiguredEvent;
-    use codex_protocol::mcp_protocol::ConversationId;
+    use codex_protocol::ConversationId;
     use ratatui::prelude::Line;
     use std::path::PathBuf;
     use std::sync::Arc;
