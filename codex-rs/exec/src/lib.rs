@@ -39,6 +39,7 @@ use crate::event_processor::EventProcessor;
 use codex_core::default_client::set_default_originator;
 use codex_core::find_conversation_path_by_id_str;
 use codex_prehook as prehook;
+use std::fs;
 
 // Prehook exit codes (non-zero for blocking outcomes)
 const EXIT_DENY: i32 = 10;
@@ -201,6 +202,51 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     };
 
     let config = Config::load_with_cli_overrides(cli_kv_overrides, overrides)?;
+
+    // Load ~/.cx-plus/config.toml to populate posthook/prehook env knobs if present.
+    // This keeps env-based gates working while allowing a simple user config.
+    if let Some(home) = dirs::home_dir() {
+        let path = home.join(".cx-plus/config.toml");
+        if let Ok(text) = fs::read_to_string(&path) {
+            if let Ok(val) = toml::from_str::<toml::Value>(&text) {
+                // [posthook]
+                if let Some(p) = val.get("posthook").and_then(|v| v.as_table()) {
+                    if let Some(enabled) = p.get("enabled").and_then(|v| v.as_bool()) {
+                        if enabled {
+                            std::env::set_var("CODEX_POSTHOOK_ENABLED", "1");
+                        }
+                    }
+                    if let Some(srv) = p.get("mcp_server").and_then(|v| v.as_str()) {
+                        std::env::set_var("CODEX_POSTHOOK_MCP_SERVER", srv);
+                    }
+                    if let Some(tool) = p.get("mcp_tool").and_then(|v| v.as_str()) {
+                        std::env::set_var("CODEX_POSTHOOK_MCP_TOOL", tool);
+                    }
+                    if let Some(ms) = p.get("timeout_ms").and_then(|v| v.as_integer()) {
+                        std::env::set_var("CODEX_POSTHOOK_MCP_CALL_TIMEOUT_MS", ms.to_string());
+                    }
+                    if let Some(notify) = p.get("notify_slack").and_then(|v| v.as_bool()) {
+                        if notify {
+                            std::env::set_var("CODEX_POSTHOOK_NOTIFY_SLACK", "1");
+                        }
+                    }
+                }
+                // [prehook]
+                if let Some(pr) = val.get("prehook").and_then(|v| v.as_table()) {
+                    if let Some(inject) = pr.get("augment_inject").and_then(|v| v.as_bool()) {
+                        if !inject {
+                            std::env::set_var("CODEX_AUGMENT_INJECT", "0");
+                        }
+                    }
+                    if let Some(maxb) = pr.get("augment_max_tokens").and_then(|v| v.as_integer()) {
+                        // Keep bytes-based caps for now; tokens can be added later.
+                        let approx_bytes = (maxb as usize).saturating_mul(4);
+                        std::env::set_var("CODEX_AUGMENT_MAX_BYTES", approx_bytes.to_string());
+                    }
+                }
+            }
+        }
+    }
 
     // --- Prehook gate (MVP) ---
     if prehook_enabled {
