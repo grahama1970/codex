@@ -1646,7 +1646,7 @@ pub(crate) async fn run_task(
         //   conversation history on each turn. The rollout file, however, should
         //   only record the new items that originated in this turn so that it
         //   represents an append-only log without duplicates.
-        let turn_input: Vec<ResponseItem> = if is_review_mode {
+        let mut turn_input: Vec<ResponseItem> = if is_review_mode {
             if !pending_input.is_empty() {
                 review_thread_history.extend(pending_input);
             }
@@ -1655,6 +1655,23 @@ pub(crate) async fn run_task(
             sess.record_conversation_items(&pending_input).await;
             sess.turn_input_with_history(pending_input).await
         };
+
+        // Inject prehook augment (system preamble) when provided by exec/apply gates.
+        if let Ok(preamble) = std::env::var("CODEX_PREHOOK_AUGMENT") {
+            if !preamble.trim().is_empty() {
+                use codex_protocol::models::{ContentItem, ResponseItem};
+                let sys = ResponseItem::Message {
+                    id: None,
+                    role: "system".to_string(),
+                    content: vec![ContentItem::InputText { text: preamble }],
+                };
+                // Prepend system preamble
+                let mut with_sys = Vec::with_capacity(turn_input.len() + 1);
+                with_sys.push(sys);
+                with_sys.extend(turn_input.into_iter());
+                turn_input = with_sys;
+            }
+        }
 
         let turn_input_messages: Vec<String> = turn_input
             .iter()

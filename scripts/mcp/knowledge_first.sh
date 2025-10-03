@@ -12,4 +12,6 @@ if [[ ! -x "$MCP_SERVER_BIN" ]]; then
   exit 1
 fi
 
+# Dev convenience: allow default ARANGO_PASS unless explicitly disabled
+export DEV_ALLOW_DEFAULT="${DEV_ALLOW_DEFAULT:-1}"
 exec "$MCP_SERVER_BIN" --stdio "$@"

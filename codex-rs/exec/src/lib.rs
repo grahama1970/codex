@@ -265,9 +265,49 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         let duration_ms = started.elapsed().as_millis() as u64;
         match res {
             Ok(prehook::Outcome::Allow { .. }) => {}
-            Ok(prehook::Outcome::Augment { .. }) => {
-                // MVP: ignore augmentation in exec; continue
+            Ok(prehook::Outcome::Augment { context_items, .. }) => {
                 tracing::info!(backend=%backend_for_log, decision="augment", duration_ms, correlation_id=%ctx.id, tool=%tool_for_log, "prehook");
+                // Build a safe system preamble for injection. Keep short, sanitized, and deterministic.
+                fn sanitize(s: &str) -> String {
+                    let mut t = s.replace("\r", " ");
+                    // Strip likely steering and control headers
+                    for pat in ["System:", "You are ", "You are:", "Assistant:"] {
+                        t = t.replace(pat, "");
+                    }
+                    t
+                }
+                // Allow disabling injection via env
+                if std::env::var("CODEX_AUGMENT_INJECT").map(|v| v == "0" || v.eq_ignore_ascii_case("false")).unwrap_or(false) {
+                    return;
+                }
+                let mut lines: Vec<String> = Vec::new();
+                lines.push("Memory context (top items):".to_string());
+                let mut idx = 1usize;
+                for item in context_items.iter().take(5) {
+                    let title = item.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                    let why = item.get("why").and_then(|v| v.as_str()).unwrap_or("");
+                    let content = item.get("content").and_then(|v| v.as_str()).unwrap_or("");
+                    let head = format!("{}") ;
+                    let header = if !why.is_empty() {
+                        format!("{}) [{}] — {}", idx, sanitize(title), sanitize(why))
+                    } else {
+                        format!("{}) [{}]", idx, sanitize(title))
+                    };
+                    lines.push(header);
+                    if !content.is_empty() {
+                        // Keep each content block short (~1KB char cap)
+                        let mut c = sanitize(content);
+                        let per_item_cap: usize = std::env::var("CODEX_AUGMENT_ITEM_MAX_BYTES").ok().and_then(|v| v.parse().ok()).unwrap_or(1024);
+                        if c.len() > per_item_cap { c.truncate(per_item_cap.saturating_sub(1)); c.push('…'); }
+                        lines.push(c);
+                    }
+                    idx += 1;
+                }
+                let mut preamble = lines.join("\n");
+                // Overall cap (~4KB)
+                let total_cap: usize = std::env::var("CODEX_AUGMENT_MAX_BYTES").ok().and_then(|v| v.parse().ok()).unwrap_or(4096);
+                if preamble.len() > total_cap { preamble.truncate(total_cap.saturating_sub(1)); preamble.push('…'); }
+                std::env::set_var("CODEX_PREHOOK_AUGMENT", preamble);
             }
             Ok(prehook::Outcome::Defer { .. }) => {
                 tracing::info!(backend=%backend_for_log, decision="defer", duration_ms, correlation_id=%ctx.id, tool=%tool_for_log, "prehook");

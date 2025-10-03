@@ -9,10 +9,13 @@ CLIENT="${MCP_CLIENT_BIN:-codex-mcp-client}"
 CONNECT_MS="${PREHOOK_CONNECT_TIMEOUT_MS:-650}"
 CALL_MS="${PREHOOK_CALL_TIMEOUT_MS:-700}"
 
+# Compose stdio server spec for client
+SERVER_SPEC="stdio:$MCP_SERVER_BIN"
+
 payload='{"tool":"codex.prehook.review","args":{"arg":"how to build","scope":"project","k":3}}'
 
 ts=$(date +%s%3N)
-out=$("$CLIENT" --server "$MCP_SERVER_BIN" --connect-timeout-ms "$CONNECT_MS" --call-timeout-ms "$CALL_MS" --params "$payload" 2>/dev/null || true)
+DEV_ALLOW_DEFAULT=1 out=$("$CLIENT" --server "$SERVER_SPEC" --connect-timeout-ms "$CONNECT_MS" --call-timeout-ms "$CALL_MS" --params "$payload" 2>/dev/null || true)
 te=$(date +%s%3N)
 dt=$((te - ts))
 echo "latency_ms=$dt"
@@ -22,4 +25,3 @@ if [[ $dt -gt 800 ]]; then
   echo "WARNING: prehook MCP call exceeded 800 ms" >&2
   exit 1
 fi
-
