@@ -11,6 +11,8 @@ pub struct ToolCallEntry {
     pub latency_ms: i64,
     pub success: bool,
     pub retries: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
 }
 
 lazy_static! {
@@ -34,6 +36,7 @@ pub(crate) fn record_mcp_end(
             latency_ms,
             success,
             retries: 0,
+            error_code: None,
         });
     }
 }
@@ -46,7 +49,7 @@ pub(crate) fn record_exec_end(
     latency_ms: i64,
     success: bool,
     retries: i32,
-    _error_code: Option<&str>,
+    error_code: Option<&str>,
 ) {
     let mut map = JOURNEY.lock().expect("tool journey lock");
     let v = map.entry(sub_id.to_string()).or_default();
@@ -58,6 +61,7 @@ pub(crate) fn record_exec_end(
             latency_ms,
             success,
             retries,
+            error_code: error_code.map(|s| s.to_string()),
         });
     }
 }

@@ -22,6 +22,7 @@ IDEMP_HEADER = "X-Idempotency-Key"
 
 from scripts.connectors.github_conn import pr_status, pr_comment, rerun_placeholder
 from scripts.connectors.http_conn import http_post
+from scripts.connectors.mcp_conn import call_tool_stdio
 
 def _is_slack_base(url: str | None) -> bool:
     if not isinstance(url, str):
@@ -122,8 +123,40 @@ def handle_command(cfg, command: str):
         elif command == '/rerun':
             rerun_placeholder(repo, pr, gh_token)
         touch_lock()
-    elif command in ('/handoff', '/notify', '/research_plan', '/notify_slack'):
+    elif command in ('/handoff', '/notify', '/research_plan', '/notify_slack', '/moderate'):
         http = cfg.get('agents', {}).get('http_ops') or {}
+        if command == '/moderate':
+            # Call scillm.moderate via MCP if configured, then post a short status as a PR comment
+            sc = cfg.get('agents', {}).get('mcp_scillm') or {}
+            cmd = sc.get('command')
+            if not cmd:
+                print("[agent-bus] mcp_scillm.command not configured; skipping moderation")
+                return
+            args = sc.get('args') or []
+            server = {"transport": sc.get('transport', 'stdio'), "command": cmd, "args": args}
+            try:
+                payload = os.environ.get('AGENT_BUS_PAYLOAD')
+                text = ''
+                threshold = 0.5
+                if payload:
+                    try:
+                        data = json.loads(payload)
+                        text = data.get('text') or ''
+                        threshold = float(data.get('threshold') or threshold)
+                    except Exception:
+                        text = payload
+                if not text:
+                    print('[agent-bus] /moderate requires text in payload')
+                    return
+                args_obj = {"text": text, "threshold": threshold}
+                res = call_tool_stdio(server, tool_name='scillm.moderate', arguments=args_obj, timeout_ms=1200)
+                outcome = res.get('content') or res.get('structured_content') or []
+                summ = str(outcome)[:500]
+                body = f"[agent-bus] moderation result (threshold={threshold}):\n```\n{summ}\n```"
+                pr_comment(repo, pr, body, gh_token)
+            except Exception as e:
+                print(f"[agent-bus] moderation error: {e}")
+            return
         if command == '/notify_slack':
             # Slack: enforce base_url and provide a minimal default payload
             if not _is_slack_base(http.get('base_url')):

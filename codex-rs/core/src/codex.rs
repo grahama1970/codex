@@ -914,6 +914,11 @@ impl Session {
         let latency_ms = output.duration.as_millis() as i64;
         let success = *exit_code == 0;
         let kind = if is_apply_patch { "apply" } else { "shell" };
+        let error_code = if success {
+            None
+        } else {
+            Some(format!("exit:{}", exit_code))
+        };
         crate::tool_journey::record_exec_end(
             sub_id,
             kind,
@@ -926,7 +931,7 @@ impl Session {
             latency_ms,
             success,
             0,
-            None,
+            error_code.as_deref(),
         );
 
         // If this is an apply_patch, after we emit the end patch, emit a second event
@@ -1676,21 +1681,21 @@ pub(crate) async fn run_task(
         };
 
         // Inject prehook augment (system preamble) when provided by exec/apply gates.
-        if let Ok(preamble) = std::env::var("CODEX_PREHOOK_AUGMENT") {
-            if !preamble.trim().is_empty() {
-                use codex_protocol::models::ContentItem;
-                use codex_protocol::models::ResponseItem;
-                let sys = ResponseItem::Message {
-                    id: None,
-                    role: "system".to_string(),
-                    content: vec![ContentItem::InputText { text: preamble }],
-                };
-                // Prepend system preamble
-                let mut with_sys = Vec::with_capacity(turn_input.len() + 1);
-                with_sys.push(sys);
-                with_sys.extend(turn_input.into_iter());
-                turn_input = with_sys;
-            }
+        if let Ok(preamble) = std::env::var("CODEX_PREHOOK_AUGMENT")
+            && !preamble.trim().is_empty()
+        {
+            use codex_protocol::models::ContentItem;
+            use codex_protocol::models::ResponseItem;
+            let sys = ResponseItem::Message {
+                id: None,
+                role: "system".to_string(),
+                content: vec![ContentItem::InputText { text: preamble }],
+            };
+            // Prepend system preamble
+            let mut with_sys = Vec::with_capacity(turn_input.len() + 1);
+            with_sys.push(sys);
+            with_sys.extend(turn_input.into_iter());
+            turn_input = with_sys;
         }
 
         let turn_input_messages: Vec<String> = turn_input
@@ -1747,9 +1752,9 @@ pub(crate) async fn run_task(
                         let decision = std::env::var("CODEX_PREHOOK_DECISION")
                             .unwrap_or_else(|_| "allow".to_string());
                         let idempotency_key = if commit.is_empty() {
-                            format!("{}:{}", session_id, turn_id)
+                            format!("{session_id}:{turn_id}")
                         } else {
-                            format!("{}:{}:{}", session_id, turn_id, commit)
+                            format!("{session_id}:{turn_id}:{commit}")
                         };
                         // Drain any recorded tool calls for this sub_id (bounded to 16 entries)
                         let tool_calls = crate::tool_journey::drain_for_sub_id(&sub_id);
@@ -1772,20 +1777,7 @@ pub(crate) async fn run_task(
                         });
                         let params =
                             serde_json::json!({ "tool": tool, "args": args_obj }).to_string();
-                        let _ = tokio::spawn(async move {
-                            use tokio::process::Command;
-                            let mut cmd = Command::new("codex-mcp-client");
-                            cmd.arg("--server")
-                                .arg(server)
-                                .arg("--connect-timeout-ms")
-                                .arg("650")
-                                .arg("--call-timeout-ms")
-                                .arg("700")
-                                .arg("--params")
-                                .arg(params)
-                                .kill_on_drop(true);
-                            let _ = cmd.spawn();
-                        });
+                        let _ = crate::posthook_client::spawn_posthook_client(server, params);
                         if std::env::var("CODEX_POSTHOOK_NOTIFY_SLACK")
                             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                             .unwrap_or(false)

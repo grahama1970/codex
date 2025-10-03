@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/research_plan.schema.json",
+  "title": "Research Plan Payload",
+  "type": "object",
+  "required": ["plan", "scope"],
+  "properties": {
+    "plan": { "type": "string", "minLength": 1 },
+    "scope": { "type": "string", "minLength": 1 },
+    "session_id": { "type": "string" },
+    "turn_id": { "type": "string" },
+    "idempotency_key": { "type": "string" },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": true
+}
+

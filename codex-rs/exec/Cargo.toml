@@ -48,6 +48,8 @@ ts-rs = { workspace = true, features = [
     "no-serde-warnings",
 ] }
 codex-prehook = { path = "../prehook" }
+dirs = { workspace = true }
+toml = { workspace = true }
 
 
 [dev-dependencies]

@@ -39,6 +39,7 @@ use crate::event_processor::EventProcessor;
 use codex_core::default_client::set_default_originator;
 use codex_core::find_conversation_path_by_id_str;
 use codex_prehook as prehook;
+mod augment;
 use std::fs;
 
 // Prehook exit codes (non-zero for blocking outcomes)
@@ -207,40 +208,57 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     // This keeps env-based gates working while allowing a simple user config.
     if let Some(home) = dirs::home_dir() {
         let path = home.join(".cx-plus/config.toml");
-        if let Ok(text) = fs::read_to_string(&path) {
-            if let Ok(val) = toml::from_str::<toml::Value>(&text) {
-                // [posthook]
-                if let Some(p) = val.get("posthook").and_then(|v| v.as_table()) {
-                    if let Some(enabled) = p.get("enabled").and_then(|v| v.as_bool()) {
-                        if enabled {
-                            std::env::set_var("CODEX_POSTHOOK_ENABLED", "1");
-                        }
-                    }
-                    if let Some(srv) = p.get("mcp_server").and_then(|v| v.as_str()) {
-                        std::env::set_var("CODEX_POSTHOOK_MCP_SERVER", srv);
-                    }
-                    if let Some(tool) = p.get("mcp_tool").and_then(|v| v.as_str()) {
-                        std::env::set_var("CODEX_POSTHOOK_MCP_TOOL", tool);
-                    }
-                    if let Some(ms) = p.get("timeout_ms").and_then(|v| v.as_integer()) {
-                        std::env::set_var("CODEX_POSTHOOK_MCP_CALL_TIMEOUT_MS", ms.to_string());
-                    }
-                    if let Some(notify) = p.get("notify_slack").and_then(|v| v.as_bool()) {
-                        if notify {
-                            std::env::set_var("CODEX_POSTHOOK_NOTIFY_SLACK", "1");
-                        }
+        if let Ok(text) = fs::read_to_string(&path)
+            && let Ok(val) = toml::from_str::<toml::Value>(&text)
+        {
+            // [posthook]
+            if let Some(p) = val.get("posthook").and_then(|v| v.as_table()) {
+                if let Some(enabled) = p.get("enabled").and_then(toml::Value::as_bool)
+                    && enabled
+                {
+                    unsafe {
+                        std::env::set_var("CODEX_POSTHOOK_ENABLED", "1");
                     }
                 }
-                // [prehook]
-                if let Some(pr) = val.get("prehook").and_then(|v| v.as_table()) {
-                    if let Some(inject) = pr.get("augment_inject").and_then(|v| v.as_bool()) {
-                        if !inject {
-                            std::env::set_var("CODEX_AUGMENT_INJECT", "0");
-                        }
+                if let Some(srv) = p.get("mcp_server").and_then(|v| v.as_str()) {
+                    unsafe {
+                        std::env::set_var("CODEX_POSTHOOK_MCP_SERVER", srv);
                     }
-                    if let Some(maxb) = pr.get("augment_max_tokens").and_then(|v| v.as_integer()) {
-                        // Keep bytes-based caps for now; tokens can be added later.
-                        let approx_bytes = (maxb as usize).saturating_mul(4);
+                }
+                if let Some(tool) = p.get("mcp_tool").and_then(|v| v.as_str()) {
+                    unsafe {
+                        std::env::set_var("CODEX_POSTHOOK_MCP_TOOL", tool);
+                    }
+                }
+                if let Some(ms) = p.get("timeout_ms").and_then(toml::Value::as_integer) {
+                    unsafe {
+                        std::env::set_var("CODEX_POSTHOOK_MCP_CALL_TIMEOUT_MS", ms.to_string());
+                    }
+                }
+                if let Some(notify) = p.get("notify_slack").and_then(toml::Value::as_bool)
+                    && notify
+                {
+                    unsafe {
+                        std::env::set_var("CODEX_POSTHOOK_NOTIFY_SLACK", "1");
+                    }
+                }
+            }
+            // [prehook]
+            if let Some(pr) = val.get("prehook").and_then(|v| v.as_table()) {
+                if let Some(inject) = pr.get("augment_inject").and_then(toml::Value::as_bool)
+                    && !inject
+                {
+                    unsafe {
+                        std::env::set_var("CODEX_AUGMENT_INJECT", "0");
+                    }
+                }
+                if let Some(maxb) = pr
+                    .get("augment_max_tokens")
+                    .and_then(toml::Value::as_integer)
+                {
+                    // Keep bytes-based caps for now; tokens can be added later.
+                    let approx_bytes = (maxb as usize).saturating_mul(4);
+                    unsafe {
                         std::env::set_var("CODEX_AUGMENT_MAX_BYTES", approx_bytes.to_string());
                     }
                 }
@@ -329,44 +347,7 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                 if disable {
                     // Do not set injection env var
                 } else {
-                    let mut lines: Vec<String> = Vec::new();
-                    lines.push("Memory context (top items):".to_string());
-                    let mut idx = 1usize;
-                    for item in context_items.iter().take(5) {
-                        let title = item.get("title").and_then(|v| v.as_str()).unwrap_or("");
-                        let why = item.get("why").and_then(|v| v.as_str()).unwrap_or("");
-                        let content = item.get("content").and_then(|v| v.as_str()).unwrap_or("");
-                        let header = if !why.is_empty() {
-                            format!("{}) [{}] — {}", idx, sanitize(title), sanitize(why))
-                        } else {
-                            format!("{}) [{}]", idx, sanitize(title))
-                        };
-                        lines.push(header);
-                        if !content.is_empty() {
-                            // Keep each content block short (~1KB char cap)
-                            let mut c = sanitize(content);
-                            let per_item_cap: usize = std::env::var("CODEX_AUGMENT_ITEM_MAX_BYTES")
-                                .ok()
-                                .and_then(|v| v.parse().ok())
-                                .unwrap_or(1024);
-                            if c.len() > per_item_cap {
-                                c.truncate(per_item_cap.saturating_sub(1));
-                                c.push('…');
-                            }
-                            lines.push(c);
-                        }
-                        idx += 1;
-                    }
-                    let mut preamble = lines.join("\n");
-                    // Overall cap (~4KB)
-                    let total_cap: usize = std::env::var("CODEX_AUGMENT_MAX_BYTES")
-                        .ok()
-                        .and_then(|v| v.parse().ok())
-                        .unwrap_or(4096);
-                    if preamble.len() > total_cap {
-                        preamble.truncate(total_cap.saturating_sub(1));
-                        preamble.push('…');
-                    }
+                    let preamble = augment::build_preamble(&context_items);
                     // NOTE: Using env to shuttle a small string within the same process lifetime.
                     // Wrap in unsafe per lint policy.
                     unsafe {
