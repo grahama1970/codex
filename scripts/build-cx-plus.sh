@@ -18,25 +18,14 @@ BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 SHA=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-cat > "$BIN_DIR/cx-plus" << EOF
-#!/usr/bin/env bash
-set -euo pipefail
-DIR=
-DIR=
-DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-FORK_INFO="branch:$BRANCH sha:$SHA built:$DATE"
-if [[ \
-  "${1-}" == "--fork-version" \
- ]]; then
-  echo "cx-plus (codex fork) -> $FORK_INFO"
-  exit 0
-fi
-exec "$DIR/codex-fork" "$@"
-EOF
 
 chmod +x "$BIN_DIR/cx-plus"
 
+printf '%s\n' "#!/usr/bin/env bash" > "$BIN_DIR/cx-plus"
+printf '%s\n' "set -euo pipefail" >> "$BIN_DIR/cx-plus"
+printf '%s\n' 'DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"' >> "$BIN_DIR/cx-plus"
+printf '%s\n' "if [[ \"\${1:-}\" == \"--fork-version\" ]]; then echo 'cx-plus (codex fork) -> branch:$BRANCH sha:$SHA built:$DATE'; exit 0; fi" >> "$BIN_DIR/cx-plus"
+printf '%s\n' 'exec "$DIR/codex-fork" "$@"' >> "$BIN_DIR/cx-plus"
 echo "[cx-plus] installed: $BIN_DIR/cx-plus"
 echo "[cx-plus] fork binary: $BIN_DIR/codex-fork"
 echo "[cx-plus] tip: add to PATH with: export PATH=\"$BIN_DIR:\$PATH\""
-

@@ -94,10 +94,13 @@ pub async fn run_resume_picker_with_filter(
                 let use_color = !no_color && !dumb;
                 for (i, r) in rows.iter().enumerate() {
                     let mark = if i == 0 { "> " } else { "  " };
-                    let ts =
-                        r.ts.as_ref()
-                            .map(|dt| human_time_ago(dt.clone()))
-                            .unwrap_or_else(|| "-".to_string());
+                    // Prefer updated_at, else created_at, else "-"
+                    let ts = r
+                        .updated_at
+                        .as_ref()
+                        .or(r.created_at.as_ref())
+                        .map(|dt| human_time_ago(dt.clone()))
+                        .unwrap_or_else(|| "-".to_string());
                     let tag = r.project.as_deref().unwrap_or("<cwd>");
                     // Sanitize preview to a single line, limited length similar to TUI
                     let mut pv = r.preview.replace('\n', " ");
@@ -643,16 +646,15 @@ fn rows_from_items(items: Vec<ConversationItem>) -> Vec<Row> {
 }
 
 fn head_to_row(item: &ConversationItem) -> Row {
-    let created_at = item
-        .created_at
-        .as_deref()
-        .and_then(parse_timestamp_str)
-        .or_else(|| item.head.first().and_then(extract_timestamp));
-    let updated_at = item
-        .updated_at
-        .as_deref()
-        .and_then(parse_timestamp_str)
-        .or(created_at);
+    // Derive timestamps from head/tail JSON
+    let created_at = item.head.first().and_then(extract_timestamp);
+    let mut last_ts = created_at;
+    for v in item.head.iter().chain(item.tail.iter()) {
+        if let Some(ts) = extract_timestamp(v) {
+            last_ts = Some(ts);
+        }
+    }
+    let updated_at = last_ts;
     let mut project: Option<String> = None;
 
     // Attempt to derive the project tag from the SessionMeta line (cwd basename).
@@ -673,7 +675,13 @@ fn head_to_row(item: &ConversationItem) -> Row {
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| String::from("(no message yet)"));
 
-    Row { path: item.path.clone(), preview, created_at, updated_at, project }
+    Row {
+        path: item.path.clone(),
+        preview,
+        created_at,
+        updated_at,
+        project,
+    }
 }
 
 fn parse_timestamp_str(ts: &str) -> Option<DateTime<Utc>> {

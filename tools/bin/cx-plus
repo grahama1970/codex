@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${1:-}" == "--fork-version" ]]; then echo 'cx-plus (codex fork) -> branch:feat/integration-prehook-agent-bus sha:0f31e4f6 built:2025-10-03T13:31:23Z'; exit 0; fi
+exec "$DIR/codex-fork" "$@"

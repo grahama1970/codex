@@ -1659,7 +1659,8 @@ pub(crate) async fn run_task(
         // Inject prehook augment (system preamble) when provided by exec/apply gates.
         if let Ok(preamble) = std::env::var("CODEX_PREHOOK_AUGMENT") {
             if !preamble.trim().is_empty() {
-                use codex_protocol::models::{ContentItem, ResponseItem};
+                use codex_protocol::models::ContentItem;
+                use codex_protocol::models::ResponseItem;
                 let sys = ResponseItem::Message {
                     id: None,
                     role: "system".to_string(),
@@ -1700,6 +1701,73 @@ pub(crate) async fn run_task(
                     processed_items,
                     total_token_usage,
                 } = turn_output;
+                // Fire-and-forget posthook (optional; non-blocking)
+                if std::env::var("CODEX_POSTHOOK_ENABLED")
+                    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                    .unwrap_or(false)
+                {
+                    let server = std::env::var("CODEX_POSTHOOK_MCP_SERVER").unwrap_or_default();
+                    let tool = std::env::var("CODEX_POSTHOOK_MCP_TOOL")
+                        .unwrap_or_else(|_| "codex.posthook.record".to_string());
+                    if !server.is_empty() {
+                        // Minimal posthook payload (bounded, privacy-safe). We intentionally avoid heavy collection
+                        // here; Memory Agent performs async aggregation later. If richer tool_calls become available,
+                        // they can be added to the args.tool_calls array (≤16 entries).
+                        let cwd = turn_context.cwd.display().to_string();
+                        let last_user_msg = turn_input_messages.last().cloned().unwrap_or_default();
+                        let token_usage = total_token_usage
+                            .as_ref()
+                            .map(|u| format!("in:{} out:{}", u.input_tokens, u.output_tokens))
+                            .unwrap_or_default();
+                        // For MVP, use sub_id for both turn_id and session_id (stable per turn). Upstream will
+                        // deduplicate via idempotency_key within a TTL.
+                        let turn_id = sub_id.clone();
+                        let session_id = sub_id.clone();
+                        let commit = std::env::var("GIT_COMMIT").unwrap_or_default();
+                        let scope = std::env::var("CODEX_SCOPE").unwrap_or_else(|_| cwd.clone());
+                        let decision = std::env::var("CODEX_PREHOOK_DECISION")
+                            .unwrap_or_else(|_| "allow".to_string());
+                        let idempotency_key = if commit.is_empty() {
+                            format!("{}:{}", session_id, turn_id)
+                        } else {
+                            format!("{}:{}:{}", session_id, turn_id, commit)
+                        };
+                        let args_obj = serde_json::json!({
+                            "version": "1.0.0",
+                            "trace_id": format!("{}:{}", turn_id, std::process::id()),
+                            "turn_id": turn_id,
+                            "session_id": session_id,
+                            "scope": scope,
+                            "repo": std::env::var("GITHUB_REPOSITORY").unwrap_or_default(),
+                            "branch": std::env::var("GITHUB_REF_NAME").unwrap_or_default(),
+                            "commit": commit,
+                            "model": "",
+                            "decision": decision,
+                            "decision_meta": serde_json::json!({"last_user_msg_bytes": last_user_msg.len(), "token_usage": token_usage}),
+                            "started_at": chrono::Utc::now().to_rfc3339(),
+                            "latency_ms": 0,
+                            "idempotency_key": idempotency_key,
+                            // Placeholder: populate when tool journey collection is available
+                            "tool_calls": serde_json::json!([]),
+                        });
+                        let params =
+                            serde_json::json!({ "tool": tool, "args": args_obj }).to_string();
+                        let _ = tokio::spawn(async move {
+                            use tokio::process::Command;
+                            let mut cmd = Command::new("codex-mcp-client");
+                            cmd.arg("--server")
+                                .arg(server)
+                                .arg("--connect-timeout-ms")
+                                .arg("650")
+                                .arg("--call-timeout-ms")
+                                .arg("700")
+                                .arg("--params")
+                                .arg(params)
+                                .kill_on_drop(true);
+                            let _ = cmd.spawn();
+                        });
+                    }
+                }
                 let limit = turn_context
                     .client
                     .get_auto_compact_token_limit()

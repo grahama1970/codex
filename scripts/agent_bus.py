@@ -17,6 +17,7 @@ CFG_PRIMARY = ROOT / "local/automation/agent_bus.toml"
 CFG_FALLBACK = ROOT / "docs/automation/agent_bus.example.toml"
 LOCK = ROOT / ".git/.agent_bus_last"
 HTTP_DEFAULT_PATH = "/ci/notify"
+HTTP_RESEARCH_PATH = "/agent/research-plan"
 IDEMP_HEADER = "X-Idempotency-Key"
 
 from scripts.connectors.github_conn import pr_status, pr_comment, rerun_placeholder
@@ -104,9 +105,9 @@ def handle_command(cfg, command: str):
         elif command == '/rerun':
             rerun_placeholder(repo, pr, gh_token)
         touch_lock()
-    elif command in ('/handoff', '/notify'):
+    elif command in ('/handoff', '/notify', '/research_plan'):
         http = cfg.get('agents', {}).get('http_ops') or {}
-        path = HTTP_DEFAULT_PATH
+        path = HTTP_DEFAULT_PATH if command in ('/handoff', '/notify') else HTTP_RESEARCH_PATH
         if not http_path_allowed(cfg, path):
             print(f"[agent-bus] http path not allowed by config: {path}")
             return
@@ -160,7 +161,7 @@ def main():
         except Exception:
             data = {"payload": payload}
         http = cfg.get('agents', {}).get('http_ops') or {}
-        path = HTTP_DEFAULT_PATH
+        path = HTTP_DEFAULT_PATH if command in ('/handoff', '/notify') else HTTP_RESEARCH_PATH
         if not http_path_allowed(cfg, path):
             print(f"[agent-bus] http path not allowed by config: {path}")
             return 0

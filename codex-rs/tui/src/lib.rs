@@ -83,11 +83,11 @@ use crate::onboarding::onboarding_screen::OnboardingScreenArgs;
 use crate::onboarding::onboarding_screen::run_onboarding_app;
 use crate::tui::Tui;
 pub use cli::Cli;
+use crossterm::terminal::LeaveAlternateScreen;
+use crossterm::terminal::disable_raw_mode;
 pub use markdown_render::render_markdown_text;
 pub use public_widgets::composer_input::ComposerAction;
 pub use public_widgets::composer_input::ComposerInput;
-use crossterm::terminal::disable_raw_mode;
-use crossterm::terminal::LeaveAlternateScreen;
 
 #[allow(clippy::print_stderr)]
 fn install_panic_hook_once() {
