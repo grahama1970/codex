@@ -6,20 +6,33 @@
 pub enum SlashCommand {
     Help,
     Status,
-    Model { id: String },
-    Provider { id: String },
-    Profile { name: String },
+    Model {
+        id: String,
+    },
+    Provider {
+        id: String,
+    },
+    Profile {
+        name: String,
+    },
     Discover(DiscoverArgs),
-    Grep { pattern: String, path: Option<String> },
-    Open { path: String, line: Option<usize> },
+    Grep {
+        pattern: String,
+        path: Option<String>,
+    },
+    Open {
+        path: String,
+        line: Option<usize>,
+    },
     Fmt,
     Build,
     Test,
-    Unknown { raw: String },
+    Unknown {
+        raw: String,
+    },
 }
 
-#[derive(Debug, Clone, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct DiscoverArgs {
     pub min_params: Option<i64>,
     pub max_params: Option<i64>,
@@ -28,7 +41,6 @@ pub struct DiscoverArgs {
     pub require_capabilities: Option<String>,
 }
 
-
 /// Parse a single-line slash command. Returns None if the line does not begin with '/'.
 pub fn parse(line: &str) -> Option<SlashCommand> {
     let raw = line.trim();
@@ -36,30 +48,69 @@ pub fn parse(line: &str) -> Option<SlashCommand> {
         return None;
     }
     let parts = shellish_split(&raw[1..]);
-    let Some(verb) = parts.first().cloned() else { return Some(SlashCommand::Unknown { raw: raw.to_string() }); };
+    let Some(verb) = parts.first().cloned() else {
+        return Some(SlashCommand::Unknown {
+            raw: raw.to_string(),
+        });
+    };
     match verb.as_str() {
         "help" => Some(SlashCommand::Help),
         "status" => Some(SlashCommand::Status),
-        "model" => parts.get(1).cloned().map(|id| SlashCommand::Model { id }).or_else(|| Some(SlashCommand::Unknown { raw: raw.to_string() })),
-        "provider" => parts.get(1).cloned().map(|id| SlashCommand::Provider { id }).or_else(|| Some(SlashCommand::Unknown { raw: raw.to_string() })),
-        "profile" => parts.get(1).cloned().map(|name| SlashCommand::Profile { name }).or_else(|| Some(SlashCommand::Unknown { raw: raw.to_string() })),
+        "model" => parts
+            .get(1)
+            .cloned()
+            .map(|id| SlashCommand::Model { id })
+            .or_else(|| {
+                Some(SlashCommand::Unknown {
+                    raw: raw.to_string(),
+                })
+            }),
+        "provider" => parts
+            .get(1)
+            .cloned()
+            .map(|id| SlashCommand::Provider { id })
+            .or_else(|| {
+                Some(SlashCommand::Unknown {
+                    raw: raw.to_string(),
+                })
+            }),
+        "profile" => parts
+            .get(1)
+            .cloned()
+            .map(|name| SlashCommand::Profile { name })
+            .or_else(|| {
+                Some(SlashCommand::Unknown {
+                    raw: raw.to_string(),
+                })
+            }),
         "discover" => Some(SlashCommand::Discover(parse_discover_flags(&parts[1..]))),
         "grep" => {
             let pat = parts.get(1).cloned();
             let pth = parts.get(2).cloned();
-            pat.map(|pattern| SlashCommand::Grep { pattern, path: pth }).or_else(|| Some(SlashCommand::Unknown { raw: raw.to_string() }))
+            pat.map(|pattern| SlashCommand::Grep { pattern, path: pth })
+                .or_else(|| {
+                    Some(SlashCommand::Unknown {
+                        raw: raw.to_string(),
+                    })
+                })
         }
         "open" => {
             // /open path[:line]
             if let Some(spec) = parts.get(1) {
                 let (path, line) = parse_path_line(spec);
                 Some(SlashCommand::Open { path, line })
-            } else { Some(SlashCommand::Unknown { raw: raw.to_string() }) }
+            } else {
+                Some(SlashCommand::Unknown {
+                    raw: raw.to_string(),
+                })
+            }
         }
         "fmt" => Some(SlashCommand::Fmt),
         "build" => Some(SlashCommand::Build),
         "test" => Some(SlashCommand::Test),
-        _ => Some(SlashCommand::Unknown { raw: raw.to_string() }),
+        _ => Some(SlashCommand::Unknown {
+            raw: raw.to_string(),
+        }),
     }
 }
 
@@ -129,9 +180,10 @@ fn shellish_split(s: &str) -> Vec<String> {
 
 fn parse_path_line(spec: &str) -> (String, Option<usize>) {
     if let Some((p, l)) = spec.rsplit_once(':')
-        && let Ok(n) = l.parse::<usize>() {
-            return (p.to_string(), Some(n));
-        }
+        && let Ok(n) = l.parse::<usize>()
+    {
+        return (p.to_string(), Some(n));
+    }
     (spec.to_string(), None)
 }
 
@@ -145,9 +197,12 @@ mod tests {
     #[test]
     fn parses_discover_flags() {
         let cmd = parse("/discover --min-params 10 --require-modalities text,image").unwrap();
-        match cmd { SlashCommand::Discover(d) => {
-            assert_eq!(d.min_params, Some(10));
-            assert_eq!(d.require_modalities.as_deref(), Some("text,image"));
-        }, _ => panic!("wrong kind") }
+        match cmd {
+            SlashCommand::Discover(d) => {
+                assert_eq!(d.min_params, Some(10));
+                assert_eq!(d.require_modalities.as_deref(), Some("text,image"));
+            }
+            _ => panic!("wrong kind"),
+        }
     }
 }

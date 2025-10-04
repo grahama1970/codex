@@ -1,7 +1,7 @@
 # Slash Commands (MVP)
 
 Codex supports simple “slash commands” that you can type as a one‑line input beginning with `/`.
-They are handled locally (no model call) and are available in non‑interactive `exec` mode; TUI wiring can follow.
+They are handled locally (no model call) and are available in both non‑interactive `exec` mode and in the TUI.
 
 Example:
 
@@ -19,6 +19,7 @@ Supported verbs (MVP)
 - `/profile <name>` — print how to run with a profile via `-p <name>`
 - `/discover [flags]` — call `codex chutes recommend` under the hood and print the discovered model id
   - Flags: `--min-params N`, `--max-params N`, `--max-output-ppm X`, `--require-modalities A,B`, `--require-capabilities X,Y`
+  - TUI: `/discover` runs the same command and appends an info cell like “Discovered model: <id>” with a hint to set `-c model="…"` or switch profile.
 
 Safety & behavior
 - Slash commands print to stderr and exit immediately; the agent is not invoked.
@@ -32,4 +33,3 @@ Environment
 - `CHUTES_DISCOVERY_DEBUG=1` — prints skip reasons during discovery.
 - `CHUTES_API_BASE` / `CHUTES_FORCE_PROVIDER_BASE=1` — see `docs/chutes.md`.
 - `CHUTES_EXTRA_CAPS` — appended capability keys for exec fallback (not applied to explicit `/discover`).
-

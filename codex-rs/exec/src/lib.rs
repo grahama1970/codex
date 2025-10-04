@@ -399,9 +399,7 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
             let provider = std::env::var("CODEX_MODEL_PROVIDER").ok();
             let model = std::env::var("CODEX_MODEL").ok();
             let profile = std::env::var("CODEX_PROFILE").ok();
-            eprintln!(
-                "provider={provider:?} model={model:?} profile={profile:?}"
-            );
+            eprintln!("provider={provider:?} model={model:?} profile={profile:?}");
         }
         slash::SlashCommand::Model { id } => {
             eprintln!("Use: -c model=\"{id}\" to apply for this run, or add to your profile.");
@@ -455,16 +453,24 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
             let rg = which::which("rg").ok();
             let out = if rg.is_some() {
                 tokio::process::Command::new("rg")
-                    .arg("-n").arg("--color=never").arg(&pattern).arg(&path)
+                    .arg("-n")
+                    .arg("--color=never")
+                    .arg(&pattern)
+                    .arg(&path)
                     .stdout(std::process::Stdio::piped())
                     .stderr(std::process::Stdio::inherit())
-                    .output().await
+                    .output()
+                    .await
             } else {
                 tokio::process::Command::new("grep")
-                    .arg("-R").arg("-n").arg(&pattern).arg(&path)
+                    .arg("-R")
+                    .arg("-n")
+                    .arg(&pattern)
+                    .arg(&path)
                     .stdout(std::process::Stdio::piped())
                     .stderr(std::process::Stdio::inherit())
-                    .output().await
+                    .output()
+                    .await
             };
             match out {
                 Ok(out) => {
@@ -475,21 +481,21 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
                 Err(e) => eprintln!("/grep error: {e}"),
             }
         }
-        slash::SlashCommand::Open { path, line } => {
-            match std::fs::read_to_string(&path) {
-                Ok(content) => {
-                    let lines: Vec<&str> = content.lines().collect();
-                    let (start, end) = if let Some(l) = line { 
-                        let idx = l.saturating_sub(1);
-                        (idx.saturating_sub(3), std::cmp::min(idx + 3, lines.len()))
-                    } else { (0, std::cmp::min(lines.len(), 200)) };
-                    for (i, ln) in lines[start..end].iter().enumerate() {
-                        eprintln!("{:>6} {}", start + i + 1, ln);
-                    }
+        slash::SlashCommand::Open { path, line } => match std::fs::read_to_string(&path) {
+            Ok(content) => {
+                let lines: Vec<&str> = content.lines().collect();
+                let (start, end) = if let Some(l) = line {
+                    let idx = l.saturating_sub(1);
+                    (idx.saturating_sub(3), std::cmp::min(idx + 3, lines.len()))
+                } else {
+                    (0, std::cmp::min(lines.len(), 200))
+                };
+                for (i, ln) in lines[start..end].iter().enumerate() {
+                    eprintln!("{:>6} {}", start + i + 1, ln);
                 }
-                Err(e) => eprintln!("/open error: {e}"),
             }
-        }
+            Err(e) => eprintln!("/open error: {e}"),
+        },
         slash::SlashCommand::Fmt => {
             slash_run_or_print("fmt", vec![]).await;
         }
@@ -504,18 +510,25 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
 }
 
 async fn slash_run_or_print(target: &str, args: Vec<&str>) {
-    let allow_write = std::env::var("ENABLE_SLASH_WRITE").map(|v| v == "1").unwrap_or(false);
+    let allow_write = std::env::var("ENABLE_SLASH_WRITE")
+        .map(|v| v == "1")
+        .unwrap_or(false);
     if !allow_write {
         eprintln!("(dry-run) would run: make {target}");
         return;
     }
     let mut cmd = tokio::process::Command::new("make");
     cmd.arg(target);
-    for a in args { cmd.arg(a); }
-    cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::inherit());
+    for a in args {
+        cmd.arg(a);
+    }
+    cmd.stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::inherit());
     match cmd.output().await {
         Ok(out) => {
-            if !out.status.success() { eprintln!("make {} failed: {}", target, out.status); }
+            if !out.status.success() {
+                eprintln!("make {} failed: {}", target, out.status);
+            }
             let s = String::from_utf8_lossy(&out.stdout);
             eprintln!("{s}");
         }

@@ -1118,6 +1118,49 @@ impl ChatWidget {
             SlashCommand::Review => {
                 self.open_review_popup();
             }
+            SlashCommand::Discover => {
+                // Run `codex chutes recommend` with sane defaults and append result as an info event.
+                let exe =
+                    std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("codex"));
+                let out = std::process::Command::new(exe)
+                    .arg("chutes")
+                    .arg("recommend")
+                    .arg("--min-params")
+                    .arg("10000000000")
+                    .arg("--max-params")
+                    .arg("80000000000")
+                    .arg("--max-output-ppm")
+                    .arg("3.0")
+                    .arg("--require-modalities")
+                    .arg("text")
+                    .arg("--require-capabilities")
+                    .arg("coding,code")
+                    .output();
+                match out {
+                    Ok(res) if res.status.success() => {
+                        let id = String::from_utf8_lossy(&res.stdout).trim().to_string();
+                        let msg = if id.is_empty() {
+                            "No model discovered (empty)".to_string()
+                        } else {
+                            format!("Discovered model: {id}")
+                        };
+                        self.add_to_history(history_cell::new_info_event(
+                            msg,
+                            Some("Use -c model=\"…\" or switch profile".into()),
+                        ));
+                    }
+                    Ok(res) => {
+                        let msg = format!("/discover failed (status={})", res.status);
+                        self.add_to_history(history_cell::new_error_event(msg));
+                    }
+                    Err(e) => {
+                        self.add_to_history(history_cell::new_error_event(format!(
+                            "/discover error: {e}"
+                        )));
+                    }
+                }
+                self.request_redraw();
+            }
             SlashCommand::Model => {
                 self.open_model_popup();
             }

@@ -14,6 +14,7 @@ pub enum SlashCommand {
     // more frequently used commands should be listed first.
     Model,
     Approvals,
+    Discover,
     Review,
     New,
     Init,
@@ -33,6 +34,7 @@ impl SlashCommand {
     /// User-visible description shown in the popup.
     pub fn description(self) -> &'static str {
         match self {
+            SlashCommand::Discover => "discover a coding-capable Chutes model (non‑SOTA)",
             SlashCommand::New => "start a new chat during a conversation",
             SlashCommand::Init => "create an AGENTS.md file with instructions for Codex",
             SlashCommand::Compact => "summarize conversation to prevent hitting the context limit",
@@ -69,6 +71,7 @@ impl SlashCommand {
             | SlashCommand::Review
             | SlashCommand::Logout => false,
             SlashCommand::Diff
+            | SlashCommand::Discover
             | SlashCommand::Mention
             | SlashCommand::Status
             | SlashCommand::Mcp
