@@ -28,7 +28,7 @@ pub enum ChutesSubcommand {
     Exec(ChutesExecArgs),
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 pub struct RecommendArgs {
     /// Minimum effective parameter size (default: 70_000_000_000).
     #[arg(long, default_value_t = 70_000_000_000_i64)]
@@ -332,10 +332,14 @@ pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
         .and_then(Value::as_array)
         .ok_or_else(|| anyhow!("invalid catalog payload: missing items"))?;
 
-    let mut candidates: Vec<(f64, i64, i64, String, Value)> = Vec::new();
     let debug = std::env::var("CHUTES_DISCOVERY_DEBUG").map(|v| v == "1").unwrap_or(false);
+    // (out_ppm, in_ppm, eff, ctx, model_id, item)
+    let mut candidates: Vec<(f64, f64, i64, i64, String, Value)> = Vec::new();
+    let mut price_nan_exclusions: usize = 0;
+    let mut any_seen = false;
 
     for item in items {
+        any_seen = true;
         if !is_multimodal(item, args.require_modalities.as_deref()) {
             if debug { eprintln!("[chutes] skip: not multimodal"); }
             continue;
@@ -349,47 +353,80 @@ pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
             if debug { eprintln!("[chutes] skip: eff_params {eff} < min {}", args.min_params); }
             continue;
         }
-        if let Some(maxp) = args.max_params
-            && eff > maxp {
-                if debug { eprintln!("[chutes] skip: eff_params {eff} > max {maxp}"); }
-                continue;
-            }
+        if let Some(maxp) = args.max_params && eff > maxp {
+            if debug { eprintln!("[chutes] skip: eff_params {eff} > max {maxp}"); }
+            continue; }
         let out_ppm = output_ppm(item);
-        if let Some(max_price) = args.max_output_ppm {
+        if let Some(cap) = args.max_output_ppm {
             if !out_ppm.is_finite() {
+                price_nan_exclusions += 1;
                 if debug { eprintln!("[chutes] skip: price NaN under cap"); }
                 continue;
             }
-            if out_ppm > max_price {
-                if debug { eprintln!("[chutes] skip: price {out_ppm} > cap {max_price}"); }
+            if out_ppm > cap {
+                if debug { eprintln!("[chutes] skip: price {out_ppm} > cap {cap}"); }
                 continue;
             }
         }
+        let in_ppm = input_ppm(item);
         let ctx = context_len(item);
         let name = item
             .get("name")
             .and_then(Value::as_str)
             .ok_or_else(|| anyhow!("missing name field"))?;
         let model_id = format!("openai/{name}");
-        candidates.push((out_ppm, eff, ctx, model_id, item.clone()));
+        candidates.push((out_ppm, in_ppm, eff, ctx, model_id, item.clone()));
+    }
+
+    // If everything was filtered due to NaN price while a cap was set, retry selection inline without the cap.
+    if candidates.is_empty() && args.max_output_ppm.is_some() && price_nan_exclusions > 0 && any_seen {
+        if debug { eprintln!("[chutes] relaxing price cap (all candidates had NaN price)"); }
+        let mut relaxed_candidates: Vec<(f64, f64, i64, i64, String, Value)> = Vec::new();
+        for item in items {
+            if !is_multimodal(item, args.require_modalities.as_deref()) { continue; }
+            if !has_required_capabilities(item, args.require_capabilities.as_deref()) { continue; }
+            let eff = effective_params(item);
+            if eff < args.min_params { continue; }
+            if let Some(maxp) = args.max_params && eff > maxp { continue; }
+            let out_ppm = output_ppm(item);
+            // When relaxed, accept NaN/out-of-spec price.
+            let in_ppm = input_ppm(item);
+            let ctx = context_len(item);
+            let name = match item.get("name").and_then(Value::as_str) { Some(n) => n, None => continue };
+            let model_id = format!("openai/{name}");
+            relaxed_candidates.push((out_ppm, in_ppm, eff, ctx, model_id, item.clone()));
+        }
+        if let Some(best) = relaxed_candidates.into_iter().min_by(|a, b| {
+            a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
+                .then(b.2.cmp(&a.2))
+                .then(b.3.cmp(&a.3))
+                .then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        }) {
+            return Ok((best.4, best.5));
+        }
     }
 
     if candidates.is_empty() {
-        bail!(
-            "No suitable Chutes model found (>= {} params, multi-modal)",
-            args.min_params
-        );
+        let mut hints = Vec::new();
+        if let Some(cap) = args.max_output_ppm { hints.push(format!("max_output_ppm={cap}")); }
+        if let Some(req) = &args.require_capabilities { hints.push(format!("capabilities={req}")); }
+        if let Some(mods) = &args.require_modalities { hints.push(format!("modalities={mods}")); }
+        if let Some(mx) = args.max_params { hints.push(format!("max_params={mx}")); }
+        let hint = if hints.is_empty() { String::new() } else { format!(" (filters: {})", hints.join(", ")) };
+        bail!("No suitable Chutes model found (>= {} params, multi-modal){}", args.min_params, hint);
     }
 
-    candidates.sort_by(|a, b| {
-        a.0.partial_cmp(&b.0)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then(b.1.cmp(&a.1))
-            .then(b.2.cmp(&a.2))
-    });
-
-    let best = candidates.remove(0);
-    Ok((best.3, best.4))
+    // O(n) selection: out_ppm asc, eff desc, ctx desc, in_ppm asc
+    let best = candidates
+        .into_iter()
+        .min_by(|a, b| {
+            a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
+                .then(b.2.cmp(&a.2))
+                .then(b.3.cmp(&a.3))
+                .then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        })
+        .expect("non-empty");
+    Ok((best.4, best.5))
 }
 
 pub fn derive_base_url(item: &Value) -> Option<String> {
