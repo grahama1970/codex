@@ -955,10 +955,13 @@ dependencies = [
  "owo-colors",
  "predicates",
  "pretty_assertions",
+ "regex-lite",
+ "reqwest",
  "serde_json",
  "supports-color",
  "tempfile",
  "tokio",
+ "toml",
 ]
 
 [[package]]

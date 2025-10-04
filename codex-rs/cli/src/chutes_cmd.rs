@@ -1,0 +1,406 @@
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
+use anyhow::bail;
+use clap::Parser;
+use codex_common::CliConfigOverrides;
+use regex_lite::Regex;
+use reqwest::Url;
+use serde_json::Value;
+use std::env;
+use std::path::PathBuf;
+
+#[derive(Debug, Parser)]
+pub struct ChutesCli {
+    #[clap(flatten)]
+    pub config_overrides: CliConfigOverrides,
+
+    #[command(subcommand)]
+    pub subcommand: ChutesSubcommand,
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum ChutesSubcommand {
+    /// Print the best multi‑modal (>=2 modalities incl. text) Chutes model >= min‑params, cheapest output USD/1M.
+    Recommend(RecommendArgs),
+    /// Run `exec` using the recommended Chutes model.
+    Exec(ChutesExecArgs),
+}
+
+#[derive(Debug, Parser)]
+pub struct RecommendArgs {
+    /// Minimum effective parameter size (default: 70_000_000_000).
+    #[arg(long, default_value_t = 70_000_000_000_i64)]
+    pub min_params: i64,
+
+    /// Require listed modalities (comma separated). Default: text plus at least one more modality.
+    #[arg(long)]
+    pub require_modalities: Option<String>,
+
+    /// Require capability keys (comma separated) present in the catalog item's `capabilities` map (case‑insensitive).
+    /// Example: `--require-capabilities coding,code`.
+    #[arg(long)]
+    pub require_capabilities: Option<String>,
+
+    /// Maximum effective parameter size (optional). Use to avoid SOTA scale.
+    #[arg(long)]
+    pub max_params: Option<i64>,
+
+    /// Maximum output price (USD per 1M tokens). Filters out expensive models.
+    #[arg(long)]
+    pub max_output_ppm: Option<f64>,
+
+    /// Print full JSON for the selected catalog item instead of just the model id.
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Debug, Parser)]
+pub struct ChutesExecArgs {
+    /// Prompt to run; pass '-' to read from stdin.
+    pub prompt: Option<String>,
+
+    /// Minimum effective parameter size (default: 70_000_000_000).
+    #[arg(long, default_value_t = 70_000_000_000_i64)]
+    pub min_params: i64,
+
+    /// Require listed modalities (comma separated). Default: text plus at least one more modality.
+    #[arg(long)]
+    pub require_modalities: Option<String>,
+
+    /// Require capability keys (comma separated) present in the catalog item's `capabilities` map (case‑insensitive).
+    #[arg(long)]
+    pub require_capabilities: Option<String>,
+
+    /// Additional images (comma‑separated paths) to include (forwarded to exec).
+    #[arg(long)]
+    pub images: Option<String>,
+
+    /// Force JSON output from exec.
+    #[arg(long)]
+    pub json: bool,
+
+    /// Wire API to use with the Chutes provider (chat|responses). Default: chat.
+    #[arg(long = "wire-api", value_name = "MODE", default_value = "chat")]
+    pub wire_api: String,
+}
+
+impl ChutesCli {
+    pub async fn run(self, codex_linux_sandbox_exe: Option<PathBuf>) -> Result<()> {
+        let Self {
+            config_overrides,
+            subcommand,
+        } = self;
+
+        match subcommand {
+            ChutesSubcommand::Recommend(args) => {
+                let (_model_id, item) = select_best(&args).await?;
+                if args.json {
+                    println!("{}", serde_json::to_string_pretty(&item)?);
+                } else {
+                    let name = item
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| anyhow!("missing name"))?;
+                    println!("openai/{name}");
+                }
+            }
+            ChutesSubcommand::Exec(args) => {
+                let (model_id, item) = select_best(&RecommendArgs {
+                    min_params: args.min_params,
+                    require_modalities: args.require_modalities.clone(),
+                    require_capabilities: args.require_capabilities.clone(),
+                    max_params: None,
+                    max_output_ppm: None,
+                    json: false,
+                })
+                .await?;
+                // Build argv for ExecCli::parse_from
+                let mut argv: Vec<String> = vec![
+                    "codex-exec".to_string(),
+                    "-c".to_string(),
+                    "model_provider=\"chutes\"".to_string(),
+                    "-m".to_string(),
+                    model_id.clone(),
+                ];
+                if args.json {
+                    argv.push("--json".to_string());
+                }
+                // Wire API override (default chat)
+                let wire = if matches!(args.wire_api.as_str(), "chat" | "responses") {
+                    args.wire_api.clone()
+                } else {
+                    "chat".to_string()
+                };
+                argv.push("-c".to_string());
+                argv.push(format!("model_providers.chutes.wire_api=\"{wire}\""));
+
+                // Base URL override: env beats derived, else keep provider default
+                if let Ok(base) = std::env::var("CHUTES_API_BASE") {
+                    if !base.is_empty() {
+                        argv.push("-c".to_string());
+                        argv.push(format!("model_providers.chutes.base_url=\"{base}\""));
+                    }
+                } else if let Some(derived) = derive_base_url(&item) {
+                    argv.push("-c".to_string());
+                    argv.push(format!("model_providers.chutes.base_url=\"{derived}\""));
+                }
+                if let Some(images) = args.images.as_deref()
+                    && !images.trim().is_empty() {
+                        argv.push("-i".to_string());
+                        argv.push(images.to_string());
+                    }
+                if let Some(prompt) = args.prompt.clone() {
+                    argv.push(prompt);
+                }
+                let exec_cli = codex_exec::Cli::parse_from(argv);
+                codex_exec::run_main(exec_cli, codex_linux_sandbox_exe).await?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn auth_header() -> Result<String> {
+    let key = env::var("CHUTES_API_KEY")
+        .map_err(|_| anyhow!("CHUTES_API_KEY is required for Chutes auto-discovery"))?;
+    Ok(format!("Bearer {key}"))
+}
+
+fn catalog_url() -> Result<Url> {
+    let base = env::var("CHUTES_CATALOG_BASE")
+        .unwrap_or_else(|_| "https://api.chutes.ai/chutes/".to_string());
+    let url = Url::parse(&base).context("invalid CHUTES_CATALOG_BASE")?;
+    Ok(url)
+}
+
+async fn fetch_catalog() -> Result<Value> {
+    let url = catalog_url()?;
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(url)
+        .query(&[
+            ("include_public", "true"),
+            ("include_schemas", "false"),
+            ("limit", "10000"),
+        ])
+        .header("Authorization", auth_header()?)
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .context("request to Chutes catalog failed")?;
+    let status = resp.status();
+    if !status.is_success() {
+        bail!("Chutes catalog error: {status}");
+    }
+    let json = resp.json::<Value>().await.context("parsing Chutes JSON")?;
+    Ok(json)
+}
+
+#[derive(Clone, Debug)]
+struct ParamsBlock {
+    effective: Option<i64>,
+}
+
+fn parse_params_from_text(text: &str) -> ParamsBlock {
+    let Ok(activated_re) = Regex::new(r"(?i)(\d+(?:\.\d+)?)\s*([MBT])\s*activated") else {
+        return ParamsBlock { effective: None };
+    };
+    let Ok(total_re) = Regex::new(
+        r"(?i)(\d+(?:\.\d+)?)\s*([MBT])\s*(?:param|params|parameter|parameters)\b",
+    ) else {
+        return ParamsBlock { effective: None };
+    };
+
+    fn unit(n: &str, u: &str) -> Option<i64> {
+        let n: f64 = n.parse().ok()?;
+        let scale = match u.to_ascii_uppercase().as_str() {
+            "M" => 1_000_000.0,
+            "B" => 1_000_000_000.0,
+            "T" => 1_000_000_000_000.0,
+            _ => return None,
+        };
+        Some((n * scale) as i64)
+    }
+
+    let mut effective = None;
+    if let Some(c) = activated_re.captures(text)
+        && let (Some(n), Some(u)) = (c.get(1), c.get(2)) {
+            effective = unit(n.as_str(), u.as_str());
+        }
+    if effective.is_none()
+        && let Some(c) = total_re.captures(text)
+            && let (Some(n), Some(u)) = (c.get(1), c.get(2)) {
+                effective = unit(n.as_str(), u.as_str());
+            }
+    ParamsBlock { effective }
+}
+
+fn effective_params(item: &Value) -> i64 {
+    let tagline = item.get("tagline").and_then(Value::as_str).unwrap_or("");
+    let readme = item.get("readme").and_then(Value::as_str).unwrap_or("");
+    let p = parse_params_from_text(tagline);
+    if let Some(v) = p.effective {
+        return v;
+    }
+    let p2 = parse_params_from_text(readme);
+    p2.effective.unwrap_or(0)
+}
+
+fn output_ppm(item: &Value) -> f64 {
+    item.get("current_estimated_price")
+        .and_then(|v| v.get("per_million_tokens"))
+        .and_then(|v| v.get("output"))
+        .and_then(|v| v.get("usd"))
+        .and_then(Value::as_str)
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(f64::INFINITY)
+}
+
+fn input_ppm(item: &Value) -> f64 {
+    item.get("current_estimated_price")
+        .and_then(|v| v.get("per_million_tokens"))
+        .and_then(|v| v.get("input"))
+        .and_then(|v| v.get("usd"))
+        .and_then(Value::as_str)
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(f64::INFINITY)
+}
+
+fn context_len(item: &Value) -> i64 {
+    item.get("max_input_tokens")
+        .or_else(|| item.get("context_length"))
+        .and_then(Value::as_i64)
+        .unwrap_or_else(|| {
+            item.get("limits")
+                .and_then(|v| v.get("max_input_tokens"))
+                .and_then(Value::as_i64)
+                .unwrap_or(0)
+        })
+}
+
+fn is_multimodal(item: &Value, require: Option<&str>) -> bool {
+    let mods = item.get("modalities").and_then(Value::as_array);
+    let Some(mods) = mods else { return false };
+    let set: Vec<String> = mods
+        .iter()
+        .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
+        .collect();
+    if !set.iter().any(|m| m == "text") {
+        return false;
+    }
+    if let Some(req) = require {
+        for needed in req.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            if !set.iter().any(|m| m == needed) {
+                return false;
+            }
+        }
+    } else if set.len() < 2 {
+        return false;
+    }
+    true
+}
+
+fn has_required_capabilities(item: &Value, require: Option<&str>) -> bool {
+    let Some(req) = require else { return true };
+    let caps = item.get("capabilities").and_then(Value::as_object);
+    let Some(caps) = caps else { return false };
+    let keys_lower: std::collections::HashSet<String> = caps.keys().map(|k| k.to_lowercase()).collect();
+    for needed in req.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        if !keys_lower.contains(&needed.to_lowercase()) {
+            return false;
+        }
+    }
+    true
+}
+
+pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
+    let catalog = fetch_catalog().await?;
+    let items = catalog
+        .get("items")
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("invalid catalog payload: missing items"))?;
+
+    let mut candidates: Vec<(f64, i64, i64, String, Value)> = Vec::new();
+
+    for item in items {
+        if !is_multimodal(item, args.require_modalities.as_deref()) {
+            continue;
+        }
+        if !has_required_capabilities(item, args.require_capabilities.as_deref()) {
+            continue;
+        }
+        let eff = effective_params(item);
+        if eff < args.min_params {
+            continue;
+        }
+        if let Some(maxp) = args.max_params
+            && eff > maxp {
+                continue;
+            }
+        let out_ppm = output_ppm(item);
+        if let Some(max_price) = args.max_output_ppm
+            && out_ppm.is_finite() && out_ppm > max_price {
+                continue;
+            }
+        let ctx = context_len(item);
+        let name = item
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("missing name field"))?;
+        let model_id = format!("openai/{name}");
+        candidates.push((out_ppm, eff, ctx, model_id, item.clone()));
+    }
+
+    if candidates.is_empty() {
+        bail!(
+            "No suitable Chutes model found (>= {} params, multi-modal)",
+            args.min_params
+        );
+    }
+
+    candidates.sort_by(|a, b| {
+        a.0.partial_cmp(&b.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(b.1.cmp(&a.1))
+            .then(b.2.cmp(&a.2))
+    });
+
+    let best = candidates.remove(0);
+    Ok((best.3, best.4))
+}
+
+pub fn derive_base_url(item: &Value) -> Option<String> {
+    if let Some(dom) = item.get("domain").and_then(Value::as_str)
+        && !dom.is_empty() {
+            let dom = dom.trim_start_matches("https://");
+            return Some(format!("https://{dom}/v1"));
+        }
+    let owner = item
+        .get("owner")
+        .or_else(|| item.get("username"))
+        .or_else(|| item.get("user"))
+        .and_then(Value::as_str);
+    let slug = item
+        .get("slug")
+        .and_then(Value::as_str)
+        .map(std::string::ToString::to_string)
+        .or_else(|| item.get("name").and_then(Value::as_str).map(|s| s.split('/').next_back().unwrap_or(s).to_string()));
+    match (owner, slug) {
+        (Some(o), Some(s)) if !o.is_empty() && !s.is_empty() => {
+            Some(format!("https://{o}-{s}.chutes.ai/v1"))
+        }
+        _ => None,
+    }
+}
+
+/// Convenience wrapper used by other CLI paths to auto‑discover a model and
+/// return `(model_id, derived_base_url)` where `model_id` is
+/// `openai/<catalog_id>` and `derived_base_url` is a best‑effort per‑chute
+/// OpenAI‑compatible base URL (None if not derivable).
+pub async fn discover_model_and_base(min_params: i64, require_modalities: Option<String>) -> Result<(String, Option<String>)> {
+    let (model_id, item) = select_best(&RecommendArgs { min_params, require_modalities, require_capabilities: None, max_params: None, max_output_ppm: None, json: false }).await?;
+    let base = derive_base_url(&item);
+    Ok((model_id, base))
+}

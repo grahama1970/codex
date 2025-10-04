@@ -100,3 +100,38 @@ Codex CLI supports a rich set of configuration options, with preferences stored 
 ## License
 
 This repository is licensed under the [Apache-2.0 License](LICENSE).
+
+---
+
+## Build and Test (repo root)
+
+This fork adds a simple end‑to‑end workflow at the repo root to quickly produce binaries with a working `config.toml` and verify post‑compile behavior:
+
+- `make build` — compile the Rust CLI (`codex-rs/cli`) in release and copy the binary to `dist/bin/codex`.
+- `make config` — create a minimal `dist/config/config.toml` for local testing; tests use this via `CODEX_HOME` so your user config isn’t touched.
+- `make package` — runs both of the above.
+- `make test` — runs deterministic, offline tests in `tests/` against the compiled binary with `CODEX_HOME=dist/config`.
+- `make scenarios` — runs live, post‑compile scenarios in `scenarios/`. The included login round‑trip doesn’t require network, but additional scenarios can be added here.
+- `make verify` — runs deterministic tests, and runs live scenarios when `RUN_LIVE=1`.
+
+Environment variables used by the Makefile/tests:
+
+- `CODEX_BIN` — path to the compiled binary (defaults to `dist/bin/codex`).
+- `CODEX_HOME` — config and auth directory (tests default to `dist/config`).
+- `RUN_LIVE=1` — opt‑in to execute live scenarios via `make verify`.
+
+For Rust workspace development, continue to use `codex-rs/justfile` for formatting and clippy (`just fmt`, `just fix -p <crate>`), following the conventions in `AGENTS.md`.
+
+### Chutes integration (auto‑discovery)
+
+- Place credentials in `.env`:
+  - `CHUTES_API_KEY` (required)
+  - `CHUTES_API_BASE` (optional; defaults to `https://llm.chutes.ai/v1`)
+  - `CHUTES_CATALOG_BASE` (optional; defaults to `https://api.chutes.ai/chutes/`)
+- The build emits `dist/config/config.toml` with a `chutes` provider (wire_api defaults to `chat`).
+- CLI:
+  - `codex chutes recommend` → prints `openai/<catalog_id>` for the cheapest multi‑modal model ≥70B.
+  - `codex chutes exec --json "Say hello"` → runs exec via Chutes; supports `--wire-api chat|responses` and `--images ...`.
+- Live tests exercise the compiled CLI subcommand when `CHUTES_API_KEY` is present.
+
+Details: docs/chutes.md

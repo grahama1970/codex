@@ -70,6 +70,7 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         output_schema: output_schema_path,
         include_plan_tool,
         config_overrides,
+        ..
     } = cli;
 
     // Determine the prompt source (parent or subcommand) and read from stdin if needed.

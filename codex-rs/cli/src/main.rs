@@ -23,6 +23,7 @@ use owo_colors::OwoColorize;
 use std::path::PathBuf;
 use supports_color::Stream;
 
+mod chutes_cmd;
 mod mcp_cmd;
 
 use crate::mcp_cmd::McpCli;
@@ -92,6 +93,8 @@ enum Subcommand {
     /// [EXPERIMENTAL] Browse tasks from Codex Cloud and apply changes locally.
     #[clap(name = "cloud", alias = "cloud-tasks")]
     Cloud(CloudTasksCli),
+    /// Use Chutes: auto‑discover a model and/or run exec with it.
+    Chutes(chutes_cmd::ChutesCli),
 
     /// Internal: run the responses API proxy.
     #[clap(hide = true)]
@@ -266,6 +269,42 @@ async fn cli_main(codex_linux_sandbox_exe: Option<PathBuf>) -> anyhow::Result<()
                 &mut exec_cli.config_overrides,
                 root_config_overrides.clone(),
             );
+            // Fallback: if user asked for provider=chutes but did not specify a model,
+            // auto‑discover a suitable model (>=70B, multi‑modal) and inject it.
+            if exec_cli.model.is_none()
+                && let Ok(overrides) = exec_cli.config_overrides.parse_overrides() {
+                    let asked_chutes = overrides.iter().any(|(k, v)| {
+                        if k == "model_provider" {
+                            if let toml::Value::String(s) = v { s == "chutes" } else { false }
+                        } else { false }
+                    });
+                    if asked_chutes {
+                        // Prefer non‑SOTA, cost‑effective by lowering min params and constraining price.
+                        let rec = crate::chutes_cmd::RecommendArgs {
+                            min_params: 10_000_000_000,          // 10B minimum
+                            require_modalities: None,
+                            require_capabilities: Some("coding,code".to_string()),
+                            max_params: Some(80_000_000_000),     // avoid SOTA scale
+                            max_output_ppm: Some(3.0),            // <= $3 per 1M output tokens
+                            json: false,
+                        };
+                        match crate::chutes_cmd::select_best(&rec).await {
+                            Ok((model_id, item)) => {
+                                exec_cli.model = Some(model_id);
+                                if let Some(base) = crate::chutes_cmd::derive_base_url(&item) {
+                                    exec_cli
+                                        .config_overrides
+                                        .raw_overrides
+                                        .push(format!("model_providers.chutes.base_url=\"{base}\""));
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Error: unable to auto‑discover Chutes model: {e}");
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                }
             codex_exec::run_main(exec_cli, codex_linux_sandbox_exe).await?;
         }
         Some(Subcommand::McpServer) => {
@@ -340,6 +379,13 @@ async fn cli_main(codex_linux_sandbox_exe: Option<PathBuf>) -> anyhow::Result<()
                 root_config_overrides.clone(),
             );
             codex_cloud_tasks::run_main(cloud_cli, codex_linux_sandbox_exe).await?;
+        }
+        Some(Subcommand::Chutes(mut chutes_cli)) => {
+            prepend_config_flags(
+                &mut chutes_cli.config_overrides,
+                root_config_overrides.clone(),
+            );
+            chutes_cli.run(codex_linux_sandbox_exe).await?;
         }
         Some(Subcommand::Debug(debug_args)) => match debug_args.cmd {
             DebugCommand::Seatbelt(mut seatbelt_cli) => {
