@@ -84,6 +84,11 @@ pub struct ChutesExecArgs {
     /// Wire API to use with the Chutes provider (chat|responses). Default: chat.
     #[arg(long = "wire-api", value_name = "MODE", default_value = "chat")]
     pub wire_api: String,
+
+    /// Optional warm-up seconds: perform a tiny chat completion to warm the model before exec.
+    /// You can also set CHUTES_WARMUP=1 and CHUTES_WARMUP_SECS (default 8) via env vars.
+    #[arg(long = "warmup-secs")]
+    pub warmup_secs: Option<u64>,
 }
 
 impl ChutesCli {
@@ -146,6 +151,24 @@ impl ChutesCli {
                     argv.push("-c".to_string());
                     argv.push(format!("model_providers.chutes.base_url=\"{derived}\""));
                 }
+
+                // Optional warm-up: perform a tiny chat completion to wake the target.
+                // Gate behind flag or env CHUTES_WARMUP=1; budget defaults to 8s.
+                let do_warmup = args.warmup_secs.is_some()
+                    || std::env::var("CHUTES_WARMUP").map(|v| v == "1").unwrap_or(false);
+                if do_warmup {
+                    let base = std::env::var("CHUTES_API_BASE")
+                        .or_else(|_| std::env::var("CHUTES_BASE_URL"))
+                        .ok()
+                        .or_else(|| derive_base_url(&item));
+                    let secs = args
+                        .warmup_secs
+                        .or_else(|| std::env::var("CHUTES_WARMUP_SECS").ok().and_then(|v| v.parse::<u64>().ok()))
+                        .unwrap_or(8);
+                    if let Some(base_url) = base {
+                        let _ = warmup_chat_completion(&base_url, &model_id, secs).await;
+                    }
+                }
                 if let Some(images) = args.images.as_deref()
                     && !images.trim().is_empty()
                 {
@@ -162,6 +185,47 @@ impl ChutesCli {
 
         Ok(())
     }
+}
+
+async fn warmup_chat_completion(base_url: &str, model_id: &str, budget_secs: u64) -> anyhow::Result<()> {
+    use std::time::{Duration, Instant};
+    let key = std::env::var("CHUTES_API_KEY").map_err(|_| anyhow::anyhow!("CHUTES_API_KEY required for warm-up"))?;
+    // Normalize base_url (no trailing slash)
+    let base = base_url.trim_end_matches('/');
+    let url = format!("{}/chat/completions", base);
+    let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build()?;
+    let body = serde_json::json!({
+        "model": model_id,
+        "max_tokens": 1,
+        "temperature": 0.0,
+        "messages": [{"role":"user","content":"ping"}],
+    });
+    let deadline = Instant::now() + Duration::from_secs(budget_secs);
+    let mut backoff = 1u64;
+    while Instant::now() < deadline {
+        let resp = client
+            .post(&url)
+            .bearer_auth(&key)
+            .json(&body)
+            .send()
+            .await;
+        match resp {
+            Ok(r) if r.status().is_success() => {
+                eprintln!("[chutes] warm-up complete for {}", model_id);
+                return Ok(());
+            }
+            Ok(r) if r.status().as_u16() == 429 || r.status().is_server_error() => {
+                // Backoff and retry
+            }
+            Ok(_) | Err(_) => {
+                // Non-retryable; fall through to backoff
+            }
+        }
+        tokio::time::sleep(Duration::from_secs(backoff)).await;
+        backoff = std::cmp::min(backoff * 2, 5);
+    }
+    eprintln!("[chutes] warm-up timed out for {} ({}s)", model_id, budget_secs);
+    Ok(())
 }
 
 fn auth_header() -> Result<String> {

@@ -53,3 +53,25 @@ With `CHUTES_API_KEY` set in `.env`, the live scenarios include:
 - A robust fallback that skips if the catalog has no eligible models.
 
 Run: `make scenarios`
+
+### Troubleshooting & advanced
+
+- `CHUTES_DISCOVERY_DEBUG=1` — prints skip reasons (stderr) for each catalog item filtered out
+  during `recommend` or fallback auto‑discovery (price, capabilities, params, modalities).
+- `CHUTES_API_BASE` — when set, overrides any derived per‑chute base URL.
+- `CHUTES_FORCE_PROVIDER_BASE=1` — always prefer the provider base URL even if a sanitized
+  per‑chute domain can be derived. Useful when routing via a centralized gateway/LB.
+- `CHUTES_EXTRA_CAPS="programming,tools"` — appends additional capability keys to the fallback
+  auto‑discovery (exec without explicit model) in addition to the default `coding,code`.
+
+#### Warm‑up behavior
+
+New or cold Chutes models may require a short “warm‑up” period before the first token is
+returned. You can ask Codex to pre‑warm the model before launching exec:
+
+- CLI flag: `codex chutes exec --warmup-secs 8 "…"`
+- Env: set `CHUTES_WARMUP=1` and optionally `CHUTES_WARMUP_SECS=8`.
+
+This sends a tiny chat completions request (`max_tokens=1`, `temperature=0`) to the selected
+model on your Chutes base URL (provider defaults or derived per‑chute). Non‑2xx responses
+are retried briefly with exponential backoff (up to the provided budget).
