@@ -450,8 +450,77 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
         slash::SlashCommand::Unknown { raw } => {
             eprintln!("Unknown slash command: {raw}. Try /help");
         }
+        slash::SlashCommand::Grep { pattern, path } => {
+            let path = path.unwrap_or_else(|| ".".to_string());
+            let rg = which::which("rg").ok();
+            let out = if rg.is_some() {
+                tokio::process::Command::new("rg")
+                    .arg("-n").arg("--color=never").arg(&pattern).arg(&path)
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::inherit())
+                    .output().await
+            } else {
+                tokio::process::Command::new("grep")
+                    .arg("-R").arg("-n").arg(&pattern).arg(&path)
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::inherit())
+                    .output().await
+            };
+            match out {
+                Ok(out) => {
+                    let s = String::from_utf8_lossy(&out.stdout);
+                    let lines: Vec<&str> = s.lines().take(200).collect();
+                    eprintln!("{}", lines.join("\n"));
+                }
+                Err(e) => eprintln!("/grep error: {e}"),
+            }
+        }
+        slash::SlashCommand::Open { path, line } => {
+            match std::fs::read_to_string(&path) {
+                Ok(content) => {
+                    let lines: Vec<&str> = content.lines().collect();
+                    let (start, end) = if let Some(l) = line { 
+                        let idx = l.saturating_sub(1);
+                        (idx.saturating_sub(3), std::cmp::min(idx + 3, lines.len()))
+                    } else { (0, std::cmp::min(lines.len(), 200)) };
+                    for (i, ln) in lines[start..end].iter().enumerate() {
+                        eprintln!("{:>6} {}", start + i + 1, ln);
+                    }
+                }
+                Err(e) => eprintln!("/open error: {e}"),
+            }
+        }
+        slash::SlashCommand::Fmt => {
+            slash_run_or_print("fmt", vec![]).await;
+        }
+        slash::SlashCommand::Build => {
+            slash_run_or_print("build", vec![]).await;
+        }
+        slash::SlashCommand::Test => {
+            slash_run_or_print("test", vec![]).await;
+        }
     }
     Ok(())
+}
+
+async fn slash_run_or_print(target: &str, args: Vec<&str>) {
+    let allow_write = std::env::var("ENABLE_SLASH_WRITE").map(|v| v == "1").unwrap_or(false);
+    if !allow_write {
+        eprintln!("(dry-run) would run: make {target}");
+        return;
+    }
+    let mut cmd = tokio::process::Command::new("make");
+    cmd.arg(target);
+    for a in args { cmd.arg(a); }
+    cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::inherit());
+    match cmd.output().await {
+        Ok(out) => {
+            if !out.status.success() { eprintln!("make {} failed: {}", target, out.status); }
+            let s = String::from_utf8_lossy(&out.stdout);
+            eprintln!("{s}");
+        }
+        Err(e) => eprintln!("make {target} error: {e}"),
+    }
 }
 
 async fn resolve_resume_path(

@@ -10,6 +10,11 @@ pub enum SlashCommand {
     Provider { id: String },
     Profile { name: String },
     Discover(DiscoverArgs),
+    Grep { pattern: String, path: Option<String> },
+    Open { path: String, line: Option<usize> },
+    Fmt,
+    Build,
+    Test,
     Unknown { raw: String },
 }
 
@@ -39,6 +44,21 @@ pub fn parse(line: &str) -> Option<SlashCommand> {
         "provider" => parts.get(1).cloned().map(|id| SlashCommand::Provider { id }).or_else(|| Some(SlashCommand::Unknown { raw: raw.to_string() })),
         "profile" => parts.get(1).cloned().map(|name| SlashCommand::Profile { name }).or_else(|| Some(SlashCommand::Unknown { raw: raw.to_string() })),
         "discover" => Some(SlashCommand::Discover(parse_discover_flags(&parts[1..]))),
+        "grep" => {
+            let pat = parts.get(1).cloned();
+            let pth = parts.get(2).cloned();
+            pat.map(|pattern| SlashCommand::Grep { pattern, path: pth }).or_else(|| Some(SlashCommand::Unknown { raw: raw.to_string() }))
+        }
+        "open" => {
+            // /open path[:line]
+            if let Some(spec) = parts.get(1) {
+                let (path, line) = parse_path_line(spec);
+                Some(SlashCommand::Open { path, line })
+            } else { Some(SlashCommand::Unknown { raw: raw.to_string() }) }
+        }
+        "fmt" => Some(SlashCommand::Fmt),
+        "build" => Some(SlashCommand::Build),
+        "test" => Some(SlashCommand::Test),
         _ => Some(SlashCommand::Unknown { raw: raw.to_string() }),
     }
 }
@@ -105,6 +125,14 @@ fn shellish_split(s: &str) -> Vec<String> {
         out.push(cur);
     }
     out
+}
+
+fn parse_path_line(spec: &str) -> (String, Option<usize>) {
+    if let Some((p, l)) = spec.rsplit_once(':')
+        && let Ok(n) = l.parse::<usize>() {
+            return (p.to_string(), Some(n));
+        }
+    (spec.to_string(), None)
 }
 
 #[cfg(test)]
