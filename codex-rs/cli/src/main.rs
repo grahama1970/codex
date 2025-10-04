@@ -272,41 +272,48 @@ async fn cli_main(codex_linux_sandbox_exe: Option<PathBuf>) -> anyhow::Result<()
             // Fallback: if user asked for provider=chutes but did not specify a model,
             // auto‑discover a suitable model (>=70B, multi‑modal) and inject it.
             if exec_cli.model.is_none()
-                && let Ok(overrides) = exec_cli.config_overrides.parse_overrides() {
-                    let asked_chutes = overrides.iter().any(|(k, v)| {
-                        if k == "model_provider" {
-                            if let toml::Value::String(s) = v { s == "chutes" } else { false }
-                        } else { false }
-                    });
-                    if asked_chutes {
-                        // Prefer non‑SOTA, cost‑effective by lowering min params and constraining price.
-                        let rec = crate::chutes_cmd::RecommendArgs {
-                            min_params: 10_000_000_000,          // 10B minimum
-                            require_modalities: None,
-                            require_capabilities: Some("coding,code".to_string()),
-                            max_params: Some(80_000_000_000),     // avoid SOTA scale
-                            max_output_ppm: Some(3.0),            // <= $3 per 1M output tokens
-                            json: false,
-                        };
-                        match crate::chutes_cmd::select_best(&rec).await {
-                            Ok((model_id, item)) => {
-                                exec_cli.model = Some(model_id);
-                                if let Some(base) = crate::chutes_cmd::derive_base_url(&item) {
-                                    exec_cli
-                                        .config_overrides
-                                        .raw_overrides
-                                        .push(format!("model_providers.chutes.base_url=\"{base}\""));
-                                }
+                && let Ok(overrides) = exec_cli.config_overrides.parse_overrides()
+            {
+                let asked_chutes = overrides.iter().any(|(k, v)| {
+                    if k == "model_provider" {
+                        if let toml::Value::String(s) = v {
+                            s == "chutes"
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                });
+                if asked_chutes {
+                    // Prefer non‑SOTA, cost‑effective by lowering min params and constraining price.
+                    let rec = crate::chutes_cmd::RecommendArgs {
+                        min_params: 10_000_000_000, // 10B minimum
+                        require_modalities: None,
+                        require_capabilities: Some("coding,code".to_string()),
+                        max_params: Some(80_000_000_000), // avoid SOTA scale
+                        max_output_ppm: Some(3.0),        // <= $3 per 1M output tokens
+                        json: false,
+                    };
+                    match crate::chutes_cmd::select_best(&rec).await {
+                        Ok((model_id, item)) => {
+                            exec_cli.model = Some(model_id);
+                            if let Some(base) = crate::chutes_cmd::derive_base_url(&item) {
+                                exec_cli
+                                    .config_overrides
+                                    .raw_overrides
+                                    .push(format!("model_providers.chutes.base_url=\"{base}\""));
                             }
-                            Err(e) => {
-                                eprintln!(
-                                    "chutes: auto-discovery failed ({e}); specify --model or relax constraints"
-                                );
-                                std::process::exit(1);
-                            }
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "chutes: auto-discovery failed ({e}); specify --model or relax constraints"
+                            );
+                            std::process::exit(1);
                         }
                     }
                 }
+            }
             codex_exec::run_main(exec_cli, codex_linux_sandbox_exe).await?;
         }
         Some(Subcommand::McpServer) => {

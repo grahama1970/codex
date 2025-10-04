@@ -11,6 +11,7 @@ pub mod event_processor_with_jsonl_output;
 pub mod exec_events;
 
 pub use cli::Cli;
+use codex_common::slash;
 use codex_core::AuthManager;
 use codex_core::BUILT_IN_OSS_MODEL_PROVIDER_ID;
 use codex_core::ConversationManager;
@@ -114,6 +115,12 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
             buffer
         }
     };
+
+    // Handle slash commands (one-line commands starting with '/') locally and exit early.
+    if let Some(cmd) = slash::parse(&prompt) {
+        handle_slash_command(cmd).await?;
+        return Ok(());
+    }
 
     let output_schema = load_output_schema(output_schema_path);
 
@@ -377,6 +384,73 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         std::process::exit(1);
     }
 
+    Ok(())
+}
+
+async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
+    match cmd {
+        slash::SlashCommand::Help => {
+            eprintln!(
+                "Slash commands:\n  /help\n  /status\n  /model <id>\n  /provider <id>\n  /profile <name>\n  /discover [--min-params N --max-params N --max-output-ppm X --require-modalities A,B --require-capabilities X,Y]\n  /fmt (Makefile/just fmt)\n  /build (Makefile build)\n  /test (Makefile deterministic tests)\n  /mcp-add <name> -- <cmd...>\n  /mcp-list\n"
+            );
+        }
+        slash::SlashCommand::Status => {
+            // Print a minimal status (provider/model/profile); values may be set via config or flags at invocation time.
+            let provider = std::env::var("CODEX_MODEL_PROVIDER").ok();
+            let model = std::env::var("CODEX_MODEL").ok();
+            let profile = std::env::var("CODEX_PROFILE").ok();
+            eprintln!(
+                "provider={provider:?} model={model:?} profile={profile:?}"
+            );
+        }
+        slash::SlashCommand::Model { id } => {
+            eprintln!("Use: -c model=\"{id}\" to apply for this run, or add to your profile.");
+        }
+        slash::SlashCommand::Provider { id } => {
+            eprintln!(
+                "Use: -c model_provider=\"{id}\" to apply for this run, or set in your config profile."
+            );
+        }
+        slash::SlashCommand::Profile { name } => {
+            eprintln!("Use: -p {name} to run with this profile.");
+        }
+        slash::SlashCommand::Discover(args) => {
+            // Delegate to compiled binary subcommand: `codex chutes recommend` with flags; print chosen id.
+            let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("codex"));
+            let mut cmd = tokio::process::Command::new(exe);
+            cmd.arg("chutes").arg("recommend");
+            if let Some(v) = args.min_params {
+                cmd.arg("--min-params").arg(v.to_string());
+            }
+            if let Some(v) = args.max_params {
+                cmd.arg("--max-params").arg(v.to_string());
+            }
+            if let Some(v) = args.max_output_ppm {
+                cmd.arg("--max-output-ppm").arg(v.to_string());
+            }
+            if let Some(v) = args.require_modalities {
+                cmd.arg("--require-modalities").arg(v);
+            }
+            if let Some(v) = args.require_capabilities {
+                cmd.arg("--require-capabilities").arg(v);
+            }
+            cmd.stdout(std::process::Stdio::piped());
+            cmd.stderr(std::process::Stdio::inherit());
+            match cmd.output().await {
+                Ok(out) if out.status.success() => {
+                    let id = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    eprintln!("discovered model: {id}");
+                }
+                Ok(out) => {
+                    eprintln!("/discover failed (status={}):", out.status);
+                }
+                Err(e) => eprintln!("/discover error: {e}"),
+            }
+        }
+        slash::SlashCommand::Unknown { raw } => {
+            eprintln!("Unknown slash command: {raw}. Try /help");
+        }
+    }
     Ok(())
 }
 

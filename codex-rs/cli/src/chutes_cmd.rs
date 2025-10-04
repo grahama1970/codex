@@ -6,10 +6,10 @@ use clap::Parser;
 use codex_common::CliConfigOverrides;
 use regex_lite::Regex;
 use reqwest::Url;
-use std::time::Duration;
 use serde_json::Value;
 use std::env;
 use std::path::PathBuf;
+use std::time::Duration;
 
 #[derive(Debug, Parser)]
 pub struct ChutesCli {
@@ -147,10 +147,11 @@ impl ChutesCli {
                     argv.push(format!("model_providers.chutes.base_url=\"{derived}\""));
                 }
                 if let Some(images) = args.images.as_deref()
-                    && !images.trim().is_empty() {
-                        argv.push("-i".to_string());
-                        argv.push(images.to_string());
-                    }
+                    && !images.trim().is_empty()
+                {
+                    argv.push("-i".to_string());
+                    argv.push(images.to_string());
+                }
                 if let Some(prompt) = args.prompt.clone() {
                     argv.push(prompt);
                 }
@@ -217,9 +218,9 @@ fn parse_params_from_text(text: &str) -> ParamsBlock {
     let Ok(activated_re) = Regex::new(r"(?i)(\d+(?:\.\d+)?)\s*([MBT])\s*activated") else {
         return ParamsBlock { effective: None };
     };
-    let Ok(total_re) = Regex::new(
-        r"(?i)(\d+(?:\.\d+)?)\s*([MBT])\s*(?:param|params|parameter|parameters)\b",
-    ) else {
+    let Ok(total_re) =
+        Regex::new(r"(?i)(\d+(?:\.\d+)?)\s*([MBT])\s*(?:param|params|parameter|parameters)\b")
+    else {
         return ParamsBlock { effective: None };
     };
 
@@ -236,14 +237,16 @@ fn parse_params_from_text(text: &str) -> ParamsBlock {
 
     let mut effective = None;
     if let Some(c) = activated_re.captures(text)
-        && let (Some(n), Some(u)) = (c.get(1), c.get(2)) {
-            effective = unit(n.as_str(), u.as_str());
-        }
+        && let (Some(n), Some(u)) = (c.get(1), c.get(2))
+    {
+        effective = unit(n.as_str(), u.as_str());
+    }
     if effective.is_none()
         && let Some(c) = total_re.captures(text)
-            && let (Some(n), Some(u)) = (c.get(1), c.get(2)) {
-                effective = unit(n.as_str(), u.as_str());
-            }
+        && let (Some(n), Some(u)) = (c.get(1), c.get(2))
+    {
+        effective = unit(n.as_str(), u.as_str());
+    }
     ParamsBlock { effective }
 }
 
@@ -316,7 +319,8 @@ fn has_required_capabilities(item: &Value, require: Option<&str>) -> bool {
     let Some(req) = require else { return true };
     let caps = item.get("capabilities").and_then(Value::as_object);
     let Some(caps) = caps else { return false };
-    let keys_lower: std::collections::HashSet<String> = caps.keys().map(|k| k.to_lowercase()).collect();
+    let keys_lower: std::collections::HashSet<String> =
+        caps.keys().map(|k| k.to_lowercase()).collect();
     for needed in req.split(',').map(str::trim).filter(|s| !s.is_empty()) {
         if !keys_lower.contains(&needed.to_lowercase()) {
             return false;
@@ -332,7 +336,9 @@ pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
         .and_then(Value::as_array)
         .ok_or_else(|| anyhow!("invalid catalog payload: missing items"))?;
 
-    let debug = std::env::var("CHUTES_DISCOVERY_DEBUG").map(|v| v == "1").unwrap_or(false);
+    let debug = std::env::var("CHUTES_DISCOVERY_DEBUG")
+        .map(|v| v == "1")
+        .unwrap_or(false);
     // (out_ppm, in_ppm, eff, ctx, model_id, item)
     let mut candidates: Vec<(f64, f64, i64, i64, String, Value)> = Vec::new();
     let mut price_nan_exclusions: usize = 0;
@@ -341,30 +347,45 @@ pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
     for item in items {
         any_seen = true;
         if !is_multimodal(item, args.require_modalities.as_deref()) {
-            if debug { eprintln!("[chutes] skip: not multimodal"); }
+            if debug {
+                eprintln!("[chutes] skip: not multimodal");
+            }
             continue;
         }
         if !has_required_capabilities(item, args.require_capabilities.as_deref()) {
-            if debug { eprintln!("[chutes] skip: missing required capabilities"); }
+            if debug {
+                eprintln!("[chutes] skip: missing required capabilities");
+            }
             continue;
         }
         let eff = effective_params(item);
         if eff < args.min_params {
-            if debug { eprintln!("[chutes] skip: eff_params {eff} < min {}", args.min_params); }
+            if debug {
+                eprintln!("[chutes] skip: eff_params {eff} < min {}", args.min_params);
+            }
             continue;
         }
-        if let Some(maxp) = args.max_params && eff > maxp {
-            if debug { eprintln!("[chutes] skip: eff_params {eff} > max {maxp}"); }
-            continue; }
+        if let Some(maxp) = args.max_params
+            && eff > maxp
+        {
+            if debug {
+                eprintln!("[chutes] skip: eff_params {eff} > max {maxp}");
+            }
+            continue;
+        }
         let out_ppm = output_ppm(item);
         if let Some(cap) = args.max_output_ppm {
             if !out_ppm.is_finite() {
                 price_nan_exclusions += 1;
-                if debug { eprintln!("[chutes] skip: price NaN under cap"); }
+                if debug {
+                    eprintln!("[chutes] skip: price NaN under cap");
+                }
                 continue;
             }
             if out_ppm > cap {
-                if debug { eprintln!("[chutes] skip: price {out_ppm} > cap {cap}"); }
+                if debug {
+                    eprintln!("[chutes] skip: price {out_ppm} > cap {cap}");
+                }
                 continue;
             }
         }
@@ -379,25 +400,45 @@ pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
     }
 
     // If everything was filtered due to NaN price while a cap was set, retry selection inline without the cap.
-    if candidates.is_empty() && args.max_output_ppm.is_some() && price_nan_exclusions > 0 && any_seen {
-        if debug { eprintln!("[chutes] relaxing price cap (all candidates had NaN price)"); }
+    if candidates.is_empty()
+        && args.max_output_ppm.is_some()
+        && price_nan_exclusions > 0
+        && any_seen
+    {
+        if debug {
+            eprintln!("[chutes] relaxing price cap (all candidates had NaN price)");
+        }
         let mut relaxed_candidates: Vec<(f64, f64, i64, i64, String, Value)> = Vec::new();
         for item in items {
-            if !is_multimodal(item, args.require_modalities.as_deref()) { continue; }
-            if !has_required_capabilities(item, args.require_capabilities.as_deref()) { continue; }
+            if !is_multimodal(item, args.require_modalities.as_deref()) {
+                continue;
+            }
+            if !has_required_capabilities(item, args.require_capabilities.as_deref()) {
+                continue;
+            }
             let eff = effective_params(item);
-            if eff < args.min_params { continue; }
-            if let Some(maxp) = args.max_params && eff > maxp { continue; }
+            if eff < args.min_params {
+                continue;
+            }
+            if let Some(maxp) = args.max_params
+                && eff > maxp
+            {
+                continue;
+            }
             let out_ppm = output_ppm(item);
             // When relaxed, accept NaN/out-of-spec price.
             let in_ppm = input_ppm(item);
             let ctx = context_len(item);
-            let name = match item.get("name").and_then(Value::as_str) { Some(n) => n, None => continue };
+            let name = match item.get("name").and_then(Value::as_str) {
+                Some(n) => n,
+                None => continue,
+            };
             let model_id = format!("openai/{name}");
             relaxed_candidates.push((out_ppm, in_ppm, eff, ctx, model_id, item.clone()));
         }
         if let Some(best) = relaxed_candidates.into_iter().min_by(|a, b| {
-            a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
+            a.0.partial_cmp(&b.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
                 .then(b.2.cmp(&a.2))
                 .then(b.3.cmp(&a.3))
                 .then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
@@ -408,19 +449,36 @@ pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
 
     if candidates.is_empty() {
         let mut hints = Vec::new();
-        if let Some(cap) = args.max_output_ppm { hints.push(format!("max_output_ppm={cap}")); }
-        if let Some(req) = &args.require_capabilities { hints.push(format!("capabilities={req}")); }
-        if let Some(mods) = &args.require_modalities { hints.push(format!("modalities={mods}")); }
-        if let Some(mx) = args.max_params { hints.push(format!("max_params={mx}")); }
-        let hint = if hints.is_empty() { String::new() } else { format!(" (filters: {})", hints.join(", ")) };
-        bail!("No suitable Chutes model found (>= {} params, multi-modal){}", args.min_params, hint);
+        if let Some(cap) = args.max_output_ppm {
+            hints.push(format!("max_output_ppm={cap}"));
+        }
+        if let Some(req) = &args.require_capabilities {
+            hints.push(format!("capabilities={req}"));
+        }
+        if let Some(mods) = &args.require_modalities {
+            hints.push(format!("modalities={mods}"));
+        }
+        if let Some(mx) = args.max_params {
+            hints.push(format!("max_params={mx}"));
+        }
+        let hint = if hints.is_empty() {
+            String::new()
+        } else {
+            format!(" (filters: {})", hints.join(", "))
+        };
+        bail!(
+            "No suitable Chutes model found (>= {} params, multi-modal){}",
+            args.min_params,
+            hint
+        );
     }
 
     // O(n) selection: out_ppm asc, eff desc, ctx desc, in_ppm asc
     let best = candidates
         .into_iter()
         .min_by(|a, b| {
-            a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
+            a.0.partial_cmp(&b.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
                 .then(b.2.cmp(&a.2))
                 .then(b.3.cmp(&a.3))
                 .then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
@@ -431,21 +489,22 @@ pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
 
 pub fn derive_base_url(item: &Value) -> Option<String> {
     if let Some(dom) = item.get("domain").and_then(Value::as_str)
-        && !dom.is_empty() {
-            let dom = dom
-                .trim()
-                .trim_end_matches('/')
-                .trim_start_matches("https://")
-                .trim_start_matches("http://");
-            let sanitized: String = dom
-                .chars()
-                .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '.')
-                .collect();
-            if sanitized.is_empty() || sanitized != dom {
-                return None;
-            }
-            return Some(format!("https://{sanitized}/v1"));
+        && !dom.is_empty()
+    {
+        let dom = dom
+            .trim()
+            .trim_end_matches('/')
+            .trim_start_matches("https://")
+            .trim_start_matches("http://");
+        let sanitized: String = dom
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '.')
+            .collect();
+        if sanitized.is_empty() || sanitized != dom {
+            return None;
         }
+        return Some(format!("https://{sanitized}/v1"));
+    }
     let owner = item
         .get("owner")
         .or_else(|| item.get("username"))
@@ -455,13 +514,23 @@ pub fn derive_base_url(item: &Value) -> Option<String> {
         .get("slug")
         .and_then(Value::as_str)
         .map(std::string::ToString::to_string)
-        .or_else(|| item.get("name").and_then(Value::as_str).map(|s| s.split('/').next_back().unwrap_or(s).to_string()));
+        .or_else(|| {
+            item.get("name")
+                .and_then(Value::as_str)
+                .map(|s| s.split('/').next_back().unwrap_or(s).to_string())
+        });
     match (owner, slug) {
         (Some(o), Some(s)) if !o.is_empty() && !s.is_empty() => {
-            let sanitize = |x: &str| x.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect::<String>();
+            let sanitize = |x: &str| {
+                x.chars()
+                    .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+                    .collect::<String>()
+            };
             let so = sanitize(o);
             let ss = sanitize(&s);
-            if so.is_empty() || ss.is_empty() { return None; }
+            if so.is_empty() || ss.is_empty() {
+                return None;
+            }
             Some(format!("https://{so}-{ss}.chutes.ai/v1"))
         }
         _ => None,
@@ -472,8 +541,19 @@ pub fn derive_base_url(item: &Value) -> Option<String> {
 /// return `(model_id, derived_base_url)` where `model_id` is
 /// `openai/<catalog_id>` and `derived_base_url` is a best‑effort per‑chute
 /// OpenAI‑compatible base URL (None if not derivable).
-pub async fn discover_model_and_base(min_params: i64, require_modalities: Option<String>) -> Result<(String, Option<String>)> {
-    let (model_id, item) = select_best(&RecommendArgs { min_params, require_modalities, require_capabilities: None, max_params: None, max_output_ppm: None, json: false }).await?;
+pub async fn discover_model_and_base(
+    min_params: i64,
+    require_modalities: Option<String>,
+) -> Result<(String, Option<String>)> {
+    let (model_id, item) = select_best(&RecommendArgs {
+        min_params,
+        require_modalities,
+        require_capabilities: None,
+        max_params: None,
+        max_output_ppm: None,
+        json: false,
+    })
+    .await?;
     let base = derive_base_url(&item);
     Ok((model_id, base))
 }
