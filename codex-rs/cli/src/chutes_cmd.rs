@@ -6,6 +6,7 @@ use clap::Parser;
 use codex_common::CliConfigOverrides;
 use regex_lite::Regex;
 use reqwest::Url;
+use std::time::Duration;
 use serde_json::Value;
 use std::env;
 use std::path::PathBuf;
@@ -177,7 +178,10 @@ fn catalog_url() -> Result<Url> {
 
 async fn fetch_catalog() -> Result<Value> {
     let url = catalog_url()?;
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .build()
+        .context("building reqwest client")?;
     let resp = client
         .get(url)
         .query(&[
@@ -192,7 +196,13 @@ async fn fetch_catalog() -> Result<Value> {
         .context("request to Chutes catalog failed")?;
     let status = resp.status();
     if !status.is_success() {
-        bail!("Chutes catalog error: {status}");
+        if status.as_u16() == 429 {
+            bail!("Chutes catalog error: rate limited (429) – retry later");
+        } else if status.is_server_error() {
+            bail!("Chutes catalog error: upstream server error {status}");
+        } else {
+            bail!("Chutes catalog error: {status}");
+        }
     }
     let json = resp.json::<Value>().await.context("parsing Chutes JSON")?;
     Ok(json)
@@ -255,7 +265,7 @@ fn output_ppm(item: &Value) -> f64 {
         .and_then(|v| v.get("usd"))
         .and_then(Value::as_str)
         .and_then(|s| s.parse::<f64>().ok())
-        .unwrap_or(f64::INFINITY)
+        .unwrap_or(f64::NAN)
 }
 
 fn input_ppm(item: &Value) -> f64 {
@@ -323,27 +333,38 @@ pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
         .ok_or_else(|| anyhow!("invalid catalog payload: missing items"))?;
 
     let mut candidates: Vec<(f64, i64, i64, String, Value)> = Vec::new();
+    let debug = std::env::var("CHUTES_DISCOVERY_DEBUG").map(|v| v == "1").unwrap_or(false);
 
     for item in items {
         if !is_multimodal(item, args.require_modalities.as_deref()) {
+            if debug { eprintln!("[chutes] skip: not multimodal"); }
             continue;
         }
         if !has_required_capabilities(item, args.require_capabilities.as_deref()) {
+            if debug { eprintln!("[chutes] skip: missing required capabilities"); }
             continue;
         }
         let eff = effective_params(item);
         if eff < args.min_params {
+            if debug { eprintln!("[chutes] skip: eff_params {eff} < min {}", args.min_params); }
             continue;
         }
         if let Some(maxp) = args.max_params
             && eff > maxp {
+                if debug { eprintln!("[chutes] skip: eff_params {eff} > max {maxp}"); }
                 continue;
             }
         let out_ppm = output_ppm(item);
-        if let Some(max_price) = args.max_output_ppm
-            && out_ppm.is_finite() && out_ppm > max_price {
+        if let Some(max_price) = args.max_output_ppm {
+            if !out_ppm.is_finite() {
+                if debug { eprintln!("[chutes] skip: price NaN under cap"); }
                 continue;
             }
+            if out_ppm > max_price {
+                if debug { eprintln!("[chutes] skip: price {out_ppm} > cap {max_price}"); }
+                continue;
+            }
+        }
         let ctx = context_len(item);
         let name = item
             .get("name")
@@ -374,8 +395,19 @@ pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
 pub fn derive_base_url(item: &Value) -> Option<String> {
     if let Some(dom) = item.get("domain").and_then(Value::as_str)
         && !dom.is_empty() {
-            let dom = dom.trim_start_matches("https://");
-            return Some(format!("https://{dom}/v1"));
+            let dom = dom
+                .trim()
+                .trim_end_matches('/')
+                .trim_start_matches("https://")
+                .trim_start_matches("http://");
+            let sanitized: String = dom
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '.')
+                .collect();
+            if sanitized.is_empty() || sanitized != dom {
+                return None;
+            }
+            return Some(format!("https://{sanitized}/v1"));
         }
     let owner = item
         .get("owner")
@@ -389,7 +421,11 @@ pub fn derive_base_url(item: &Value) -> Option<String> {
         .or_else(|| item.get("name").and_then(Value::as_str).map(|s| s.split('/').next_back().unwrap_or(s).to_string()));
     match (owner, slug) {
         (Some(o), Some(s)) if !o.is_empty() && !s.is_empty() => {
-            Some(format!("https://{o}-{s}.chutes.ai/v1"))
+            let sanitize = |x: &str| x.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect::<String>();
+            let so = sanitize(o);
+            let ss = sanitize(&s);
+            if so.is_empty() || ss.is_empty() { return None; }
+            Some(format!("https://{so}-{ss}.chutes.ai/v1"))
         }
         _ => None,
     }
@@ -403,4 +439,30 @@ pub async fn discover_model_and_base(min_params: i64, require_modalities: Option
     let (model_id, item) = select_best(&RecommendArgs { min_params, require_modalities, require_capabilities: None, max_params: None, max_output_ppm: None, json: false }).await?;
     let base = derive_base_url(&item);
     Ok((model_id, base))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_params_activated() {
+        let p = parse_params_from_text("Uses 72B activated params, next-gen");
+        assert!(p.effective.unwrap() >= 70_000_000_000);
+    }
+
+    #[test]
+    fn parse_params_total() {
+        let p = parse_params_from_text("Model with 12.5B parameters, optimized");
+        assert_eq!(p.effective.unwrap(), 12_500_000_000);
+    }
+
+    #[test]
+    fn derive_sanitized_base() {
+        let item = serde_json::json!({"owner":"alpha-team","slug":"ultra-model"});
+        assert_eq!(
+            derive_base_url(&item),
+            Some("https://alpha-team-ultra-model.chutes.ai/v1".to_string())
+        );
+    }
 }

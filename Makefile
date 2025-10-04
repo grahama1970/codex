@@ -39,12 +39,16 @@ package: build config
 # Requires CHUTES_API_KEY in .env; uses compiled binary for discovery.
 .PHONY: chutes-profiles
 chutes-profiles: build config
-	@set -e; set -a; [ -f .env ] && . ./.env; set +a; \
+	@set -euo pipefail; set -a; [ -f .env ] && . ./.env; set +a; \
 	if [ -z "$$CHUTES_API_KEY" ]; then echo "CHUTES_API_KEY missing in .env"; exit 1; fi; \
-	CODING_MODEL="$$( $(CODEX_BIN) chutes recommend --min-params 10000000000 --max-params 80000000000 --max-output-ppm 3.0 --require-modalities text --require-capabilities coding,code 2>/dev/null || true)"; \
-	MM_MODEL   ="$$( $(CODEX_BIN) chutes recommend --min-params 10000000000 --max-params 120000000000 --max-output-ppm 4.0 --require-modalities text,image --require-capabilities coding,code 2>/dev/null || true)"; \
-	if [ -z "$$CODING_MODEL" ]; then echo "No coding model found via chutes recommend"; exit 1; fi; \
-	if [ -z "$$MM_MODEL" ]; then echo "No multimodal model found via chutes recommend"; exit 1; fi; \
+	CODING_MODEL="$$( $(CODEX_BIN) chutes recommend --min-params 10000000000 --max-params 80000000000 --max-output-ppm 3.0 --require-modalities text --require-capabilities coding,code 2>/dev/null || echo '' )"; \
+	if [ -z "$$CODING_MODEL" ]; then \
+	  CODING_MODEL="$$( $(CODEX_BIN) chutes recommend --min-params 10000000000 --max-params 120000000000 --max-output-ppm 3.5 --require-modalities text --require-capabilities coding,code 2>/dev/null || echo '' )"; \
+	fi; \
+	MM_MODEL="$$( $(CODEX_BIN) chutes recommend --min-params 10000000000 --max-params 120000000000 --max-output-ppm 4.0 --require-modalities text,image --require-capabilities coding,code 2>/dev/null || echo '' )"; \
+	if [ -z "$$CODING_MODEL" ] || [ -z "$$MM_MODEL" ]; then \
+	  echo "No suitable models found for one or both profiles"; exit 1; \
+	fi; \
 	echo "==> Writing Chutes profiles to $(CONFIG_DIR)/config.toml"; \
 	{
 	  echo ""; \

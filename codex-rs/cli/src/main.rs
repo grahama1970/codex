@@ -299,7 +299,9 @@ async fn cli_main(codex_linux_sandbox_exe: Option<PathBuf>) -> anyhow::Result<()
                                 }
                             }
                             Err(e) => {
-                                eprintln!("Error: unable to auto‑discover Chutes model: {e}");
+                                eprintln!(
+                                    "chutes: auto-discovery failed ({e}); specify --model or relax constraints"
+                                );
                                 std::process::exit(1);
                             }
                         }
