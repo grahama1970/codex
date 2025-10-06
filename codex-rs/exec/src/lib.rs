@@ -438,6 +438,7 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
                 Ok(out) if out.status.success() => {
                     let id = String::from_utf8_lossy(&out.stdout).trim().to_string();
                     eprintln!("discovered model: {id}");
+                    eprintln!("Apply immediately with: -c model=\"{id}\"  (or add to a profile)");
                 }
                 Ok(out) => {
                     eprintln!("/discover failed (status={}):", out.status);
@@ -475,15 +476,31 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
             match out {
                 Ok(out) => {
                     let s = String::from_utf8_lossy(&out.stdout);
+                    let total = s.lines().count();
                     let lines: Vec<&str> = s.lines().take(200).collect();
-                    eprintln!("{}", lines.join("\n"));
+                    if total > lines.len() {
+                        eprintln!(
+                            "{}\n... (truncated; {} of {} lines)",
+                            lines.join("\n"),
+                            lines.len(),
+                            total
+                        );
+                    } else {
+                        eprintln!("{}", lines.join("\n"));
+                    }
                 }
                 Err(e) => eprintln!("/grep error: {e}"),
             }
         }
-        slash::SlashCommand::Open { path, line } => match std::fs::read_to_string(&path) {
-            Ok(content) => {
-                let lines: Vec<&str> = content.lines().collect();
+        slash::SlashCommand::Open { path, line } => match std::fs::read(&path) {
+            Ok(raw) => {
+                const MAX_BYTES: usize = 512 * 1024;
+                if raw.len() > MAX_BYTES {
+                    eprintln!("/open refusing large file (>512KB): {path}");
+                    return Ok(());
+                }
+                let text = String::from_utf8_lossy(&raw);
+                let lines: Vec<&str> = text.lines().collect();
                 let (start, end) = if let Some(l) = line {
                     let idx = l.saturating_sub(1);
                     (idx.saturating_sub(3), std::cmp::min(idx + 3, lines.len()))
@@ -513,6 +530,12 @@ async fn slash_run_or_print(target: &str, args: Vec<&str>) {
     let allow_write = std::env::var("ENABLE_SLASH_WRITE")
         .map(|v| v == "1")
         .unwrap_or(false);
+    static ANNOUNCED: std::sync::Once = std::sync::Once::new();
+    if allow_write {
+        ANNOUNCED.call_once(|| {
+            eprintln!("(write-enabled) slash commands may run build/test/fmt targets");
+        });
+    }
     if !allow_write {
         eprintln!("(dry-run) would run: make {target}");
         return;

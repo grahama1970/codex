@@ -83,7 +83,16 @@ pub fn parse(line: &str) -> Option<SlashCommand> {
                     raw: raw.to_string(),
                 })
             }),
-        "discover" => Some(SlashCommand::Discover(parse_discover_flags(&parts[1..]))),
+        "discover" => {
+            let (args, errs) = parse_discover_flags(&parts[1..]);
+            if !errs.is_empty() {
+                let joined = errs.join("; ");
+                return Some(SlashCommand::Unknown {
+                    raw: format!("parse-error: {joined}"),
+                });
+            }
+            Some(SlashCommand::Discover(args))
+        }
         "grep" => {
             let pat = parts.get(1).cloned();
             let pth = parts.get(2).cloned();
@@ -114,21 +123,31 @@ pub fn parse(line: &str) -> Option<SlashCommand> {
     }
 }
 
-fn parse_discover_flags(args: &[String]) -> DiscoverArgs {
+fn parse_discover_flags(args: &[String]) -> (DiscoverArgs, Vec<String>) {
     let mut out = DiscoverArgs::default();
+    let mut errors = Vec::new();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--min-params" if i + 1 < args.len() => {
-                out.min_params = args[i + 1].parse::<i64>().ok();
+                match args[i + 1].parse::<i64>() {
+                    Ok(v) => out.min_params = Some(v),
+                    Err(_) => errors.push(format!("invalid --min-params '{}'", args[i + 1])),
+                }
                 i += 2;
             }
             "--max-params" if i + 1 < args.len() => {
-                out.max_params = args[i + 1].parse::<i64>().ok();
+                match args[i + 1].parse::<i64>() {
+                    Ok(v) => out.max_params = Some(v),
+                    Err(_) => errors.push(format!("invalid --max-params '{}'", args[i + 1])),
+                }
                 i += 2;
             }
             "--max-output-ppm" if i + 1 < args.len() => {
-                out.max_output_ppm = args[i + 1].parse::<f64>().ok();
+                match args[i + 1].parse::<f64>() {
+                    Ok(v) => out.max_output_ppm = Some(v),
+                    Err(_) => errors.push(format!("invalid --max-output-ppm '{}'", args[i + 1])),
+                }
                 i += 2;
             }
             "--require-modalities" if i + 1 < args.len() => {
@@ -142,7 +161,7 @@ fn parse_discover_flags(args: &[String]) -> DiscoverArgs {
             _ => i += 1,
         }
     }
-    out
+    (out, errors)
 }
 
 fn shellish_split(s: &str) -> Vec<String> {
@@ -204,5 +223,11 @@ mod tests {
             }
             _ => panic!("wrong kind"),
         }
+    }
+
+    #[test]
+    fn flags_reject_bad_number() {
+        let cmd = parse("/discover --min-params nope");
+        assert!(matches!(cmd, Some(SlashCommand::Unknown { raw }) if raw.contains("parse-error")));
     }
 }
