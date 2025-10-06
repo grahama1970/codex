@@ -97,6 +97,51 @@ fn parse_color_name_or_hex(s: &str) -> Option<Color> {
     }
 }
 
+fn read_theme_preset() -> Option<String> {
+    if let Ok(home) = find_codex_home()
+        && let Ok(root) = load_config_as_toml(&home)
+        && let Some(TomlValue::Table(tui)) = root.get("tui")
+        && let Some(TomlValue::Table(theme)) = tui.get("theme")
+        && let Some(TomlValue::String(p)) = theme.get("preset")
+    {
+        return Some(p.clone());
+    }
+    None
+}
+
+fn resolved_theme_name() -> String {
+    if let Some(ov) = theme_override().or_else(|| std::env::var("CXPLUS_THEME").ok()) {
+        return ov;
+    }
+    read_theme_preset().unwrap_or_else(|| "dark".to_string())
+}
+
+// Core role palette mapping per preset (hex strings from our design doc).
+fn role_color(role: &str) -> Color {
+    let theme = resolved_theme_name();
+    let hex = match (theme.as_str(), role) {
+        // Link
+        ("light", "link") => "#2952CC",
+        (_, "link") => "#6CB2FF", // dark + dark-dim
+        // States
+        ("light", "state-success") => "#117F6B",
+        (_, "state-success") => "#19B28E",
+        ("light", "state-warning") => "#B7791F",
+        (_, "state-warning") => "#E6B450",
+        ("light", "state-error") => "#C5394A",
+        (_, "state-error") => "#E16D76",
+        ("light", "state-info") => "#2563EB",
+        (_, "state-info") => "#4DB9F7",
+        // Accents
+        ("light", "accent-primary") => "#3F6FE8",
+        ("light", "accent-secondary") => "#0FA3B1",
+        (_, "accent-primary") => "#7AA2F7",
+        (_, "accent-secondary") => "#2FD4CB",
+        _ => "#7AA2F7",
+    };
+    parse_color_name_or_hex(hex).unwrap_or(Color::Magenta)
+}
+
 fn read_brand_color(key: &str, default: Color) -> Color {
     // Read ~/.codex/config.toml as a generic TOML value so we don't need to
     // change core config types for optional theming.
@@ -114,27 +159,14 @@ fn read_brand_color(key: &str, default: Color) -> Color {
 
 /// Title style for the cxplus fork banner.
 pub fn brand_title_style() -> Style {
-    let def = match theme_override()
-        .or_else(|| std::env::var("CXPLUS_THEME").ok())
-        .as_deref()
-    {
-        Some("light") => Color::Blue,
-        Some("dark-dim") => Color::Magenta,
-        _ => Color::Magenta,
-    };
+    // Use preset accent-primary as default; [tui.brand] can override.
+    let def = role_color("accent-primary");
     Style::default().fg(read_brand_color("title_color", def))
 }
 
 /// Accent style for small labels in the header/help.
 pub fn brand_accent_style() -> Style {
-    let def = match theme_override()
-        .or_else(|| std::env::var("CXPLUS_THEME").ok())
-        .as_deref()
-    {
-        Some("light") => Color::Blue,
-        Some("dark-dim") => Color::Magenta,
-        _ => Color::Magenta,
-    };
+    let def = role_color("accent-secondary");
     Style::default().fg(read_brand_color("accent_color", def))
 }
 
@@ -149,29 +181,30 @@ fn themed_color(dark_hex: &str, light_hex: &str) -> Color {
 }
 
 pub fn state_success_style() -> Style {
-    Style::default().fg(themed_color("#19B28E", "#167E6B"))
+    Style::default().fg(role_color("state-success"))
 }
 
 pub fn state_warning_style() -> Style {
-    Style::default().fg(themed_color("#E6B450", "#B7791F"))
+    Style::default().fg(role_color("state-warning"))
 }
 
 pub fn state_error_style() -> Style {
-    Style::default().fg(themed_color("#E16D76", "#C5394A"))
+    Style::default().fg(role_color("state-error"))
 }
 
 pub fn state_info_style() -> Style {
-    Style::default().fg(themed_color("#4DB9F7", "#2563EB"))
+    Style::default().fg(role_color("state-info"))
 }
 
 pub fn link_style() -> Style {
-    // Preserve existing snapshots by keeping cyan as default on dark.
-    let color = match theme_override()
-        .or_else(|| std::env::var("CXPLUS_THEME").ok())
-        .as_deref()
+    // Keep cyan on dark/dark-dim only if env flag keeps legacy; otherwise use role mapping.
+    if std::env::var("CXPLUS_LEGACY_LINK_CYAN")
+        .map(|v| v == "1")
+        .unwrap_or(true)
+        && matches!(resolved_theme_name().as_str(), "dark" | "dark-dim")
     {
-        Some("light") => themed_color("#6CB2FF", "#2952CC"),
-        _ => Color::Cyan,
-    };
-    Style::default().fg(color)
+        Style::default().fg(Color::Cyan)
+    } else {
+        Style::default().fg(role_color("link"))
+    }
 }
