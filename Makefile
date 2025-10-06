@@ -142,6 +142,12 @@ doctor:
 	@echo "cxplus on PATH: $$(command -v cxplus)"
 	@echo "OK"
 
+# Windows packaging (zip) – assumes dist/bin contains codex(.exe) and cxplus wrappers
+.PHONY: package-windows
+package-windows: release
+	@cd $(BIN_DIR) && zip -9r ../cxplus-windows.zip cxplus.cmd cxplus.ps1 codex codex.exe 2>/dev/null || true
+	@echo "==> Wrote $(DIST_DIR)/cxplus-windows.zip (includes cxplus wrappers and codex/codex.exe if present)"
+
 # Install or uninstall a user-level symlink named 'cxplus' without touching any global 'codex' binary.
 .PHONY: install-local uninstall-local
 LOCAL_BIN ?= $(HOME)/.local/bin

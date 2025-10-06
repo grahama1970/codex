@@ -105,6 +105,9 @@ pub struct ChutesWarmupArgs {
     /// Optional explicit model id (openai/<name>), otherwise uses CODEX_MODEL or discovery fallback.
     #[arg(long)]
     pub model: Option<String>,
+    /// Dry-run: print success without making any network calls. Also enabled by CHUTES_WARMUP_DRYRUN=1
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 impl ChutesCli {
@@ -236,6 +239,12 @@ impl ChutesCli {
                     .ok()
                     .unwrap_or_else(|| "https://llm.chutes.ai/v1".to_string());
                 let t0 = std::time::Instant::now();
+                let dry = args.dry_run || std::env::var("CHUTES_WARMUP_DRYRUN").map(|v| v=="1").unwrap_or(false);
+                if dry {
+                    let ms = t0.elapsed().as_millis();
+                    println!("warmup: ok (dry-run) model={model_id} base={base} latency_ms={ms}");
+                    return Ok(());
+                }
                 match warmup_chat_completion(&base, &model_id, secs).await {
                     Ok(()) => {
                         let ms = t0.elapsed().as_millis();

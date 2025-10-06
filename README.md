@@ -136,6 +136,13 @@ For Rust workspace development, continue to use `codex-rs/justfile` for formatti
 - `make switch VERSION=<stamp>` → switches `dist/bin/codex` (and thus `cxplus`) to an older/newer stamped build.
 - `make rollback` → automatically points to the previously used stamped build.
 
+#### Windows packaging
+
+- `make package-windows` creates `dist/cxplus-windows.zip` containing:
+  - `cxplus.cmd` and `cxplus.ps1` (wrappers that invoke `codex.exe` if present, otherwise `codex`)
+  - `codex`/`codex.exe` (if available on the build host)
+- On Windows, place `cxplus.cmd` (or `cxplus.ps1`) on your `PATH` to use the CLI via the `cxplus` name. The canonical executable name remains `codex.exe`.
+
 ### Chutes integration (auto‑discovery)
 
 - Place credentials in `.env`:

@@ -12,6 +12,7 @@ use ratatui::prelude::*;
 use ratatui::style::Stylize;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
+use std::fs;
 
 use super::account::StatusAccountDisplay;
 use super::format::FieldFormatter;
@@ -263,6 +264,16 @@ impl HistoryCell for StatusHistoryCell {
                 .collect();
         let mut seen: BTreeSet<String> = labels.iter().cloned().collect();
 
+        // Append build stamp if dist/release.json exists under cwd
+        let build_stamp: Option<String> = (|| {
+            let rel = self.directory.join("dist").join("release.json");
+            if let Ok(text) = fs::read_to_string(rel)
+                && let Ok(val) = serde_json::from_str::<serde_json::Value>(&text) {
+                    return val.get("stamp").and_then(|s| s.as_str()).map(std::string::ToString::to_string);
+                }
+            None
+        })();
+
         if account_value.is_some() {
             push_label(&mut labels, &mut seen, "Account");
         }
@@ -289,6 +300,9 @@ impl HistoryCell for StatusHistoryCell {
 
         lines.push(formatter.line("Model", model_spans));
         lines.push(formatter.line("Directory", vec![Span::from(directory_value)]));
+        if let Some(stamp) = build_stamp {
+            lines.push(formatter.line("Build", vec![Span::from(stamp)]));
+        }
         lines.push(formatter.line("Approval", vec![Span::from(self.approval.clone())]));
         lines.push(formatter.line("Sandbox", vec![Span::from(self.sandbox.clone())]));
         lines.push(formatter.line("Agents.md", vec![Span::from(self.agents_summary.clone())]));
