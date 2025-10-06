@@ -1,6 +1,6 @@
 # Quickstart
 
-This fork adds a fast path to build a release binary, generate a minimal config, and run both deterministic tests and live, post‑compile scenarios. You can install a user‑level alias (`cxplus`) without touching any system binaries.
+This fork ("cxplus") provides a compiled, versioned CLI with Chutes auto‑discovery (fixture mode), warm‑up, slash command QOL, capacity planning, and a frictionless deploy/switch/rollback flow. This guide is the fastest way for any project agent (human or automated) to build, test, deploy, and use cxplus.
 
 ## 0) Prereqs
 - Rust toolchain (we test with `RUSTUP_TOOLCHAIN=1.90.0`)
@@ -13,6 +13,7 @@ make package
 Outputs:
 - `dist/bin/codex` (canonical binary)
 - `dist/config/config.toml` (minimal config for tests)
+ - `dist/bin/cxplus` (alias pointing to `codex`)
 
 ## 2) Run deterministic tests (offline)
 ```
@@ -27,6 +28,11 @@ Notes:
 - Live scenarios use `.env` if present. For Chutes discovery, set `CHUTES_API_KEY` and optionally `CHUTES_API_BASE`.
 - A deterministic fixture mode exists for discovery: set `CHUTES_CATALOG_FIXTURE=/absolute/path.json`.
 
+## 3.1) Scenario tips
+- Price relaxation: fixture with all NaN prices prints `[chutes-relax] …` once.
+- Partial NaN: at least one valid priced candidate prevents relaxation.
+- Warm‑up dry run: works without keys (`--dry-run` or `CHUTES_WARMUP_DRYRUN=1`).
+
 ## 4) Rapid deploy & versioning
 Create a stamped release and update the active binary + alias:
 ```
@@ -36,6 +42,7 @@ Artifacts:
 - `dist/releases/codex-<YYYYMMDDHHMM>-<branch>-<sha>`
 - `dist/bin/codex` → symlink to the stamped binary
 - `dist/bin/cxplus` → symlink to `codex`
+ - `dist/release.json` → `{ "stamp": "…", "binary": "…" }` (TUI `/status` shows the stamp)
 
 Switch / rollback:
 ```
@@ -53,12 +60,46 @@ Then add to your shell:
 alias cx=cxplus
 ```
 
-## 6) Chutes quick check
+## 6) Core commands (cheat sheet)
+- Discovery (CLI):
+  - `dist/bin/cxplus chutes recommend`  # prints `openai/<id>`
+  - Optional: `--show-base` to print derived base_url
+  - Fixture mode: `CHUTES_CATALOG_FIXTURE=/abs/path.json`
+- Discovery (TUI): `/discover`
+  - Read‑only info cell; set `APPLY_DISCOVER_AUTO=1` to apply for the session
+- Warm‑up:
+  - CLI: `dist/bin/cxplus chutes warmup --secs 4 [--dry-run]`  (lines prefixed `[chutes-warmup]`)
+  - TUI/Exec slash: `/warmup [secs]`
+- Capacity planning (like chutes_planner.py):
+  - `dist/bin/cxplus chutes plan --requests 10000 --avg-input-tokens 300 --avg-output-tokens 200 --deadline-hours 2 --gpu-type A5000 --hourly-rate-usd 1.30 --save`
+  - Env overrides: `CHUTES_PERF_JSON`, `CHUTES_RATES_JSON`, `CHUTES_GPU_TYPE`, `CHUTES_HOURLY_RATE`
+
+## 7) Chutes quick check
 ```
 export CHUTES_API_KEY=...            # or set via .env
 dist/bin/cxplus chutes recommend     # prints openai/<model-id>
 dist/bin/cxplus chutes exec --json "Say hello"
 ```
 
-See also: docs/chutes.md, docs/slash-commands.md.
+## 8) Windows packaging
+```
+make package-windows   # writes dist/cxplus-windows.zip (cxplus.cmd/.ps1 + codex/codex.exe if present)
+```
+Place cxplus.cmd or cxplus.ps1 on PATH and invoke `cxplus …`.
 
+## 9) Slash command QOL (exec)
+- `/grep` truncation marker (env `GREP_MAX_LINES`)
+- `/open` size guard (env `OPEN_MAX_KB`)
+- Write‑enabled notice when `ENABLE_SLASH_WRITE=1` for `/fmt`, `/build`, `/test`
+
+## 10) Troubleshooting
+- “No suitable model” → try lowering `--min-params`, relaxing `--max-output-ppm`, removing `--require-capabilities`, or adjusting `--require-modalities`.
+- Fixture mode set but no output → confirm file path and JSON shape (top‑level `items`).
+- Warm‑up network failures → use `--dry-run` first, then set `CHUTES_API_KEY` and `CHUTES_API_BASE`.
+
+## 11) Helpful envs (quick list)
+- Discovery: `CHUTES_API_KEY`, `CHUTES_API_BASE`, `CHUTES_CATALOG_FIXTURE`, `CHUTES_DISCOVERY_DEBUG`, `CHUTES_FORCE_PROVIDER_BASE`, `CHUTES_EXTRA_CAPS`
+- Warm‑up: `CHUTES_WARMUP_DRYRUN`, `CHUTES_WARMUP_SECS`
+- Slash QOL: `GREP_MAX_LINES`, `OPEN_MAX_KB`, `ENABLE_SLASH_WRITE`
+
+See also: docs/chutes.md (discovery + troubleshooting) and docs/slash-commands.md (slash behaviors).

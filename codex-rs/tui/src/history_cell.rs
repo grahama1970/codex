@@ -392,7 +392,7 @@ pub(crate) fn new_session_info(
 
         // Help lines below the header (new copy and list)
         let help_lines: Vec<Line<'static>> = vec![
-            "  To get started, describe a task or try one of these commands:"
+            "  To get started with cxplus (Codex fork), describe a task or try one of these commands:"
                 .dim()
                 .into(),
             Line::from(""),
@@ -420,6 +420,16 @@ pub(crate) fn new_session_info(
                 "  ".into(),
                 "/review".into(),
                 " - review any changes and find issues".dim(),
+            ]),
+            Line::from(vec![
+                "  ".into(),
+                "/discover".into(),
+                " - discover a coding-capable Chutes model (non‑SOTA)".dim(),
+            ]),
+            Line::from(vec![
+                "  ".into(),
+                "/warmup".into(),
+                " - warm-up the current/selected Chutes model (tiny ping)".dim(),
             ]),
         ];
 
@@ -519,10 +529,10 @@ impl HistoryCell for SessionHeaderHistoryCell {
 
         let make_row = |spans: Vec<Span<'static>>| Line::from(spans);
 
-        // Title line rendered inside the box: ">_ OpenAI Codex (vX)"
+        // Title line rendered inside the box: ">_ cxplus (Codex fork) (vX)"
         let title_spans: Vec<Span<'static>> = vec![
             Span::from(">_ ").dim(),
-            Span::from("OpenAI Codex").bold(),
+            Span::from("cxplus (Codex fork)").bold(),
             Span::from(" ").dim(),
             Span::from(format!("(v{})", self.version)).dim(),
         ];
