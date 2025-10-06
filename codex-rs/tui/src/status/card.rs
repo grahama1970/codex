@@ -11,8 +11,8 @@ use codex_protocol::ConversationId;
 use ratatui::prelude::*;
 use ratatui::style::Stylize;
 use std::collections::BTreeSet;
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 
 use super::account::StatusAccountDisplay;
 use super::format::FieldFormatter;
@@ -268,9 +268,13 @@ impl HistoryCell for StatusHistoryCell {
         let build_stamp: Option<String> = (|| {
             let rel = self.directory.join("dist").join("release.json");
             if let Ok(text) = fs::read_to_string(rel)
-                && let Ok(val) = serde_json::from_str::<serde_json::Value>(&text) {
-                    return val.get("stamp").and_then(|s| s.as_str()).map(std::string::ToString::to_string);
-                }
+                && let Ok(val) = serde_json::from_str::<serde_json::Value>(&text)
+            {
+                return val
+                    .get("stamp")
+                    .and_then(|s| s.as_str())
+                    .map(std::string::ToString::to_string);
+            }
             None
         })();
 

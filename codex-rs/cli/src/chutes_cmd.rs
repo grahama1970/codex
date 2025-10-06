@@ -11,6 +11,15 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
+trait RoundTo {
+    fn round_to(self, digits: u32) -> f64;
+}
+impl RoundTo for f64 {
+    fn round_to(self, digits: u32) -> f64 {
+        let p = 10f64.powi(digits as i32);
+        (self * p).round() / p
+    }
+}
 
 #[derive(Debug, Parser)]
 pub struct ChutesCli {
@@ -29,6 +38,8 @@ pub enum ChutesSubcommand {
     Exec(ChutesExecArgs),
     /// Perform a lightweight warm-up request against a Chutes model (max_tokens=1) and print a result line.
     Warmup(ChutesWarmupArgs),
+    /// Capacity planning helper: estimate throughput, instances, walltime, and cost for a Chutes deployment.
+    Plan(ChutesPlanArgs),
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -108,6 +119,37 @@ pub struct ChutesWarmupArgs {
     /// Dry-run: print success without making any network calls. Also enabled by CHUTES_WARMUP_DRYRUN=1
     #[arg(long)]
     pub dry_run: bool,
+}
+
+#[derive(Debug, Parser, Clone)]
+pub struct ChutesPlanArgs {
+    /// Number of requests/jobs to run
+    #[arg(long)]
+    pub requests: u64,
+    /// Average input tokens per request
+    #[arg(long)]
+    pub avg_input_tokens: u64,
+    /// Average output tokens per request
+    #[arg(long)]
+    pub avg_output_tokens: u64,
+    /// Override tokens/sec per instance (otherwise from perf table/env)
+    #[arg(long)]
+    pub toks_per_sec_per_instance: Option<f64>,
+    /// Desired deadline in hours; choose instances to meet this
+    #[arg(long)]
+    pub deadline_hours: Option<f64>,
+    /// Alternatively, fix the number of instances and compute time
+    #[arg(long)]
+    pub instances: Option<u64>,
+    /// GPU type label (A5000|RTX4090|L40S|H100|H200), can be overridden by env
+    #[arg(long)]
+    pub gpu_type: Option<String>,
+    /// Hourly rate USD for one instance; falls back to table/env
+    #[arg(long)]
+    pub hourly_rate_usd: Option<f64>,
+    /// Write the plan JSON to .artifacts/chutes/plan_infer/<timestamp>.json
+    #[arg(long)]
+    pub save: bool,
 }
 
 impl ChutesCli {
@@ -217,6 +259,10 @@ impl ChutesCli {
             }
             ChutesSubcommand::Warmup(args) => {
                 let secs = args.secs.unwrap_or(8);
+                if secs == 0 {
+                    eprintln!("[chutes-warmup] --secs must be > 0");
+                    std::process::exit(2);
+                }
                 let model_id = if let Some(m) = args.model.clone() {
                     m
                 } else if let Ok(m) = std::env::var("CODEX_MODEL") {
@@ -239,21 +285,140 @@ impl ChutesCli {
                     .ok()
                     .unwrap_or_else(|| "https://llm.chutes.ai/v1".to_string());
                 let t0 = std::time::Instant::now();
-                let dry = args.dry_run || std::env::var("CHUTES_WARMUP_DRYRUN").map(|v| v=="1").unwrap_or(false);
+                let dry = args.dry_run
+                    || std::env::var("CHUTES_WARMUP_DRYRUN")
+                        .map(|v| v == "1")
+                        .unwrap_or(false);
                 if dry {
                     let ms = t0.elapsed().as_millis();
-                    println!("warmup: ok (dry-run) model={model_id} base={base} latency_ms={ms}");
+                    println!(
+                        "[chutes-warmup] ok (dry-run) model={model_id} base={base} latency_ms={ms}"
+                    );
                     return Ok(());
                 }
                 match warmup_chat_completion(&base, &model_id, secs).await {
                     Ok(()) => {
                         let ms = t0.elapsed().as_millis();
-                        println!("warmup: ok model={model_id} base={base} latency_ms={ms}");
+                        println!("[chutes-warmup] ok model={model_id} base={base} latency_ms={ms}");
                     }
                     Err(e) => {
-                        println!("warmup: error model={model_id} base={base} err={e}");
+                        println!("[chutes-warmup] error model={model_id} base={base} err={e}");
                         std::process::exit(1);
                     }
+                }
+            }
+            ChutesSubcommand::Plan(args) => {
+                use serde_json::json;
+                fn perf_table() -> std::collections::BTreeMap<String, f64> {
+                    [
+                        ("A5000".to_string(), 180.0),
+                        ("RTX4090".to_string(), 220.0),
+                        ("L40S".to_string(), 260.0),
+                        ("H100".to_string(), 350.0),
+                        ("H200".to_string(), 420.0),
+                    ]
+                    .into_iter()
+                    .collect()
+                }
+                fn rate_table() -> std::collections::BTreeMap<String, f64> {
+                    [
+                        ("A5000".to_string(), 1.30),
+                        ("RTX4090".to_string(), 1.20),
+                        ("L40S".to_string(), 2.40),
+                        ("H100".to_string(), 2.80),
+                        ("H200".to_string(), 3.10),
+                    ]
+                    .into_iter()
+                    .collect()
+                }
+                let mut perf = perf_table();
+                let mut rates = rate_table();
+                // Env JSON overrides
+                if let Ok(p) = std::env::var("CHUTES_PERF_JSON")
+                    && let Ok(map) = serde_json::from_str::<serde_json::Value>(&p)
+                        && let Some(obj) = map.as_object() {
+                            for (k, v) in obj {
+                                if let Some(n) = v.as_f64() {
+                                    perf.insert(k.clone(), n);
+                                }
+                            }
+                        }
+                if let Ok(r) = std::env::var("CHUTES_RATES_JSON")
+                    && let Ok(map) = serde_json::from_str::<serde_json::Value>(&r)
+                        && let Some(obj) = map.as_object() {
+                            for (k, v) in obj {
+                                if let Some(n) = v.as_f64() {
+                                    rates.insert(k.clone(), n);
+                                }
+                            }
+                        }
+                let gpu = args
+                    .gpu_type
+                    .clone()
+                    .or_else(|| std::env::var("CHUTES_GPU_TYPE").ok())
+                    .unwrap_or_else(|| "A5000".to_string());
+                let toks_s_per_inst = args
+                    .toks_per_sec_per_instance
+                    .unwrap_or_else(|| *perf.get(&gpu).unwrap_or(&180.0));
+                let hourly = args
+                    .hourly_rate_usd
+                    .or_else(|| {
+                        std::env::var("CHUTES_HOURLY_RATE")
+                            .ok()
+                            .and_then(|s| s.parse::<f64>().ok())
+                    })
+                    .unwrap_or_else(|| *rates.get(&gpu).unwrap_or(&1.5));
+
+                let total_tokens = (args.requests as u128)
+                    * ((args.avg_input_tokens as u128) + (args.avg_output_tokens as u128));
+                let total_tokens = if total_tokens == 0 { 1 } else { total_tokens };
+
+                let instances: u64;
+                let wall_h: f64;
+                if let Some(inst) = args.instances.filter(|i| *i > 0) {
+                    instances = inst;
+                    wall_h = (total_tokens as f64) / (toks_s_per_inst * instances as f64) / 3600.0;
+                } else {
+                    let mut chosen = 1u64;
+                    if let Some(deadline) = args.deadline_hours.filter(|d| *d > 0.0) {
+                        let needed = (total_tokens as f64) / (toks_s_per_inst * 3600.0 * deadline);
+                        chosen = std::cmp::max(1, needed.ceil() as u64);
+                    }
+                    instances = chosen;
+                    wall_h = (total_tokens as f64) / (toks_s_per_inst * instances as f64) / 3600.0;
+                }
+                let cost = hourly * wall_h * (instances as f64);
+                let cpm = ((cost / (total_tokens as f64)) * 1_000_000.0).round_to(4);
+
+                // Payload
+                let plan = json!({
+                    "generated_at": chrono::Utc::now().to_rfc3339(),
+                    "gpu_type": gpu,
+                    "requests": args.requests,
+                    "avg_input_tokens": args.avg_input_tokens,
+                    "avg_output_tokens": args.avg_output_tokens,
+                    "throughput_toks_s_per_instance": toks_s_per_inst,
+                    "instances": instances,
+                    "wallclock_est_h": (wall_h * 1000.0).round() / 1000.0,
+                    "total_tokens": total_tokens,
+                    "cost_est_usd": (cost * 100.0).round() / 100.0,
+                    "cost_per_million_tokens_usd": cpm,
+                    "tokens_per_dollar": ((total_tokens as f64) / cost.max(1e-6)).round_to(2),
+                    "rates": rates,
+                    "perf_toks_s": perf,
+                });
+                println!("{}", serde_json::to_string_pretty(&plan)?);
+                if args.save {
+                    use std::fs;
+                    use std::path::PathBuf;
+                    let dir = PathBuf::from(".artifacts")
+                        .join("chutes")
+                        .join("plan_infer");
+                    fs::create_dir_all(&dir).ok();
+                    let ts = chrono::Utc::now().timestamp();
+                    let path = dir.join(format!("plan_{ts}.json"));
+                    fs::write(&path, serde_json::to_vec_pretty(&plan)?)?;
+                    eprintln!("[chutes-plan] wrote {}", path.display());
                 }
             }
         }
@@ -617,10 +782,12 @@ pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
         } else {
             format!(" (filters: {})", hints.join(", "))
         };
+        let guidance = "Try: lower --min-params, relax --max-output-ppm, remove --require-capabilities, or adjust --require-modalities.";
         bail!(
-            "No suitable Chutes model found (>= {} params, multi-modal){}",
+            "No suitable Chutes model found (>= {} params, multi-modal){}.\n{}",
             args.min_params,
-            hint
+            hint,
+            guidance
         );
     }
 

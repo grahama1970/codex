@@ -1,0 +1,24 @@
+name: SciLLM Self-Check
+on:
+  push:
+    branches: [ main, feat/** ]
+  pull_request:
+
+jobs:
+  selfcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Sync minimal deps
+        run: uv sync --extra smokes
+      - name: Self-check JSON
+        run: |
+          python tools/llm_selfcheck.py | tee selfcheck.json
+          test -s selfcheck.json
+      - name: Dry router smoke (no network)
+        env:
+          SCILLM_SMOKE_DRY: "1"
+          SCILLM_ROUTER_MODELS: '["openai/zai-org/GLM-4.5-Air","openai/zai-org/GLM-4.6-turbo"]'
+        run: |
+          python scenarios/scillm_router_parallel_smoke.py
