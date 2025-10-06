@@ -95,7 +95,9 @@ release: package
 	@cp -f $(BIN_DIR)/$(BIN_NAME) $(RELEASE_DIR)/$(BIN_NAME)-$(STAMP)
 	@chmod +x $(RELEASE_DIR)/$(BIN_NAME)-$(STAMP)
 	@ln -sfn ../releases/$(BIN_NAME)-$(STAMP) $(BIN_DIR)/$(BIN_NAME)
-	@echo "==> Deployed $(RELEASE_DIR)/$(BIN_NAME)-$(STAMP) and updated $(BIN_DIR)/$(BIN_NAME)"
+	# Provide a stable alias 'cxplus' that points at the canonical 'codex' symlink
+	@ln -sfn $(BIN_NAME) $(BIN_DIR)/cxplus
+	@echo "==> Deployed $(RELEASE_DIR)/$(BIN_NAME)-$(STAMP) and updated $(BIN_DIR)/$(BIN_NAME) (+ cxplus alias)"
 
 # Deploy with an explicit STAMP=... if desired
 deploy: release
@@ -115,7 +117,20 @@ rollback:
 	@last=$$(ls -1t $(RELEASE_DIR)/$(BIN_NAME)-* 2>/dev/null | sed -n '2p'); \
 	 if [ -z "$$last" ]; then echo "No previous release to roll back to"; exit 1; fi; \
 	 ln -sfn ../releases/$$(basename $$last) $(BIN_DIR)/$(BIN_NAME); \
-	 echo "==> Rolled back to $$(basename $$last)"
+	 ln -sfn $(BIN_NAME) $(BIN_DIR)/cxplus; \
+	 echo "==> Rolled back to $$(basename $$last) (+ refreshed cxplus alias)"
+
+# Install or uninstall a user-level symlink named 'cxplus' without touching any global 'codex' binary.
+.PHONY: install-local uninstall-local
+LOCAL_BIN ?= $(HOME)/.local/bin
+install-local: package
+	@mkdir -p $(LOCAL_BIN)
+	@ln -sfn $(abspath $(BIN_DIR))/cxplus $(LOCAL_BIN)/cxplus
+	@echo "==> Linked $(LOCAL_BIN)/cxplus -> $(abspath $(BIN_DIR))/cxplus"
+
+uninstall-local:
+	@rm -f $(LOCAL_BIN)/cxplus
+	@echo "==> Removed $(LOCAL_BIN)/cxplus"
 
 verify: test
 	@if [ "$(RUN_LIVE)" = "1" ]; then \

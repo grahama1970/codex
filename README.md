@@ -122,6 +122,20 @@ Environment variables used by the Makefile/tests:
 
 For Rust workspace development, continue to use `codex-rs/justfile` for formatting and clippy (`just fmt`, `just fix -p <crate>`), following the conventions in `AGENTS.md`.
 
+### Binary name and alias
+
+- Canonical name inside the repo: `codex` (binary at `dist/bin/codex`).
+- Public alias: `cxplus` — a symlink that always points to the currently selected `codex`.
+- Install a user‑level link without touching system binaries: `make install-local` (creates `~/.local/bin/cxplus`).
+- Your existing shell alias (e.g., `alias cx=cxplus`) continues to work and won’t be overridden by the repo.
+
+### Rapid deployment & versioning
+
+- `make release` → produces a stamped binary `dist/releases/codex-<YYYYMMDDHHMM>-<branch>-<sha>` and updates `dist/bin/codex` + `dist/bin/cxplus`.
+- `make list-releases` → lists available stamped binaries.
+- `make switch VERSION=<stamp>` → switches `dist/bin/codex` (and thus `cxplus`) to an older/newer stamped build.
+- `make rollback` → automatically points to the previously used stamped build.
+
 ### Chutes integration (auto‑discovery)
 
 - Place credentials in `.env`:
@@ -135,3 +149,10 @@ For Rust workspace development, continue to use `codex-rs/justfile` for formatti
 - Live tests exercise the compiled CLI subcommand when `CHUTES_API_KEY` is present.
 
 Details: docs/chutes.md
+
+---
+
+### Quick start and features index
+
+- See QUICKSTART.md for a 60‑second build, test, and live‑scenario walkthrough.
+- See FEATURES.md for an overview table of major CLI/TUI features, discovery, scenarios, and safety controls.
