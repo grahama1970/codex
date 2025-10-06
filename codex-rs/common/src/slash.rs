@@ -6,6 +6,10 @@
 pub enum SlashCommand {
     Help,
     Status,
+    /// Switch to light theme (best-effort; session/process scope).
+    Light,
+    /// Switch to dark theme (best-effort; session/process scope).
+    Dark,
     Model {
         id: String,
     },
@@ -59,6 +63,8 @@ pub fn parse(line: &str) -> Option<SlashCommand> {
     match verb.as_str() {
         "help" => Some(SlashCommand::Help),
         "status" => Some(SlashCommand::Status),
+        "light" => Some(SlashCommand::Light),
+        "dark" => Some(SlashCommand::Dark),
         "model" => parts
             .get(1)
             .cloned()

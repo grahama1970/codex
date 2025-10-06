@@ -1104,6 +1104,22 @@ impl ChatWidget {
             return;
         }
         match cmd {
+            SlashCommand::Light => {
+                crate::style::set_theme_override(Some("light"));
+                self.add_to_history(history_cell::new_info_event(
+                    "Theme switched to light (session)".to_string(),
+                    None,
+                ));
+                self.request_redraw();
+            }
+            SlashCommand::Dark => {
+                crate::style::set_theme_override(Some("dark"));
+                self.add_to_history(history_cell::new_info_event(
+                    "Theme switched to dark (session)".to_string(),
+                    None,
+                ));
+                self.request_redraw();
+            }
             SlashCommand::New => {
                 self.app_event_tx.send(AppEvent::NewSession);
             }
@@ -1206,6 +1222,22 @@ impl ChatWidget {
                         )));
                     }
                 }
+                self.request_redraw();
+            }
+            SlashCommand::AnimTipsOn => {
+                crate::anim_config::set_tips_override(Some(true));
+                self.add_to_history(history_cell::new_info_event(
+                    "Spinner tips enabled (session)".to_string(),
+                    Some("Persist via [anim] spinner_tips = true".into()),
+                ));
+                self.request_redraw();
+            }
+            SlashCommand::AnimTipsOff => {
+                crate::anim_config::set_tips_override(Some(false));
+                self.add_to_history(history_cell::new_info_event(
+                    "Spinner tips disabled (session)".to_string(),
+                    Some("Persist via [anim] spinner_tips = false".into()),
+                ));
                 self.request_redraw();
             }
             SlashCommand::Model => {

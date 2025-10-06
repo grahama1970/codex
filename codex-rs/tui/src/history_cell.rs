@@ -431,6 +431,16 @@ pub(crate) fn new_session_info(
                 "/warmup".into(),
                 " - warm-up the current/selected Chutes model (tiny ping)".dim(),
             ]),
+            Line::from(vec![
+                "  ".into(),
+                "/light".into(),
+                " - switch to light theme (session)".dim(),
+            ]),
+            Line::from(vec![
+                "  ".into(),
+                "/dark".into(),
+                " - switch to dark theme (session)".dim(),
+            ]),
         ];
 
         CompositeHistoryCell {
@@ -443,7 +453,12 @@ pub(crate) fn new_session_info(
         CompositeHistoryCell { parts: vec![] }
     } else {
         let lines = vec![
-            "model changed:".magenta().bold().into(),
+            {
+                let s = Span::from("model changed:");
+                s.set_style(crate::style::brand_accent_style())
+                    .bold()
+                    .into()
+            },
             format!("requested: {}", config.model).into(),
             format!("used: {model}").into(),
         ];
@@ -923,7 +938,10 @@ pub(crate) fn new_mcp_tools_output(
 }
 
 pub(crate) fn new_info_event(message: String, hint: Option<String>) -> PlainHistoryCell {
-    let mut line = vec!["• ".dim(), message.into()];
+    let mut line = vec![
+        "• ".dim(),
+        Span::from(message).set_style(crate::style::state_info_style()),
+    ];
     if let Some(hint) = hint {
         line.push(" ".into());
         line.push(hint.dark_gray());
@@ -936,7 +954,8 @@ pub(crate) fn new_error_event(message: String) -> PlainHistoryCell {
     // Use a hair space (U+200A) to create a subtle, near-invisible separation
     // before the text. VS16 is intentionally omitted to keep spacing tighter
     // in terminals like Ghostty.
-    let lines: Vec<Line<'static>> = vec![vec![format!("■ {message}").red()].into()];
+    let styled = Span::from(format!("■ {message}")).set_style(crate::style::state_error_style());
+    let lines: Vec<Line<'static>> = vec![vec![styled].into()];
     PlainHistoryCell { lines }
 }
 

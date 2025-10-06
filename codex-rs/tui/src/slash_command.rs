@@ -16,6 +16,14 @@ pub enum SlashCommand {
     Approvals,
     Discover,
     Warmup,
+    /// Enable spinner tips (session only)
+    AnimTipsOn,
+    /// Disable spinner tips (session only)
+    AnimTipsOff,
+    /// Switch to the light theme immediately (no restart).
+    Light,
+    /// Switch to the dark theme immediately (no restart).
+    Dark,
     Review,
     New,
     Init,
@@ -37,6 +45,10 @@ impl SlashCommand {
         match self {
             SlashCommand::Warmup => "warm-up the current/selected Chutes model (tiny ping)",
             SlashCommand::Discover => "discover a coding-capable Chutes model (non‑SOTA)",
+            SlashCommand::AnimTipsOn => "enable spinner tips (session)",
+            SlashCommand::AnimTipsOff => "disable spinner tips (session)",
+            SlashCommand::Light => "switch to light theme (no restart)",
+            SlashCommand::Dark => "switch to dark theme (no restart)",
             SlashCommand::New => "start a new chat during a conversation",
             SlashCommand::Init => "create an AGENTS.md file with instructions for Codex",
             SlashCommand::Compact => "summarize conversation to prevent hitting the context limit",
@@ -75,6 +87,10 @@ impl SlashCommand {
             SlashCommand::Diff
             | SlashCommand::Discover
             | SlashCommand::Warmup
+            | SlashCommand::AnimTipsOn
+            | SlashCommand::AnimTipsOff
+            | SlashCommand::Light
+            | SlashCommand::Dark
             | SlashCommand::Mention
             | SlashCommand::Status
             | SlashCommand::Mcp

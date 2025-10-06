@@ -336,22 +336,24 @@ impl ChutesCli {
                 // Env JSON overrides
                 if let Ok(p) = std::env::var("CHUTES_PERF_JSON")
                     && let Ok(map) = serde_json::from_str::<serde_json::Value>(&p)
-                        && let Some(obj) = map.as_object() {
-                            for (k, v) in obj {
-                                if let Some(n) = v.as_f64() {
-                                    perf.insert(k.clone(), n);
-                                }
-                            }
+                    && let Some(obj) = map.as_object()
+                {
+                    for (k, v) in obj {
+                        if let Some(n) = v.as_f64() {
+                            perf.insert(k.clone(), n);
                         }
+                    }
+                }
                 if let Ok(r) = std::env::var("CHUTES_RATES_JSON")
                     && let Ok(map) = serde_json::from_str::<serde_json::Value>(&r)
-                        && let Some(obj) = map.as_object() {
-                            for (k, v) in obj {
-                                if let Some(n) = v.as_f64() {
-                                    rates.insert(k.clone(), n);
-                                }
-                            }
+                    && let Some(obj) = map.as_object()
+                {
+                    for (k, v) in obj {
+                        if let Some(n) = v.as_f64() {
+                            rates.insert(k.clone(), n);
                         }
+                    }
+                }
                 let gpu = args
                     .gpu_type
                     .clone()

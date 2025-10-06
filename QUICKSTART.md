@@ -101,5 +101,30 @@ Place cxplus.cmd or cxplus.ps1 on PATH and invoke `cxplus …`.
 - Discovery: `CHUTES_API_KEY`, `CHUTES_API_BASE`, `CHUTES_CATALOG_FIXTURE`, `CHUTES_DISCOVERY_DEBUG`, `CHUTES_FORCE_PROVIDER_BASE`, `CHUTES_EXTRA_CAPS`
 - Warm‑up: `CHUTES_WARMUP_DRYRUN`, `CHUTES_WARMUP_SECS`
 - Slash QOL: `GREP_MAX_LINES`, `OPEN_MAX_KB`, `ENABLE_SLASH_WRITE`
+- Slack notifications: set `SLACK_WEBHOOK_URL` and in `~/.codex/config.toml` add `notify = ["codex-notify-slack"]`
 
 See also: docs/chutes.md (discovery + troubleshooting) and docs/slash-commands.md (slash behaviors).
+
+## 12) Optional TUI theming
+You can customize the cxplus banner/accent colors via `~/.codex/config.toml`.
+
+```
+[tui.brand]
+title_color = "magenta"     # also supports: red, green, yellow, blue, cyan, gray, white, or hex like "#A855F7"
+accent_color = "magenta"    # used for small labels (e.g., "model changed:")
+```
+
+If unset, cxplus defaults to magenta.
+
+## 13) Slack notifications (built‑in)
+To receive a Slack message when a turn completes, set a webhook and enable the notifier:
+
+```
+# ~/.codex/config.toml
+notify = ["codex-notify-slack"]
+
+# Shell env
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/…"
+```
+
+Optionally, pass an explicit URL: `notify = ["codex-notify-slack", "--webhook", "https://hooks…"]`.

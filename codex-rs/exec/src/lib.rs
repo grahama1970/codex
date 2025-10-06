@@ -394,6 +394,12 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
                 "Slash commands:\n  /help\n  /status\n  /model <id>\n  /provider <id>\n  /profile <name>\n  /discover [--min-params N --max-params N --max-output-ppm X --require-modalities A,B --require-capabilities X,Y]\n  /warmup [secs]\n  /fmt (Makefile/just fmt)\n  /build (Makefile build)\n  /test (Makefile deterministic tests)\n  /mcp-add <name> -- <cmd...>\n  /mcp-list\n"
             );
         }
+        slash::SlashCommand::Light => {
+            eprintln!("To use the light theme, run: export CXPLUS_THEME=light (then restart)");
+        }
+        slash::SlashCommand::Dark => {
+            eprintln!("To use the dark theme, run: export CXPLUS_THEME=dark (then restart)");
+        }
         slash::SlashCommand::Status => {
             // Print a minimal status (provider/model/profile); values may be set via config or flags at invocation time.
             let provider = std::env::var("CODEX_MODEL_PROVIDER").ok();

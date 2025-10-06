@@ -1250,6 +1250,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "codex-notify-slack"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "codex-ollama"
 version = "0.0.0"
 dependencies = [
@@ -1435,6 +1448,7 @@ dependencies = [
  "textwrap 0.16.2",
  "tokio",
  "tokio-stream",
+ "toml",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",

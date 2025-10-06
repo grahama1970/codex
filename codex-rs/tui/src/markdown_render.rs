@@ -11,6 +11,7 @@ use pulldown_cmark::Parser;
 use pulldown_cmark::Tag;
 use pulldown_cmark::TagEnd;
 use ratatui::style::Style;
+use ratatui::style::Styled;
 use ratatui::style::Stylize;
 use ratatui::text::Line;
 use ratatui::text::Span;
@@ -419,7 +420,8 @@ where
     fn pop_link(&mut self) {
         if let Some(link) = self.link.take() {
             self.push_span(" (".into());
-            self.push_span(link.cyan().underlined());
+            let st = crate::style::link_style();
+            self.push_span(Span::from(link).set_style(st).underlined());
             self.push_span(")".into());
         }
     }
