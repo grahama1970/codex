@@ -532,7 +532,8 @@ impl HistoryCell for SessionHeaderHistoryCell {
         // Title line rendered inside the box: ">_ cxplus (Codex fork) (vX)"
         let title_spans: Vec<Span<'static>> = vec![
             Span::from(">_ ").dim(),
-            Span::from("cxplus (Codex fork)").bold(),
+            // Brand clearly as a fork by using a distinct accent color
+            Span::from("cxplus (Codex fork)").magenta().bold(),
             Span::from(" ").dim(),
             Span::from(format!("(v{})", self.version)).dim(),
         ];
