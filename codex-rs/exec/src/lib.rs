@@ -80,6 +80,7 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         config_overrides,
         run_timeout_secs,
         summary_dir,
+        shutdown_grace_ms,
         ..
     } = cli;
 
@@ -303,28 +304,38 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    let run_id_early = format!("exec-{}", ts_ms_early);
+    let run_id = format!("exec-{}", ts_ms_early);
     let run_dir = summary_dir
         .clone()
         .unwrap_or_else(|| PathBuf::from(".codex").join("runs"));
     let _ = std::fs::create_dir_all(&run_dir);
-    let events_path = run_dir.join(format!("{run_id_early}-events.ndjson"));
+    let events_path = run_dir.join(format!("{run_id}-events.ndjson"));
     let mut events_file = std::fs::File::create(&events_path).ok();
+    let mut seq: u64 = 0;
     let timed_out = Arc::new(AtomicBool::new(false));
+    let timed_out_at: Arc<tokio::sync::Mutex<Option<Instant>>> =
+        Arc::new(tokio::sync::Mutex::new(None));
+    let wrote_timeout_event = Arc::new(AtomicBool::new(false));
     let mut last_error_message: Option<String> = None;
     {
         let conv_for_timeout = conversation.clone();
         let timed_out_flag = timed_out.clone();
+        let timed_out_at_ref = timed_out_at.clone();
         let run_timeout = run_timeout_secs;
+        let shutdown_grace_ms = shutdown_grace_ms.unwrap_or(800);
         // Timer task to enforce global run timeout.
         tokio::spawn(async move {
             if let Some(secs) = run_timeout {
                 let dur = Duration::from_secs(secs);
                 tokio::time::sleep(dur).await;
                 timed_out_flag.store(true, Ordering::SeqCst);
+                {
+                    let mut t = timed_out_at_ref.lock().await;
+                    *t = Some(Instant::now());
+                }
                 tracing::warn!("Run timeout exceeded ({}s): sending interrupt", secs);
                 let _ = conv_for_timeout.submit(Op::Interrupt).await;
-                tokio::time::sleep(Duration::from_millis(500)).await;
+                tokio::time::sleep(Duration::from_millis(shutdown_grace_ms)).await;
                 let _ = conv_for_timeout.submit(Op::Shutdown).await;
             }
         });
@@ -403,23 +414,30 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         .await?;
     info!("Sent prompt with event ID: {initial_prompt_task_id}");
 
-    // Run the loop until the task is complete.
+    // Run the loop until the task is complete or timeout grace expires.
     // Track whether a fatal error was reported by the server so we can
     // exit with a non-zero status for automation-friendly signaling.
     let mut error_seen = false;
-    while let Some(event) = rx.recv().await {
+    let mut tick = tokio::time::interval(Duration::from_millis(120));
+    loop {
+        tokio::select! {
+            maybe_event = rx.recv() => {
+                if let Some(event) = maybe_event {
         // Tee to NDJSON file best-effort.
         if let Some(f) = events_file.as_mut() {
             let line = serde_json::json!({
                 "ts_unix_ms": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
                 "elapsed_ms": monotonic_start.elapsed().as_millis() as u64,
                 "kind": "codex_event",
+                "seq": seq,
+                "run_id": run_id,
                 "payload": &event,
             });
             if let Ok(s) = serde_json::to_string(&line) {
                 let _ = std::io::Write::write_all(f, s.as_bytes());
                 let _ = std::io::Write::write_all(f, b"\n");
             }
+            seq = seq.saturating_add(1);
         }
         if let EventMsg::Error(err) = &event.msg {
             error_seen = true;
@@ -435,6 +453,43 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                 break;
             }
         }
+                } else {
+                    // Sender closed; break to finalize.
+                    break;
+                }
+            },
+            _ = tick.tick() => {
+                if timed_out.load(Ordering::SeqCst) {
+                    // Emit a synthetic timeout marker once for visibility in NDJSON.
+                    if let Some(f) = events_file.as_mut() {
+                        if !wrote_timeout_event.load(Ordering::SeqCst) {
+                            let line = serde_json::json!({
+                                "ts_unix_ms": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
+                                "elapsed_ms": monotonic_start.elapsed().as_millis() as u64,
+                                "kind": "run_timeout",
+                                "seq": seq,
+                                "run_id": run_id,
+                            });
+                            if let Ok(s) = serde_json::to_string(&line) {
+                                let _ = std::io::Write::write_all(f, s.as_bytes());
+                                let _ = std::io::Write::write_all(f, b"\n");
+                            }
+                            wrote_timeout_event.store(true, Ordering::SeqCst);
+                            seq = seq.saturating_add(1);
+                        }
+                    }
+                    // If shutdown grace elapsed, break even if backend hasn't acked.
+                    let grace_ms = shutdown_grace_ms.unwrap_or(800);
+                    let elapsed_ok = {
+                        let g = timed_out_at.lock().await;
+                        g.map(|inst| inst.elapsed() >= Duration::from_millis(grace_ms)).unwrap_or(false)
+                    };
+                    if elapsed_ok {
+                        break;
+                    }
+                }
+            }
+        }
     }
     event_processor.print_final_output();
 
@@ -445,7 +500,6 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    let run_id = format!("exec-{ts_ms}");
     let summary_path = run_dir.join(format!("{run_id}-summary.json"));
     let elapsed_ms = monotonic_start.elapsed().as_millis() as u64;
     let status = if timed_out.load(Ordering::SeqCst) {
@@ -455,11 +509,21 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     } else {
         "ok"
     };
+    let exit_code = if timed_out.load(Ordering::SeqCst) {
+        5
+    } else if error_seen {
+        1
+    } else {
+        0
+    };
     let summary = serde_json::json!({
+        "schema_version": 1,
         "run_id": run_id,
         "status": status,
+        "exit_code": exit_code,
         "timed_out": timed_out.load(Ordering::SeqCst),
         "duration_ms": elapsed_ms,
+        "event_count": seq,
         "model": config.model,
         "model_provider": config.model_provider,
         "cwd": config.cwd,
@@ -610,7 +674,12 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
                 Ok(out) => {
                     let s = String::from_utf8_lossy(&out.stdout);
                     let total = s.lines().count();
-                    let lines: Vec<&str> = s.lines().take(200).collect();
+                    let max_lines = std::env::var("GREP_MAX_LINES")
+                        .ok()
+                        .and_then(|v| v.parse::<usize>().ok())
+                        .filter(|n| *n >= 10)
+                        .unwrap_or(200);
+                    let lines: Vec<&str> = s.lines().take(max_lines).collect();
                     if total > lines.len() {
                         eprintln!(
                             "{}\n... (truncated; {} of {} lines)",
@@ -627,9 +696,17 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
         }
         slash::SlashCommand::Open { path, line } => match std::fs::read(&path) {
             Ok(raw) => {
-                const MAX_BYTES: usize = 512 * 1024;
-                if raw.len() > MAX_BYTES {
-                    eprintln!("/open refusing large file (>512KB): {path}");
+                let max_bytes = std::env::var("OPEN_MAX_KB")
+                    .ok()
+                    .and_then(|v| v.parse::<usize>().ok())
+                    .filter(|kb| *kb >= 32)
+                    .map(|kb| kb * 1024)
+                    .unwrap_or(512 * 1024);
+                if raw.len() > max_bytes {
+                    eprintln!(
+                        "/open refusing large file (>={}KB): {path}",
+                        max_bytes / 1024
+                    );
                     return Ok(());
                 }
                 let text = String::from_utf8_lossy(&raw);

@@ -85,6 +85,11 @@ pub struct Cli {
     #[arg(long = "summary-dir", value_name = "DIR")]
     pub summary_dir: Option<PathBuf>,
 
+    /// Grace period (ms) to wait after sending Interrupt before forcing Shutdown
+    /// when a run-timeout occurs. Default: 800ms.
+    #[arg(long = "shutdown-grace-ms")]
+    pub shutdown_grace_ms: Option<u64>,
+
     /// Initial instructions for the agent. If not provided as an argument (or
     /// if `-` is used), instructions are read from stdin.
     #[arg(value_name = "PROMPT")]
