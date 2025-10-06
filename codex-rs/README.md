@@ -41,6 +41,10 @@ You can enable notifications by configuring a script that is run whenever the ag
 
 To run Codex non-interactively, run `codex exec PROMPT` (you can also pass the prompt via `stdin`) and Codex will work on your task until it decides that it is done and exits. Output is printed to the terminal directly. You can set the `RUST_LOG` environment variable to see more about what's going on.
 
+- Reliability helpers for headless runs:
+  - `--run-timeout-secs <n>`: enforce a wall‑clock budget; Codex will send an interrupt and shut down when exceeded and exit with code `5`.
+  - `--summary-dir <DIR>`: write a machine‑readable summary JSON to `<DIR>/.codex/runs/<run_id>-summary.json` (defaults to `.codex/runs`).
+
 ### Use `@` for file search
 
 Typing `@` triggers a fuzzy-filename search over the workspace root. Use up/down to select among the results and Tab or Enter to replace the `@` with the selected path. You can use Esc to cancel the search.

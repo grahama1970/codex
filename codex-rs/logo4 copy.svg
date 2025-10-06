@@ -1,0 +1,172 @@
+<!-- cxplus — Text-First Wordmark (cyan sweep, plus pop/rotate, x direction change/pop-out) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" role="img" aria-labelledby="t d" text-rendering="geometricPrecision" data-static="false">
+  <title id="t">cxplus — animated wordmark</title>
+  <desc id="d">Two-part wordmark ("cx" and "plus" spaced) with a brisk cyan sweep across the text; a plus pops in near the top-right of the terminal ‘s’ and accelerates into a spin; the ‘x’ briefly changes direction and then pops out. Themeable and reduced‑motion aware.</desc>
+  <style><![CDATA[
+    :root{
+      --accentPrimary:#7AA2F7;   /* alt accent, unused in this mark */
+      --accentSecondary:#2FD4CB; /* cyan sweep and plus */
+      --fg:#E6EDF3;              /* foreground text */
+      --bg:#0B1220;              /* canvas */
+      --sweepDur:1.2s;           /* brisk sweep */
+      --popDur:.40s;             /* plus pop-in */
+      --xWiggle:.60s;            /* x wiggle */
+      --xPop:.25s;               /* x pop-out */
+    }
+    .bg{fill:var(--bg)}
+    .wm{fill:var(--fg);font:700 44px/1.05 "Nunito","SF Pro Rounded","Avenir Next Rounded","Quicksand","Segoe UI Rounded","Inter",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue","Arial Rounded MT Bold",Arial,"Noto Sans","Liberation Sans",sans-serif;letter-spacing:-.3px}
+    .wmCyan{fill:var(--accentSecondary)}
+    .plus{fill:var(--accentSecondary)}
+    /* Reduced motion and static */
+    @media (prefers-reduced-motion: reduce){
+      /* Only hide animations if not explicitly forced */
+      svg:not([data-animate="force"]) #cyanOverlay,
+      svg:not([data-animate="force"]) #plusAcc,
+      svg:not([data-animate="force"]) #xMove{display:none!important}
+    }
+    svg[data-static="true"] #cyanOverlay,
+    svg[data-static="true"] #plusAcc,
+    svg[data-static="true"] #xMove{display:none!important}
+  ]]></style>
+
+  <rect class="bg" width="100%" height="100%" aria-hidden="true" fill="#0B1220"/>
+
+  <!-- Optional subtle glow for plus pop -->
+  <defs>
+    <filter id="plusGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.85" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Layout group: baseline at y=56 -->
+  <g transform="translate(20,56)">
+    <!-- Base wordmark: 'c', 'x', and 'plus' with a slightly larger gap before 'plus' -->
+    <text class="wm" id="cBase" x="0"  y="0" fill="#E6EDF3">c</text>
+    <text class="wm" id="xBase" x="22" y="0" fill="#E6EDF3">x
+      <animateTransform attributeName="transform" type="translate"
+        values="0 0; 0 -0.8; 0 0" dur="0.60s" begin="cycle.begin+0.18s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1; .25 .1 .25 1"/>
+      <animateTransform attributeName="transform" type="scale"
+        values="1;1.06;1" dur="0.25s" begin="cycle.begin+0.42s" fill="freeze" additive="sum" calcMode="spline" keySplines=".25 .1 .25 1"/>
+    </text>
+    <!-- Tight gap: 1× inter-letter spacing (28px) after 'x' → 'plus' split per glyph for precise alignment with clipPaths -->
+    <text class="wm" id="pBase" x="50" y="0" fill="#E6EDF3">p</text>
+    <text class="wm" id="lBase" x="76" y="0" fill="#E6EDF3">l</text>
+    <text class="wm" id="uBase" x="86" y="0" fill="#E6EDF3">u</text>
+    <text class="wm" id="sBase" x="112" y="0" fill="#E6EDF3">s</text>
+
+    <!-- Cycle controller: defines one full loop; all timings are relative to cycle.begin -->
+    <g id="cycleCtl" opacity="0">
+      <!-- Repeat whole animation every 3.00s -->
+      <animate id="cycle" attributeName="opacity" values="0;0" dur="3.00s" begin="0s" repeatCount="indefinite"/>
+    </g>
+
+    <!-- Cyan overlay using clipPaths (c,x) and per-letter masks (p,l,u,s) to ensure full fill coverage on all glyphs -->
+    <defs>
+      <clipPath id="clipC" clipPathUnits="userSpaceOnUse">
+        <text class="wm" x="0" y="0" font-size="44" font-weight="700">c</text>
+      </clipPath>
+      <clipPath id="clipX" clipPathUnits="userSpaceOnUse">
+        <text class="wm" x="22" y="0" font-size="44" font-weight="700">x</text>
+      </clipPath>
+      <!-- Masks for p,l,u,s (kept) and clipPaths with animated rects for robust full-height reveal -->
+      <mask id="maskP" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">
+        <rect x="0" y="-200" width="800" height="400" fill="#000"/>
+        <rect x="40" y="-120" width="0" height="240" fill="#fff">
+          <animate attributeName="width" from="0" to="200" dur="0.12s" begin="cycle.begin+0.24s; cycle.end+0.24s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+          <animate attributeName="width" from="200" to="0" dur="0.03s" begin="cycle.begin+2.05s; cycle.end+2.05s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+        </rect>
+      </mask>
+      <mask id="maskL" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">
+        <rect x="0" y="-200" width="800" height="400" fill="#000"/>
+        <rect x="66" y="-120" width="0" height="240" fill="#fff">
+          <animate attributeName="width" from="0" to="200" dur="0.12s" begin="cycle.begin+0.36s; cycle.end+0.36s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+          <animate attributeName="width" from="200" to="0" dur="0.03s" begin="cycle.begin+2.02s; cycle.end+2.02s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+        </rect>
+      </mask>
+      <mask id="maskU" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">
+        <rect x="0" y="-200" width="800" height="400" fill="#000"/>
+        <rect x="76" y="-120" width="0" height="240" fill="#fff">
+          <animate attributeName="width" from="0" to="200" dur="0.12s" begin="cycle.begin+0.48s; cycle.end+0.48s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+          <animate attributeName="width" from="200" to="0" dur="0.03s" begin="cycle.begin+1.99s; cycle.end+1.99s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+        </rect>
+      </mask>
+      <mask id="maskS" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">
+        <rect x="0" y="-200" width="800" height="400" fill="#000"/>
+        <rect x="102" y="-120" width="0" height="240" fill="#fff">
+          <animate id="sReveal" attributeName="width" from="0" to="220" dur="0.12s" begin="cycle.begin+0.60s; cycle.end+0.60s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+          <animate attributeName="width" from="220" to="0" dur="0.03s" begin="cycle.begin+1.96s; cycle.end+1.96s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+        </rect>
+      </mask>
+
+      <!-- Animated clipPaths for p,l,u,s using tall rects so sweep covers full glyph height in all renderers -->
+      <clipPath id="cpP" clipPathUnits="userSpaceOnUse">
+        <rect x="50" y="-200" width="0" height="400">
+          <animate attributeName="width" from="0" to="240" dur="0.12s" begin="cycle.begin+0.24s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+          <animate attributeName="width" from="240" to="0" dur="0.03s" begin="popOutScale.end+0.09s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+        </rect>
+      </clipPath>
+      <clipPath id="cpL" clipPathUnits="userSpaceOnUse">
+        <rect x="76" y="-200" width="0" height="400">
+          <animate attributeName="width" from="0" to="240" dur="0.12s" begin="cycle.begin+0.36s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+          <animate attributeName="width" from="240" to="0" dur="0.03s" begin="popOutScale.end+0.06s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+        </rect>
+      </clipPath>
+      <clipPath id="cpU" clipPathUnits="userSpaceOnUse">
+        <rect x="86" y="-200" width="0" height="400">
+          <animate attributeName="width" from="0" to="240" dur="0.12s" begin="cycle.begin+0.48s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+          <animate attributeName="width" from="240" to="0" dur="0.03s" begin="popOutScale.end+0.03s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+        </rect>
+      </clipPath>
+      <clipPath id="cpS" clipPathUnits="userSpaceOnUse">
+        <rect x="112" y="-200" width="0" height="400">
+          <animate attributeName="width" from="0" to="260" dur="0.12s" begin="cycle.begin+0.60s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+          <animate attributeName="width" from="260" to="0" dur="0.03s" begin="popOutScale.end" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+        </rect>
+      </clipPath>
+    </defs>
+    <g id="cyanOverlay">
+      <!-- c and x still use clipPaths + expanding rects (robust and fast) -->
+      <g clip-path="url(#clipC)"><rect x="0" y="-120" width="0" height="240" fill="#2FD4CB"><animate attributeName="width" from="0" to="200" dur="0.12s" begin="cycle.begin; cycle.end" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/><animate attributeName="width" from="200" to="0" dur="0.03s" begin="cycle.begin+2.11s; cycle.end+2.11s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/></rect></g>
+      <g id="xMove" clip-path="url(#clipX)">
+        <rect x="22" y="-120" width="0" height="240" fill="#2FD4CB">
+          <animate attributeName="width" from="0" to="200" dur="0.12s" begin="cycle.begin+0.12s; cycle.end+0.12s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+          <animate attributeName="width" from="200" to="0" dur="0.03s" begin="cycle.begin+2.08s; cycle.end+2.08s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1"/>
+        </rect>
+        <animateTransform attributeName="transform" type="translate"
+          values="0 0; 0 -0.8; 0 0" dur="0.60s" begin="cycle.begin+0.18s" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1; .25 .1 .25 1"/>
+        <animateTransform attributeName="transform" type="scale"
+          values="1;1.06;1" dur="0.25s" begin="cycle.begin+0.42s" fill="freeze" additive="sum" calcMode="spline" keySplines=".25 .1 .25 1"/>
+      </g>
+      <!-- p,l, u, s rendered as cyan text clipped by animated tall rects (full-height sweep) -->
+      <g clip-path="url(#cpP)"><text class="wm wmCyan" x="50" y="0">p</text></g>
+      <g clip-path="url(#cpL)"><text class="wm wmCyan" x="76" y="0">l</text></g>
+      <g clip-path="url(#cpU)"><text class="wm wmCyan" x="86" y="0">u</text></g>
+      <g clip-path="url(#cpS)"><text class="wm wmCyan" x="112" y="0">s</text></g>
+    </g>
+
+
+    <!-- Plus accent: snug to the top-right of the 's'; pop-in, spin L→R then R→L, pop-out; repeats with the cycle; subtle glow filter for pop -->
+    <g id="plusAcc" transform="translate(140,-26)">
+      <g id="plusGlyph" opacity="0" transform="scale(0)" style="transform-box:fill-box;transform-origin:50% 50%" filter="url(#plusGlow)">
+        <rect class="plus" x="-7" y="-2" width="14" height="4" rx="2" fill="#2FD4CB"/>
+        <rect class="plus" x="-2" y="-7" width="4"  height="14" rx="2" fill="#2FD4CB"/>
+        <!-- Begin when the 's' finishes revealing -->
+        <animate attributeName="opacity" values="0;1" dur="0.20s" begin="sReveal.end" fill="freeze"/>
+        <animateTransform id="popScale" attributeName="transform" type="scale"
+          values="0;1.08;1" keyTimes="0;.7;1" dur="0.20s" begin="sReveal.end" fill="freeze" calcMode="spline" keySplines=".25 .1 .25 1; .25 .1 .25 1"/>
+        <!-- Spin left→right for 1s, then right→left for 1s -->
+        <animateTransform id="spinLR" attributeName="transform" type="rotate"
+          from="0" to="360" dur="0.45s" begin="popScale.end+0.02s" fill="freeze" additive="sum" calcMode="spline" keySplines=".25 .1 .25 1"/>
+        <animateTransform id="spinRL" attributeName="transform" type="rotate"
+          from="360" to="0" dur="0.45s" begin="spinLR.end" fill="freeze" additive="sum" calcMode="spline" keySplines=".25 .1 .25 1"/>
+        <!-- Pop-out to end the cycle -->
+        <animateTransform id="popOutScale" attributeName="transform" type="scale" values="1;0" dur="0.12s" begin="spinRL.end" fill="freeze" additive="sum" calcMode="spline" keySplines=".25 .1 .25 1"/>
+        <animate id="popOutOpacity" attributeName="opacity" values="1;0" dur="0.12s" begin="spinRL.end" fill="freeze"/>
+      </g>
+    </g>
+  </g>
+</svg>

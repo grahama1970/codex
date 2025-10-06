@@ -1160,7 +1160,7 @@ impl ChatWidget {
             SlashCommand::Discover => {
                 // Run `codex chutes recommend` with sane defaults and append result as an info event.
                 let exe =
-                    std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("codex"));
+                    std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("cxplus"));
                 let out = std::process::Command::new(exe)
                     .arg("chutes")
                     .arg("recommend")
@@ -1221,7 +1221,7 @@ impl ChatWidget {
             SlashCommand::Warmup => {
                 // Call `codex chutes warmup --secs 8` and append result to history.
                 let exe =
-                    std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("codex"));
+                    std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("cxplus"));
                 let out = std::process::Command::new(exe)
                     .arg("chutes")
                     .arg("warmup")

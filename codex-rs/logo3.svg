@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 64" role="img" aria-labelledby="t d" data-static="false">
+  <title id="t">cxplus — Wordmark with Pulse Exhaust</title>
+  <desc id="d">“cxplus” wordmark with three subtle exhaust dots emanating from the plus. Themeable; reduced-motion aware.</desc>
+  <style>
+    :root{--accentPrimary:#7AA2F7;--fg:#E6EDF3;--bg:#0B1220}
+    .bg{fill:var(--bg)}
+    .word{fill:var(--fg)}
+    .plus{fill:var(--accentPrimary)}
+    .dot{fill:var(--accentPrimary); opacity:.0}
+    .p1{animation:puff 2s ease-out infinite}
+    .p2{animation:puff 2s ease-out infinite .4s}
+    .p3{animation:puff 2s ease-out infinite .8s}
+    @keyframes puff{
+      0%{transform:translateX(0px);opacity:0}
+      10%{opacity:.8}
+      100%{transform:translateX(20px);opacity:0}
+    }
+    @media (prefers-reduced-motion: reduce){.dot{animation:none!important;opacity:.5}}
+    svg[data-static="true"] .dot{animation:none!important;opacity:.5}
+  </style>
+  <rect class="bg" width="100%" height="100%"/>
+  <!-- Simple wordmark (system font) -->
+  <g transform="translate(24,42)" font-family="ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Noto Color Emoji" font-size="36" font-weight="600">
+    <text class="word" x="0" y="0">cx</text>
+    <!-- Plus sign as two rects for reliable rendering -->
+    <g transform="translate(62,-20)">
+      <rect class="plus" x="0" y="12" width="22" height="6" rx="3"/>
+      <rect class="plus" x="8" y="4"  width="6"  height="22" rx="3"/>
+      <!-- Exhaust dots -->
+      <g transform="translate(28,15)">
+        <circle class="dot p1" cx="0"  cy="0" r="3"/>
+        <circle class="dot p2" cx="0"  cy="0" r="3"/>
+        <circle class="dot p3" cx="0"  cy="0" r="3"/>
+      </g>
+    </g>
+    <text class="word" x="96" y="0">lus</text>
+  </g>
+</svg>
+

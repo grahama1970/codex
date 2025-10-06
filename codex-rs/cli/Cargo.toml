@@ -2,9 +2,16 @@
 edition = "2024"
 name = "codex-cli"
 version = { workspace = true }
+authors = ["Graham Anderson <graham@grahama.co>"]
+description = "cxplus: a modern, low-strain TUI/CLI fork of Codex with Chutes integration, theming, reduced-motion, and post-compile scenarios. Fork of OpenAI Codex."
+
 
 [[bin]]
 name = "codex"
+path = "src/main.rs"
+
+[[bin]]
+name = "cxplus"
 path = "src/main.rs"
 
 [lib]

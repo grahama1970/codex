@@ -35,6 +35,13 @@ use serde_json::Value;
 use std::io::IsTerminal;
 use std::io::Read;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
+use std::time::Instant;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 use supports_color::Stream;
 use tracing::debug;
 use tracing::error;
@@ -71,8 +78,12 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         output_schema: output_schema_path,
         include_plan_tool,
         config_overrides,
+        run_timeout_secs,
+        summary_dir,
         ..
     } = cli;
+
+    // Apply non-interactive sane defaults (avoid mutating process env here to honor sandboxing policies).
 
     // Determine the prompt source (parent or subcommand) and read from stdin if needed.
     let prompt_arg = match &command {
@@ -132,6 +143,7 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
             supports_color::on_cached(Stream::Stderr).is_some(),
         ),
     };
+    // Ensure consistent no-color for headless/json contexts (do not mutate env; renderer selection handled above).
 
     // Build fmt layer (existing logging) to compose with OTEL layer.
     let default_level = "error";
@@ -284,7 +296,38 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     info!("Codex initialized with event: {session_configured:?}");
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Event>();
+    let start_ts = SystemTime::now();
+    let monotonic_start = Instant::now();
+    // Initialize run directory + event log early, so we persist even if the process aborts.
+    let ts_ms_early = start_ts
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let run_id_early = format!("exec-{}", ts_ms_early);
+    let run_dir = summary_dir
+        .clone()
+        .unwrap_or_else(|| PathBuf::from(".codex").join("runs"));
+    let _ = std::fs::create_dir_all(&run_dir);
+    let events_path = run_dir.join(format!("{run_id_early}-events.ndjson"));
+    let mut events_file = std::fs::File::create(&events_path).ok();
+    let timed_out = Arc::new(AtomicBool::new(false));
+    let mut last_error_message: Option<String> = None;
     {
+        let conv_for_timeout = conversation.clone();
+        let timed_out_flag = timed_out.clone();
+        let run_timeout = run_timeout_secs;
+        // Timer task to enforce global run timeout.
+        tokio::spawn(async move {
+            if let Some(secs) = run_timeout {
+                let dur = Duration::from_secs(secs);
+                tokio::time::sleep(dur).await;
+                timed_out_flag.store(true, Ordering::SeqCst);
+                tracing::warn!("Run timeout exceeded ({}s): sending interrupt", secs);
+                let _ = conv_for_timeout.submit(Op::Interrupt).await;
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                let _ = conv_for_timeout.submit(Op::Shutdown).await;
+            }
+        });
         let conversation = conversation.clone();
         tokio::spawn(async move {
             loop {
@@ -365,8 +408,22 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     // exit with a non-zero status for automation-friendly signaling.
     let mut error_seen = false;
     while let Some(event) = rx.recv().await {
-        if matches!(event.msg, EventMsg::Error(_)) {
+        // Tee to NDJSON file best-effort.
+        if let Some(f) = events_file.as_mut() {
+            let line = serde_json::json!({
+                "ts_unix_ms": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
+                "elapsed_ms": monotonic_start.elapsed().as_millis() as u64,
+                "kind": "codex_event",
+                "payload": &event,
+            });
+            if let Ok(s) = serde_json::to_string(&line) {
+                let _ = std::io::Write::write_all(f, s.as_bytes());
+                let _ = std::io::Write::write_all(f, b"\n");
+            }
+        }
+        if let EventMsg::Error(err) = &event.msg {
             error_seen = true;
+            last_error_message = Some(err.message.clone());
         }
         let shutdown: CodexStatus = event_processor.process_event(event);
         match shutdown {
@@ -380,7 +437,76 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         }
     }
     event_processor.print_final_output();
-    if error_seen {
+
+    // Persist a small run summary to disk to make headless use reliable.
+    let run_dir = summary_dir.unwrap_or_else(|| PathBuf::from(".codex").join("runs"));
+    let _ = std::fs::create_dir_all(&run_dir);
+    let ts_ms = start_ts
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let run_id = format!("exec-{ts_ms}");
+    let summary_path = run_dir.join(format!("{run_id}-summary.json"));
+    let elapsed_ms = monotonic_start.elapsed().as_millis() as u64;
+    let status = if timed_out.load(Ordering::SeqCst) {
+        "timeout"
+    } else if error_seen {
+        "error"
+    } else {
+        "ok"
+    };
+    let summary = serde_json::json!({
+        "run_id": run_id,
+        "status": status,
+        "timed_out": timed_out.load(Ordering::SeqCst),
+        "duration_ms": elapsed_ms,
+        "model": config.model,
+        "model_provider": config.model_provider,
+        "cwd": config.cwd,
+        "started_unix_ms": ts_ms,
+        "events_path": events_path,
+        "last_error": last_error_message,
+    });
+    if let Err(e) = std::fs::write(
+        &summary_path,
+        serde_json::to_vec_pretty(&summary).unwrap_or_default(),
+    ) {
+        eprintln!(
+            "Warning: failed to write run summary to {}: {e}",
+            summary_path.display()
+        );
+    }
+
+    if timed_out.load(Ordering::SeqCst) {
+        eprintln!(
+            "codex-exec timeout: {}s budget exceeded. Summary: {}  Events: {}",
+            run_timeout_secs.unwrap_or_default(),
+            summary_path.display(),
+            events_path.display()
+        );
+        if let Some(msg) = &last_error_message {
+            eprintln!("last error: {msg}");
+        }
+        std::process::exit(5);
+    } else if error_seen {
+        if let Some(msg) = &last_error_message {
+            let low = msg.to_ascii_lowercase();
+            if msg.contains("429") || low.contains("rate") {
+                eprintln!(
+                    "hint: provider rate-limited the request; try fewer --jobs or increase backoff."
+                );
+            } else if low.contains("dns") || low.contains("resolve") {
+                eprintln!("hint: network/DNS error; verify connectivity and provider base_url.");
+            } else if low.contains("timeout") {
+                eprintln!("hint: request timed out; adjust --request-timeout-ms and retries.");
+            }
+            eprintln!("last error: {msg}");
+        }
+        eprintln!(
+            "codex-exec failed. Summary: {}  Events: {}",
+            summary_path.display(),
+            events_path.display()
+        );
         std::process::exit(1);
     }
 
@@ -420,7 +546,8 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
         }
         slash::SlashCommand::Discover(args) => {
             // Delegate to compiled binary subcommand: `codex chutes recommend` with flags; print chosen id.
-            let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("codex"));
+            let exe =
+                std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("cxplus"));
             let mut cmd = tokio::process::Command::new(exe);
             cmd.arg("chutes").arg("recommend");
             if let Some(v) = args.min_params {
@@ -521,7 +648,8 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
         },
         slash::SlashCommand::Warmup { secs } => {
             // Delegate to compiled binary subcommand: `codex chutes warmup --secs N`.
-            let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("codex"));
+            let exe =
+                std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("cxplus"));
             let mut cmd = tokio::process::Command::new(exe);
             cmd.arg("chutes").arg("warmup");
             if let Some(s) = secs {

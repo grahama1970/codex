@@ -1,0 +1,23 @@
+<!-- cxplus — Static Wordmark (no animation) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" role="img" aria-labelledby="t d">
+  <title id="t">cxplus — static wordmark</title>
+  <desc id="d">Static version of the cxplus wordmark for environments that strip or disallow SVG animation.</desc>
+  <style><![CDATA[
+    :root{ --fg:#E6EDF3; --bg:#0B1220; --accent:#2FD4CB; }
+    .bg{fill:var(--bg)}
+    .wm{fill:var(--fg);font:700 44px/1.05 "Nunito","SF Pro Rounded","Avenir Next Rounded","Quicksand","Segoe UI Rounded","Inter",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue","Arial Rounded MT Bold",Arial,"Noto Sans","Liberation Sans",sans-serif;letter-spacing:-.3px}
+    .accent{fill:var(--accent)}
+  ]]></style>
+
+  <rect class="bg" width="100%" height="100%"/>
+  <g transform="translate(20,56)">
+    <text class="wm" x="0"  y="0">c</text>
+    <text class="wm" x="28" y="0">x</text>
+    <text class="wm" x="92" y="0">plus</text>
+    <!-- Plus accent at the top-right of the 's' -->
+    <g transform="translate(258,-26)">
+      <rect class="accent" x="-7" y="-2" width="14" height="4" rx="2"/>
+      <rect class="accent" x="-2" y="-7" width="4"  height="14" rx="2"/>
+    </g>
+  </g>
+</svg>

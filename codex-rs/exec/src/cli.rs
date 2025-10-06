@@ -75,6 +75,16 @@ pub struct Cli {
     #[arg(long = "output-last-message", short = 'o', value_name = "FILE")]
     pub last_message_file: Option<PathBuf>,
 
+    /// Optional global wall-clock timeout for the run in seconds.
+    /// When exceeded, Codex will send an interrupt and shut down gracefully.
+    #[arg(long = "run-timeout-secs")]
+    pub run_timeout_secs: Option<u64>,
+
+    /// Directory where a machine-readable run summary will be written.
+    /// Defaults to `.codex/runs` under the current working directory.
+    #[arg(long = "summary-dir", value_name = "DIR")]
+    pub summary_dir: Option<PathBuf>,
+
     /// Initial instructions for the agent. If not provided as an argument (or
     /// if `-` is used), instructions are read from stdin.
     #[arg(value_name = "PROMPT")]

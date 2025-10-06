@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="t d" data-static="false">
+  <title id="t">cxplus — Turbo Impeller</title>
+  <desc id="d">Four-blade impeller rotating slowly with a small orbiting dot. Themeable; reduced-motion aware.</desc>
+  <style>
+    :root{
+      --accentPrimary:#7AA2F7; --accentSecondary:#2FD4CB; --fg:#E6EDF3; --bg:#0B1220; --period:8s;
+    }
+    .bg{fill:var(--bg)}
+    .hub{fill:var(--fg);opacity:.85}
+    .blade{fill:var(--accentPrimary)}
+    .ring{fill:none;stroke:var(--accentSecondary);stroke-width:1.5;opacity:.5;vector-effect:non-scaling-stroke}
+    .electron{fill:var(--accentSecondary)}
+    .spin{transform-origin:32px 32px; animation:spin var(--period) linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media (prefers-reduced-motion: reduce){.spin{animation:none!important}}
+    svg[data-static="true"] .spin{animation:none!important}
+  </style>
+  <rect class="bg" width="100%" height="100%" />
+  <!-- Impeller group -->
+  <g class="spin">
+    <!-- Blades: define one wedge and rotate -->
+    <path class="blade" d="M32,12 C29,12,27,14,27,17 L27,24 C27,27,29,29,32,29 C35,29,37,27,37,24 L37,17 C37,14,35,12,32,12Z"/>
+    <use href="#b2" />
+    <use href="#b3" />
+    <use href="#b4" />
+    <defs>
+      <path id="b2" class="blade" d="M32,12 C29,12,27,14,27,17 L27,24 C27,27,29,29,32,29 C35,29,37,27,37,24 L37,17 C37,14,35,12,32,12Z" transform="rotate(90 32 32)"/>
+      <path id="b3" class="blade" d="M32,12 C29,12,27,14,27,17 L27,24 C27,27,29,29,32,29 C35,29,37,27,37,24 L37,17 C37,14,35,12,32,12Z" transform="rotate(180 32 32)"/>
+      <path id="b4" class="blade" d="M32,12 C29,12,27,14,27,17 L27,24 C27,27,29,29,32,29 C35,29,37,27,37,24 L37,17 C37,14,35,12,32,12Z" transform="rotate(270 32 32)"/>
+    </defs>
+  </g>
+  <!-- Hub -->
+  <circle class="hub" cx="32" cy="32" r="4"/>
+  <!-- Orbit + electron -->
+  <circle class="ring" cx="32" cy="32" r="20"/>
+  <g class="spin" style="animation-duration: calc(var(--period) * 1.1);">
+    <circle class="electron" cx="52" cy="32" r="2.5"/>
+  </g>
+</svg>
+
