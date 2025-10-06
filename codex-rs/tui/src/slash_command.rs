@@ -24,6 +24,8 @@ pub enum SlashCommand {
     Light,
     /// Switch to the dark theme immediately (no restart).
     Dark,
+    /// Switch to the dark-dim theme immediately (no restart).
+    DarkDim,
     Review,
     New,
     Init,
@@ -49,6 +51,7 @@ impl SlashCommand {
             SlashCommand::AnimTipsOff => "disable spinner tips (session)",
             SlashCommand::Light => "switch to light theme (no restart)",
             SlashCommand::Dark => "switch to dark theme (no restart)",
+            SlashCommand::DarkDim => "switch to dark-dim theme (no restart)",
             SlashCommand::New => "start a new chat during a conversation",
             SlashCommand::Init => "create an AGENTS.md file with instructions for Codex",
             SlashCommand::Compact => "summarize conversation to prevent hitting the context limit",
@@ -91,6 +94,7 @@ impl SlashCommand {
             | SlashCommand::AnimTipsOff
             | SlashCommand::Light
             | SlashCommand::Dark
+            | SlashCommand::DarkDim
             | SlashCommand::Mention
             | SlashCommand::Status
             | SlashCommand::Mcp

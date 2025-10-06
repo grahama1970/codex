@@ -16,6 +16,8 @@ use ratatui::widgets::WidgetRef;
 use crate::app_event::AppEvent;
 use crate::app_event_sender::AppEventSender;
 use crate::key_hint;
+use crate::animations::ShimmerGauge;
+use crate::animations::OrbitSpinner;
 use crate::shimmer::shimmer_spans;
 use crate::tui::FrameRequester;
 
@@ -30,6 +32,7 @@ pub(crate) struct StatusIndicatorWidget {
     is_paused: bool,
     app_event_tx: AppEventSender,
     frame_requester: FrameRequester,
+    progress: Option<ProgressModel>,
 }
 
 // Format elapsed seconds into a compact human-friendly form used by the status line.
@@ -60,6 +63,7 @@ impl StatusIndicatorWidget {
 
             app_event_tx,
             frame_requester,
+            progress: None,
         }
     }
 
@@ -145,6 +149,12 @@ impl StatusIndicatorWidget {
     pub fn elapsed_seconds(&self) -> u64 {
         self.elapsed_seconds_at(Instant::now())
     }
+
+    /// Set an overall progress value and optional subtasks to render a determinate gauge.
+    pub(crate) fn set_progress(&mut self, model: Option<ProgressModel>) {
+        self.progress = model;
+        self.frame_requester.schedule_frame();
+    }
 }
 
 impl WidgetRef for StatusIndicatorWidget {
@@ -169,9 +179,17 @@ impl WidgetRef for StatusIndicatorWidget {
             " to interrupt)".dim(),
         ]);
 
-        // Build lines: status, then queued messages, then spacer.
+        // Build lines: status, then optional determinate gauge, then queued messages, then spacer.
         let mut lines: Vec<Line<'static>> = Vec::new();
         lines.push(Line::from(spans));
+
+        // Inline determinate gauge (overall) when provided.
+        if let Some(p) = &self.progress {
+            let gauge_area = Rect::new(area.x, area.y + lines.len() as u16, area.width, 1);
+            let tick = elapsed * 10;
+            ShimmerGauge { progress: p.overall_progress, tick }.render(gauge_area, buf);
+            lines.push(Line::from(""));
+        }
         if !self.queued_messages.is_empty() {
             lines.push(Line::from(""));
         }
@@ -201,7 +219,24 @@ impl WidgetRef for StatusIndicatorWidget {
 
         let paragraph = Paragraph::new(lines);
         paragraph.render_ref(area, buf);
+
+        // Tasteful inline orbit spinner near the status header for long waits.
+        let spin_area = Rect::new(area.x, area.y, 3, 1);
+        OrbitSpinner { tick: elapsed * 10 }.render(spin_area, buf);
     }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ProgressModel {
+    pub overall_progress: f64, // 0.0..=1.0
+    pub subtasks: Vec<Subtask>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct Subtask {
+    pub name: String,
+    pub done: u64,
+    pub total: u64,
 }
 
 #[cfg(test)]

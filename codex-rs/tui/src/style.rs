@@ -119,6 +119,7 @@ pub fn brand_title_style() -> Style {
         .as_deref()
     {
         Some("light") => Color::Blue,
+        Some("dark-dim") => Color::Magenta,
         _ => Color::Magenta,
     };
     Style::default().fg(read_brand_color("title_color", def))
@@ -131,6 +132,7 @@ pub fn brand_accent_style() -> Style {
         .as_deref()
     {
         Some("light") => Color::Blue,
+        Some("dark-dim") => Color::Magenta,
         _ => Color::Magenta,
     };
     Style::default().fg(read_brand_color("accent_color", def))

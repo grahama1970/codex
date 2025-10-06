@@ -1120,6 +1120,14 @@ impl ChatWidget {
                 ));
                 self.request_redraw();
             }
+            SlashCommand::DarkDim => {
+                crate::style::set_theme_override(Some("dark-dim"));
+                self.add_to_history(history_cell::new_info_event(
+                    "Theme switched to dark-dim (session)".to_string(),
+                    None,
+                ));
+                self.request_redraw();
+            }
             SlashCommand::New => {
                 self.app_event_tx.send(AppEvent::NewSession);
             }
