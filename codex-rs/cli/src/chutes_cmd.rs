@@ -8,6 +8,7 @@ use regex_lite::Regex;
 use reqwest::Url;
 use serde_json::Value;
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -54,6 +55,9 @@ pub struct RecommendArgs {
     /// Print full JSON for the selected catalog item instead of just the model id.
     #[arg(long)]
     pub json: bool,
+    /// Include derived base URL (if any) alongside model id in plain output.
+    #[arg(long)]
+    pub show_base: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -108,7 +112,15 @@ impl ChutesCli {
                         .get("name")
                         .and_then(Value::as_str)
                         .ok_or_else(|| anyhow!("missing name"))?;
-                    println!("openai/{name}");
+                    if args.show_base {
+                        if let Some(base) = derive_base_url(&item) {
+                            println!("openai/{name} base_url={base}");
+                        } else {
+                            println!("openai/{name}");
+                        }
+                    } else {
+                        println!("openai/{name}");
+                    }
                 }
             }
             ChutesSubcommand::Exec(args) => {
@@ -119,6 +131,7 @@ impl ChutesCli {
                     max_params: None,
                     max_output_ppm: None,
                     json: false,
+                    show_base: false,
                 })
                 .await?;
                 // Build argv for ExecCli::parse_from
@@ -204,7 +217,7 @@ async fn warmup_chat_completion(
         .map_err(|_| anyhow::anyhow!("CHUTES_API_KEY required for warm-up"))?;
     // Normalize base_url (no trailing slash)
     let base = base_url.trim_end_matches('/');
-    let url = format!("{}/chat/completions", base);
+    let url = format!("{base}/chat/completions");
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .build()?;
@@ -220,7 +233,7 @@ async fn warmup_chat_completion(
         let resp = client.post(&url).bearer_auth(&key).json(&body).send().await;
         match resp {
             Ok(r) if r.status().is_success() => {
-                eprintln!("[chutes] warm-up complete for {}", model_id);
+                eprintln!("[chutes] warm-up complete for {model_id}");
                 return Ok(());
             }
             Ok(r) if r.status().as_u16() == 429 || r.status().is_server_error() => {
@@ -234,8 +247,7 @@ async fn warmup_chat_completion(
         backoff = std::cmp::min(backoff * 2, 5);
     }
     eprintln!(
-        "[chutes] warm-up timed out for {} ({}s)",
-        model_id, budget_secs
+        "[chutes] warm-up timed out for {model_id} ({budget_secs}s)"
     );
     Ok(())
 }
@@ -254,6 +266,14 @@ fn catalog_url() -> Result<Url> {
 }
 
 async fn fetch_catalog() -> Result<Value> {
+    if let Ok(fixture) = env::var("CHUTES_CATALOG_FIXTURE")
+        && !fixture.trim().is_empty() {
+            let data = fs::read_to_string(&fixture)
+                .with_context(|| format!("reading CHUTES_CATALOG_FIXTURE {fixture}"))?;
+            let json: Value = serde_json::from_str(&data)
+                .with_context(|| "parsing CHUTES_CATALOG_FIXTURE JSON")?;
+            return Ok(json);
+        }
     let url = catalog_url()?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(8))
@@ -628,6 +648,7 @@ pub async fn discover_model_and_base(
         max_params: None,
         max_output_ppm: None,
         json: false,
+        show_base: false,
     })
     .await?;
     let base = derive_base_url(&item);

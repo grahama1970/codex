@@ -294,6 +294,7 @@ async fn cli_main(codex_linux_sandbox_exe: Option<PathBuf>) -> anyhow::Result<()
                         max_params: Some(80_000_000_000), // avoid SOTA scale
                         max_output_ppm: Some(3.0),        // <= $3 per 1M output tokens
                         json: false,
+                        show_base: false,
                     };
                     match crate::chutes_cmd::select_best(&rec).await {
                         Ok((model_id, item)) => {

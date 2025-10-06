@@ -63,6 +63,8 @@ Run: `make scenarios`
   per‑chute domain can be derived. Useful when routing via a centralized gateway/LB.
 - `CHUTES_EXTRA_CAPS="programming,tools"` — appends additional capability keys to the fallback
   auto‑discovery (exec without explicit model) in addition to the default `coding,code`.
+ - `CHUTES_CATALOG_FIXTURE=/absolute/path/catalog.json` — bypass network and load a static catalog
+   for deterministic tests (used by scenarios or unit tests). When set, HTTP is skipped entirely.
 
 #### Warm‑up behavior
 
@@ -75,3 +77,11 @@ returned. You can ask Codex to pre‑warm the model before launching exec:
 This sends a tiny chat completions request (`max_tokens=1`, `temperature=0`) to the selected
 model on your Chutes base URL (provider defaults or derived per‑chute). Non‑2xx responses
 are retried briefly with exponential backoff (up to the provided budget).
+
+#### Deterministic Testing
+
+For CI isolation:
+- Export `CHUTES_CATALOG_FIXTURE` pointing at a curated JSON.
+- Run `codex chutes recommend --json` and assert stable output.
+- Use a second fixture where all `current_estimated_price.per_million_tokens.output.usd` values
+  are null/whitespace to verify the price‑cap relaxation path emits its stderr notice.

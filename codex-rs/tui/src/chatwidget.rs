@@ -1144,10 +1144,28 @@ impl ChatWidget {
                         } else {
                             format!("Discovered model: {id}")
                         };
-                        self.add_to_history(history_cell::new_info_event(
-                            msg,
-                            Some("Use -c model=\"…\" or switch profile".into()),
-                        ));
+                        let auto = std::env::var("APPLY_DISCOVER_AUTO")
+                            .map(|v| v == "1")
+                            .unwrap_or(false);
+                        if auto && !id.is_empty() {
+                            self.submit_op(Op::OverrideTurnContext {
+                                cwd: None,
+                                approval_policy: None,
+                                sandbox_policy: None,
+                                model: Some(id.clone()),
+                                effort: None,
+                                summary: None,
+                            });
+                            self.add_to_history(history_cell::new_info_event(
+                                format!("Discovered and applied model for this session: {id}"),
+                                None,
+                            ));
+                        } else {
+                            self.add_to_history(history_cell::new_info_event(
+                                msg,
+                                Some("Use -c model=\"…\" or switch profile".into()),
+                            ));
+                        }
                     }
                     Ok(res) => {
                         let msg = format!("/discover failed (status={})", res.status);
