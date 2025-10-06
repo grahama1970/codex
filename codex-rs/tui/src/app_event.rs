@@ -84,6 +84,10 @@ pub(crate) enum AppEvent {
 
     /// Open the custom prompt option from the review popup.
     OpenReviewCustomPrompt,
+    /// Show a minimal waiting overlay in alt-screen (centered Working… tip).
+    OpenWaitingOverlay,
+    /// Close the waiting overlay if visible and restore inline view.
+    CloseWaitingOverlay,
 
     /// Open the approval popup.
     FullScreenApprovalRequest(ApprovalRequest),

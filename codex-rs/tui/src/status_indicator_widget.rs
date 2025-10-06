@@ -13,13 +13,14 @@ use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::WidgetRef;
 
+use crate::animations::OrbitSpinner;
+use crate::animations::ShimmerGauge;
 use crate::app_event::AppEvent;
 use crate::app_event_sender::AppEventSender;
 use crate::key_hint;
-use crate::animations::ShimmerGauge;
-use crate::animations::OrbitSpinner;
 use crate::shimmer::shimmer_spans;
 use crate::tui::FrameRequester;
+use ratatui::prelude::Widget;
 
 pub(crate) struct StatusIndicatorWidget {
     /// Animated header text (defaults to "Working").
@@ -187,7 +188,11 @@ impl WidgetRef for StatusIndicatorWidget {
         if let Some(p) = &self.progress {
             let gauge_area = Rect::new(area.x, area.y + lines.len() as u16, area.width, 1);
             let tick = elapsed * 10;
-            ShimmerGauge { progress: p.overall_progress, tick }.render(gauge_area, buf);
+            ShimmerGauge {
+                progress: p.overall_progress,
+                tick,
+            }
+            .render(gauge_area, buf);
             lines.push(Line::from(""));
         }
         if !self.queued_messages.is_empty() {
@@ -221,8 +226,14 @@ impl WidgetRef for StatusIndicatorWidget {
         paragraph.render_ref(area, buf);
 
         // Tasteful inline orbit spinner near the status header for long waits.
-        let spin_area = Rect::new(area.x, area.y, 3, 1);
-        OrbitSpinner { tick: elapsed * 10 }.render(spin_area, buf);
+        // Default OFF to avoid snapshot churn; enable with CXPLUS_INLINE_SPINNER=1.
+        if std::env::var("CXPLUS_INLINE_SPINNER")
+            .map(|v| v == "1")
+            .unwrap_or(false)
+        {
+            let spin_area = Rect::new(area.x, area.y, 3, 1);
+            OrbitSpinner { tick: elapsed * 10 }.render(spin_area, buf);
+        }
     }
 }
 

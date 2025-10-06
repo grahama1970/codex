@@ -16,9 +16,10 @@ pub fn set_tips_override(v: Option<bool>) {
 
 fn get_tips_override() -> Option<bool> {
     if let Some(lock) = TIPS_OVERRIDE.get()
-        && let Ok(g) = lock.read() {
-            return *g;
-        }
+        && let Ok(g) = lock.read()
+    {
+        return *g;
+    }
     None
 }
 

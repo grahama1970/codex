@@ -381,6 +381,26 @@ impl App {
             AppEvent::OpenReviewCustomPrompt => {
                 self.chat_widget.show_review_custom_prompt();
             }
+            AppEvent::OpenWaitingOverlay => {
+                // Enter alt-screen and show a small centered message.
+                let _ = tui.enter_alt_screen();
+                use ratatui::style::Stylize as _;
+                let title = "W O R K I N G".to_string();
+                let lines = vec![
+                    Line::from(vec![" ".into(), "cxplus is thinking…".bold()]),
+                    Line::from(""),
+                    Line::from("Press Esc to interrupt".dim()),
+                ];
+                self.overlay = Some(Overlay::new_static_with_lines(lines, title));
+                tui.frame_requester().schedule_frame();
+            }
+            AppEvent::CloseWaitingOverlay => {
+                if self.overlay.is_some() {
+                    let _ = tui.leave_alt_screen();
+                    self.overlay = None;
+                    tui.frame_requester().schedule_frame();
+                }
+            }
             AppEvent::FullScreenApprovalRequest(request) => match request {
                 ApprovalRequest::ApplyPatch { cwd, changes, .. } => {
                     let _ = tui.enter_alt_screen();

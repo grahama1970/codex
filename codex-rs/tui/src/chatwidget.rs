@@ -253,6 +253,7 @@ pub(crate) struct ChatWidget {
     pending_notification: Option<Notification>,
     // Simple review mode flag; used to adjust layout and banners.
     is_review_mode: bool,
+    waiting_overlay_open: bool,
     // List of ghost commits corresponding to each turn.
     ghost_snapshots: Vec<GhostCommit>,
     ghost_snapshots_disabled: bool,
@@ -341,10 +342,18 @@ impl ChatWidget {
     }
 
     fn on_agent_message_delta(&mut self, delta: String) {
+        if self.waiting_overlay_open {
+            self.app_event_tx.send(AppEvent::CloseWaitingOverlay);
+            self.waiting_overlay_open = false;
+        }
         self.handle_streaming_delta(delta);
     }
 
     fn on_agent_reasoning_delta(&mut self, delta: String) {
+        if self.waiting_overlay_open {
+            self.app_event_tx.send(AppEvent::CloseWaitingOverlay);
+            self.waiting_overlay_open = false;
+        }
         // For reasoning deltas, do not stream to history. Accumulate the
         // current reasoning block and extract the first bold element
         // (between **/**) as the chunk header. Show this header as status.
@@ -396,6 +405,10 @@ impl ChatWidget {
         self.flush_answer_stream_with_separator();
         // Mark task stopped and request redraw now that all content is in history.
         self.bottom_pane.set_task_running(false);
+        if self.waiting_overlay_open {
+            self.app_event_tx.send(AppEvent::CloseWaitingOverlay);
+            self.waiting_overlay_open = false;
+        }
         self.running_commands.clear();
         self.request_redraw();
 
@@ -934,6 +947,7 @@ impl ChatWidget {
             suppress_session_configured_redraw: false,
             pending_notification: None,
             is_review_mode: false,
+            waiting_overlay_open: false,
             ghost_snapshots: Vec::new(),
             ghost_snapshots_disabled: true,
             needs_final_message_separator: false,
@@ -997,6 +1011,7 @@ impl ChatWidget {
             suppress_session_configured_redraw: true,
             pending_notification: None,
             is_review_mode: false,
+            waiting_overlay_open: false,
             ghost_snapshots: Vec::new(),
             ghost_snapshots_disabled: true,
             needs_final_message_separator: false,
