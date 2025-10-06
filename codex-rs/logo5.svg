@@ -1,36 +1,198 @@
-<!-- cxplus — Text-First Wordmark (frame-based; no SMIL) -->
+<!-- cxplus — Text-First Wordmark (CSS keyframe / frame-based; no SMIL, no JS) -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" role="img" aria-labelledby="t d" text-rendering="geometricPrecision" data-static="false">
-  <title id="t">cxplus — animated wordmark (frame-based)</title>
-  <desc id="d">Two-part wordmark ("cx" and "plus") with a brisk cyan sweep; the plus pops in, briefly spins L→R then R→L, and pops out; the x wiggles then pops. All motion is rebuilt as frame-based stepping (no SMIL) with the original timings and easing.</desc>
+  <title id="t">cxplus — animated wordmark (CSS frames)</title>
+  <desc id="d">Two-part wordmark ("cx" and "plus") with a brisk cyan sweep; a plus pops in, spins L→R then R→L, and pops out; the x wiggles and briefly pops. All rebuilt as CSS keyframes (no SMIL/JS) with original timings and easing.</desc>
 
   <style>
     :root{
-      --accentPrimary:#7AA2F7;   /* alt accent, unused */
       --accentSecondary:#2FD4CB; /* cyan sweep and plus */
-      --fg:#E6EDF3;              /* foreground text */
-      --bg:#0B1220;              /* canvas */
+      --fg:#E6EDF3;
+      --bg:#0B1220;
+      --ease:cubic-bezier(.25,.1,.25,1);
+      --cycle:3s; /* full loop length */
     }
     .bg{fill:var(--bg)}
     .wm{fill:var(--fg);font:700 44px/1.05 "Nunito","SF Pro Rounded","Avenir Next Rounded","Quicksand","Segoe UI Rounded","Inter",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue","Arial Rounded MT Bold",Arial,"Noto Sans","Liberation Sans",sans-serif;letter-spacing:-.3px}
     .wmCyan{fill:var(--accentSecondary)}
     .plus{fill:var(--accentSecondary)}
-    /* Reduced motion/static parity with original */
+
+    /* ---------------------------
+       Reduced motion / static
+       --------------------------- */
     @media (prefers-reduced-motion: reduce){
-      svg:not([data-animate="force"]) .animLayer{display:none!important}
+      /* Pause (don’t hide) unless animation is explicitly forced */
+      svg:not([data-animate="force"]) .anim{
+        animation-play-state: paused !important;
+      }
     }
-    svg[data-static="true"] .animLayer{display:none!important}
+    svg[data-static="true"] .anim{ animation: none !important; }
+
+    /* ---------------------------
+       Sweep widths (3s cycle)
+       key time mapping = time/3 * 100%
+       Grow segments: 0.12s each, collapse 0.03s each with original offsets
+       --------------------------- */
+
+    /* c: grow 0–4%, collapse 70.333–71.333% */
+    #cSweep{
+      width:0px;
+      animation: cWidth var(--cycle) linear infinite both;
+    }
+    @keyframes cWidth{
+      0%   { width:0px;   animation-timing-function: var(--ease); }
+      4%   { width:200px; animation-timing-function: linear; }
+      70.333% { width:200px; animation-timing-function: var(--ease); }
+      71.333% { width:0px; }
+      100% { width:0px; }
+    }
+
+    /* x sweep: grow 4–8%, collapse 69.333–70.333% */
+    #xSweep{
+      width:0px;
+      animation: xWidth var(--cycle) linear infinite both;
+    }
+    @keyframes xWidth{
+      0%   { width:0px; }
+      4%   { width:0px; animation-timing-function: var(--ease); }
+      8%   { width:200px; animation-timing-function: linear; }
+      69.333% { width:200px; animation-timing-function: var(--ease); }
+      70.333% { width:0px; }
+      100% { width:0px; }
+    }
+
+    /* p: grow 8–12%, collapse 68.333–69.333% */
+    #pClipRect{
+      width:0px;
+      animation: pWidth var(--cycle) linear infinite both;
+    }
+    @keyframes pWidth{
+      0%   { width:0px; }
+      8%   { width:0px; animation-timing-function: var(--ease); }
+      12%  { width:240px; animation-timing-function: linear; }
+      68.333% { width:240px; animation-timing-function: var(--ease); }
+      69.333% { width:0px; }
+      100% { width:0px; }
+    }
+
+    /* l: grow 12–16%, collapse 67.333–68.333% */
+    #lClipRect{
+      width:0px;
+      animation: lWidth var(--cycle) linear infinite both;
+    }
+    @keyframes lWidth{
+      0%   { width:0px; }
+      12%  { width:0px; animation-timing-function: var(--ease); }
+      16%  { width:240px; animation-timing-function: linear; }
+      67.333% { width:240px; animation-timing-function: var(--ease); }
+      68.333% { width:0px; }
+      100% { width:0px; }
+    }
+
+    /* u: grow 16–20%, collapse 66.333–67.333% */
+    #uClipRect{
+      width:0px;
+      animation: uWidth var(--cycle) linear infinite both;
+    }
+    @keyframes uWidth{
+      0%   { width:0px; }
+      16%  { width:0px; animation-timing-function: var(--ease); }
+      20%  { width:240px; animation-timing-function: linear; }
+      66.333% { width:240px; animation-timing-function: var(--ease); }
+      67.333% { width:0px; }
+      100% { width:0px; }
+    }
+
+    /* s: grow 20–24%, collapse 65.333–66.333% */
+    #sClipRect{
+      width:0px;
+      animation: sWidth var(--cycle) linear infinite both;
+    }
+    @keyframes sWidth{
+      0%   { width:0px; }
+      20%  { width:0px; animation-timing-function: var(--ease); }
+      24%  { width:260px; animation-timing-function: linear; }
+      65.333% { width:260px; animation-timing-function: var(--ease); }
+      66.333% { width:0px; }
+      100% { width:0px; }
+    }
+
+    /* ---------------------------
+       X wiggle & pop (translateY & scale)
+       Separate wrapper groups so transforms compose cleanly.
+       translate: 6–16% (0→-0.8), 16–26% (-0.8→0)
+       scale:     14–18.167% (1→1.06), 18.167–22.333% (1.06→1)
+       --------------------------- */
+    #xT, #xMoveT{
+      transform-box: fill-box; transform-origin: 50% 50%;
+      animation: xTranslate var(--cycle) linear infinite both;
+    }
+    @keyframes xTranslate{
+      0%,6%   { transform: translateY(0px);   animation-timing-function: var(--ease); }
+      16%     { transform: translateY(-0.8px);animation-timing-function: var(--ease); }
+      26%,100%{ transform: translateY(0px); }
+    }
+    #xS, #xMoveS{
+      transform-box: fill-box; transform-origin: 50% 50%;
+      animation: xScale var(--cycle) linear infinite both;
+    }
+    @keyframes xScale{
+      0%,14%     { transform: scale(1);     animation-timing-function: var(--ease); }
+      18.167%    { transform: scale(1.06);  animation-timing-function: var(--ease); }
+      22.333%,100% { transform: scale(1); }
+    }
+
+    /* ---------------------------
+       Plus accent: opacity, rotation, scale
+       pop-in 24–30.667% (overshoot peaks at 28.667%)
+       spin LR 31.333–46.333% (0→360), RL 46.333–61.333% (360→0)
+       pop-out 61.333–65.333% (1→0, opacity 1→0)
+       --------------------------- */
+    #plusGlyph{
+      opacity:0;
+      animation: plusOpacity var(--cycle) linear infinite both;
+    }
+    @keyframes plusOpacity{
+      0%,24%      { opacity:0;  animation-timing-function: var(--ease); }
+      30.667%     { opacity:1;  animation-timing-function: linear; }
+      61.333%     { opacity:1;  animation-timing-function: var(--ease); }
+      65.333%,100%{ opacity:0; }
+    }
+    /* Rotate layer */
+    #plusR{
+      transform-box: fill-box; transform-origin: 50% 50%;
+      animation: plusRotate var(--cycle) linear infinite both;
+    }
+    @keyframes plusRotate{
+      0%,31.333%  { transform: rotate(0deg);   animation-timing-function: var(--ease); }
+      46.333%     { transform: rotate(360deg); animation-timing-function: var(--ease); }
+      61.333%,100%{ transform: rotate(0deg); }
+    }
+    /* Scale layer (includes pop-in overshoot and pop-out) */
+    #plusS{
+      transform-box: fill-box; transform-origin: 50% 50%;
+      animation: plusScale var(--cycle) linear infinite both;
+    }
+    @keyframes plusScale{
+      0%,24%      { transform: scale(0);     animation-timing-function: var(--ease); }
+      28.667%     { transform: scale(1.08);  animation-timing-function: var(--ease); }
+      30.667%     { transform: scale(1);     animation-timing-function: linear; }
+      61.333%     { transform: scale(1);     animation-timing-function: var(--ease); }
+      65.333%,100%{ transform: scale(0); }
+    }
+
+    /* Optional subtle glow for pop */
+    #plusGlyph{ filter:url(#plusGlow) }
   </style>
 
   <rect class="bg" width="100%" height="100%" aria-hidden="true"/>
 
-  <!-- Optional subtle glow for plus pop -->
   <defs>
     <filter id="plusGlow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur in="SourceGraphic" stdDeviation="0.85" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
 
-    <!-- Static glyph clipPaths (same geometry as original) -->
+    <!-- Static glyph clipPaths -->
     <clipPath id="clipC" clipPathUnits="userSpaceOnUse">
       <text class="wm" x="0" y="0" font-size="44" font-weight="700">c</text>
     </clipPath>
@@ -38,7 +200,7 @@
       <text class="wm" x="22" y="0" font-size="44" font-weight="700">x</text>
     </clipPath>
 
-    <!-- Tall sweep clip rects (widths are frame-driven) -->
+    <!-- Tall sweep clip rects (width driven by CSS keyframes) -->
     <clipPath id="cpP" clipPathUnits="userSpaceOnUse"><rect id="pClipRect" x="50"  y="-200" width="0" height="400"/></clipPath>
     <clipPath id="cpL" clipPathUnits="userSpaceOnUse"><rect id="lClipRect" x="76"  y="-200" width="0" height="400"/></clipPath>
     <clipPath id="cpU" clipPathUnits="userSpaceOnUse"><rect id="uClipRect" x="86"  y="-200" width="0" height="400"/></clipPath>
@@ -47,291 +209,51 @@
 
   <!-- Layout group: baseline at y=56 -->
   <g transform="translate(20,56)">
-    <!-- Base wordmark (foreground) -->
-    <text class="wm" x="0"  y="0">c</text>
+    <!-- Base wordmark -->
+    <text class="wm" x="0" y="0">c</text>
 
-    <!-- Wrap x in a group so we can frame-update translate+scale around its bbox center -->
-    <g id="xBaseWrap" class="animLayer" style="transform-box:fill-box;transform-origin:50% 50%">
-      <text id="xBase" class="wm" x="22" y="0">x</text>
+    <!-- X split into translate wrapper (#xT) and scale wrapper (#xS) -->
+    <g id="xT" class="anim">
+      <g id="xS" class="anim">
+        <text class="wm" x="22" y="0">x</text>
+      </g>
     </g>
 
-    <!-- 'plus' letters -->
+    <!-- plus letters -->
     <text class="wm" x="50"  y="0">p</text>
     <text class="wm" x="76"  y="0">l</text>
     <text class="wm" x="86"  y="0">u</text>
     <text class="wm" x="112" y="0">s</text>
 
-    <!-- Cyan overlay (animLayer) -->
-    <g id="cyanOverlay" class="animLayer">
-      <!-- c and x use expanding rects inside glyph clipPaths -->
-      <g clip-path="url(#clipC)"><rect id="cSweep" x="0"  y="-120" width="0" height="240" fill="#2FD4CB"/></g>
+    <!-- Cyan overlay (anim) -->
+    <g id="cyanOverlay" class="anim">
+      <!-- c and x with expanding rects inside glyph clipPaths -->
+      <g clip-path="url(#clipC)"><rect id="cSweep" x="0"  y="-120" width="0" height="240" fill="#2FD4CB" class="anim"/></g>
 
-      <!-- Wrap x-sweep in its own group so its wiggle/scale matches xBaseWrap -->
-      <g id="xMoveWrap" clip-path="url(#clipX)" style="transform-box:fill-box;transform-origin:50% 50%">
-        <rect id="xSweep" x="22" y="-120" width="0" height="240" fill="#2FD4CB"/>
+      <!-- x sweep in nested translate/scale wrappers to match the x motion -->
+      <g id="xMoveT" clip-path="url(#clipX)" class="anim">
+        <g id="xMoveS" class="anim">
+          <rect id="xSweep" x="22" y="-120" width="0" height="240" fill="#2FD4CB" class="anim"/>
+        </g>
       </g>
 
-      <!-- p l u s cyan as text masked by tall rects (robust full-height sweep) -->
+      <!-- p l u s cyan as text masked by tall rects -->
       <g clip-path="url(#cpP)"><text class="wm wmCyan" x="50"  y="0">p</text></g>
       <g clip-path="url(#cpL)"><text class="wm wmCyan" x="76"  y="0">l</text></g>
       <g clip-path="url(#cpU)"><text class="wm wmCyan" x="86"  y="0">u</text></g>
       <g clip-path="url(#cpS)"><text class="wm wmCyan" x="112" y="0">s</text></g>
     </g>
 
-    <!-- Plus accent (animLayer). Positioned snug to top-right of 's' exactly like original -->
-    <g id="plusAcc" class="animLayer" transform="translate(140,-26)">
-      <g id="plusGlyph" opacity="0" style="transform-box:fill-box;transform-origin:50% 50%" filter="url(#plusGlow)">
-        <rect class="plus" x="-7" y="-2" width="14" height="4" rx="2"/>
-        <rect class="plus" x="-2" y="-7" width="4"  height="14" rx="2"/>
+    <!-- Plus accent (positioned snug to top-right of 's') -->
+    <g id="plusAcc" transform="translate(140,-26)">
+      <g id="plusR" class="anim"><!-- rotation -->
+        <g id="plusS" class="anim"><!-- scale -->
+          <g id="plusGlyph" class="anim" style="transform-box:fill-box;transform-origin:50% 50%">
+            <rect class="plus" x="-7" y="-2" width="14" height="4" rx="2" fill="#2FD4CB"/>
+            <rect class="plus" x="-2" y="-7" width="4"  height="14" rx="2" fill="#2FD4CB"/>
+          </g>
+        </g>
       </g>
     </g>
   </g>
-
-  <!-- Frame-based driver (no SMIL) -->
-  <script><![CDATA[
-  (function(){
-    const svg = document.currentScript.ownerSVGElement;
-    const isStatic = svg.getAttribute('data-static') === 'true';
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches && svg.getAttribute('data-animate') !== 'force';
-    if(isStatic || reduce){ return; }
-
-    /* ----------------------------
-       Constants from original SMIL
-       ---------------------------- */
-    const TOTAL = 3.000;                 // seconds
-    const EASE  = cubicBezier(0.25,0.10,0.25,1.00);
-    const FPS   = 60;                    // change to 24/30/etc. for coarse frame stepping
-    const DT    = 1 / FPS;               // frame step (sec)
-
-    // Sweep plateaus/targets
-    const C_MAX  = 200;
-    const X_MAX  = 200;
-    const P_MAX  = 240;
-    const L_MAX  = 240;
-    const U_MAX  = 240;
-    const S_MAX  = 260;
-
-    // Timings (sec) — straight from the original file
-    const t = {
-      // cyan grows (0.12s each, staggered)
-      cGrow0: 0.00, cGrow1: 0.12,
-      xGrow0: 0.12, xGrow1: 0.24,
-      pGrow0: 0.24, pGrow1: 0.36,
-      lGrow0: 0.36, lGrow1: 0.48,
-      uGrow0: 0.48, uGrow1: 0.60,
-      sGrow0: 0.60, sGrow1: 0.72,
-
-      // sReveal.end = 0.72 -> plus begins
-      plusIn0: 0.72,        // opacity 0→1 over 0.20s; scale 0→1.08 @70% then 1.08→1
-      plusIn1: 0.92,
-      plusOver: 0.86,       // overshoot peak (70% of 0.20s)
-
-      // spins (each 0.45s) with 0.02s wait after popScale
-      spinLR0: 0.94, spinLR1: 1.39,
-      spinRL0: 1.39, spinRL1: 1.84,
-
-      // pop-out (0.12s)
-      plusOut0: 1.84, plusOut1: 1.96,
-
-      // cyan collapses (0.03s each, staggered after plusOut)
-      sCol0: 1.96, sCol1: 1.99,
-      uCol0: 1.99, uCol1: 2.02,
-      lCol0: 2.02, lCol1: 2.05,
-      pCol0: 2.05, pCol1: 2.08,
-      xCol0: 2.08, xCol1: 2.11,
-      cCol0: 2.11, cCol1: 2.14,
-
-      // x wiggle (0.60s total; two equal segments)
-      xWig0: 0.18, xWigMid: 0.48, xWig1: 0.78, // 0.30s each half
-      // x pop scale (0.25s; two equal segments)
-      xSc0: 0.42, xScMid: 0.545, xSc1: 0.67
-    };
-
-    /* ----------------------------
-       Element refs
-       ---------------------------- */
-    const cSweep   = svg.getElementById('cSweep');
-    const xSweep   = svg.getElementById('xSweep');
-    const pClip    = svg.getElementById('pClipRect');
-    const lClip    = svg.getElementById('lClipRect');
-    const uClip    = svg.getElementById('uClipRect');
-    const sClip    = svg.getElementById('sClipRect');
-
-    const xBaseWrap = svg.getElementById('xBaseWrap');
-    const xMoveWrap = svg.getElementById('xMoveWrap');
-
-    const plusGlyph = svg.getElementById('plusGlyph');
-
-    /* ----------------------------
-       Helpers
-       ---------------------------- */
-    function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
-    function lerp(a, b, p){ return a + (b - a) * p; }
-
-    // Piecewise eased segment: returns value (or null if out of segment)
-    function easedSegment(now, t0, t1, v0, v1){
-      if(now <= t0) return null;
-      if(now >= t1) return null;
-      const p = (now - t0) / (t1 - t0);
-      return lerp(v0, v1, EASE(p));
-    }
-
-    // Expand/hold/collapse utility
-    function sweepWidth(now, g0, g1, plateau, c0, c1){
-      // grow
-      let v = easedSegment(now, g0, g1, 0, plateau);
-      if(v !== null) return v;
-      // hold
-      if(now >= g1 && now < c0) return plateau;
-      // collapse
-      v = easedSegment(now, c0, c1, plateau, 0);
-      if(v !== null) return v;
-      // else baseline
-      return (now < g0 || now >= c1) ? 0 : plateau;
-    }
-
-    // X wiggle: translateY 0 → -0.8 → 0
-    function xTranslateY(now){
-      const up = easedSegment(now, t.xWig0, t.xWigMid, 0, -0.8);
-      if(up !== null) return up;
-      const down = easedSegment(now, t.xWigMid, t.xWig1, -0.8, 0);
-      if(down !== null) return down;
-      return 0;
-    }
-
-    // X scale: 1 → 1.06 → 1
-    function xScale(now){
-      const up = easedSegment(now, t.xSc0, t.xScMid, 1, 1.06);
-      if(up !== null) return up;
-      const dn = easedSegment(now, t.xScMid, t.xSc1, 1.06, 1);
-      if(dn !== null) return dn;
-      return 1;
-    }
-
-    // Plus transform + opacity
-    function plusState(now){
-      // default hidden
-      let scale = 0, rot = 0, op = 0;
-
-      // pop-in opacity 0→1 (0.72–0.92)
-      if(now > t.plusIn0 && now < t.plusIn1){
-        op = EASE((now - t.plusIn0) / (t.plusIn1 - t.plusIn0));
-      } else if(now >= t.plusIn1 && now < t.plusOut0){
-        op = 1;
-      } else if(now >= t.plusOut0 && now < t.plusOut1){
-        op = 1 - EASE((now - t.plusOut0) / (t.plusOut1 - t.plusOut0));
-      } else {
-        op = 0;
-      }
-
-      // scale: 0→1.08 (to 0.86s), then 1.08→1 (to 0.92s), hold, then 1→0 on popOut
-      if(now > t.plusIn0 && now < t.plusOver){
-        scale = lerp(0, 1.08, EASE((now - t.plusIn0) / (t.plusOver - t.plusIn0)));
-      } else if(now >= t.plusOver && now < t.plusIn1){
-        scale = lerp(1.08, 1.0, EASE((now - t.plusOver) / (t.plusIn1 - t.plusOver)));
-      } else if(now >= t.plusIn1 && now < t.plusOut0){
-        scale = 1.0;
-      } else if(now >= t.plusOut0 && now < t.plusOut1){
-        scale = lerp(1.0, 0.0, EASE((now - t.plusOut0) / (t.plusOut1 - t.plusOut0)));
-      } else {
-        scale = 0.0;
-      }
-
-      // rotations: 0.94–1.39 => 0→360; 1.39–1.84 => 360→0
-      if(now > t.spinLR0 && now < t.spinLR1){
-        rot = lerp(0, 360, EASE((now - t.spinLR0) / (t.spinLR1 - t.spinLR0)));
-      } else if(now >= t.spinRL0 && now < t.spinRL1){
-        rot = lerp(360, 0, EASE((now - t.spinRL0) / (t.spinRL1 - t.spinRL0)));
-      } else {
-        rot = (now < t.spinLR0) ? 0 : 0; // rests at 0
-      }
-      return {scale, rot, op};
-    }
-
-    // Cubic-bezier timing (returns a function f(p) mapping [0,1]→[0,1])
-    function cubicBezier(x1, y1, x2, y2){
-      // Precompute coefficients
-      const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
-      const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
-
-      function sampleX(t){ return ((ax * t + bx) * t + cx) * t; }
-      function sampleY(t){ return ((ay * t + by) * t + cy) * t; }
-      function sampleXDeriv(t){ return (3 * ax * t + 2 * bx) * t + cx; }
-
-      // Given x in [0,1], find t in [0,1] such that sampleX(t) ≈ x
-      function solveT(x){
-        let t = x; // initial guess
-        for(let i=0;i<6;i++){
-          const xEst = sampleX(t) - x;
-          const dEst = sampleXDeriv(t);
-          if(Math.abs(xEst) < 1e-7) return t;
-          if(Math.abs(dEst) < 1e-7) break;
-          t -= xEst / dEst;
-        }
-        // fallback to bisection
-        let t0 = 0, t1 = 1;
-        t = x;
-        while(t0 < t1){
-          const xEst = sampleX(t);
-          if(Math.abs(xEst - x) < 1e-7) return t;
-          if(x > xEst) t0 = t; else t1 = t;
-          t = (t0 + t1) * 0.5;
-        }
-        return t;
-      }
-      return function(p){
-        if(p <= 0) return 0;
-        if(p >= 1) return 1;
-        return sampleY(solveT(p));
-      };
-    }
-
-    /* ----------------------------
-       Frame loop (quantized)
-       ---------------------------- */
-    const start = performance.now();
-    function step(){
-      const nowMs = performance.now();
-      // Time in seconds within current cycle
-      const elapsed = ((nowMs - start)/1000) % TOTAL;
-      // Quantize to discrete frame boundary
-      const frameIndex = Math.floor(elapsed / DT);
-      const tFrame = frameIndex * DT;
-
-      // Cyan widths
-      const cW = sweepWidth(tFrame, t.cGrow0, t.cGrow1, C_MAX, t.cCol0, t.cCol1);
-      const xW = sweepWidth(tFrame, t.xGrow0, t.xGrow1, X_MAX, t.xCol0, t.xCol1);
-      const pW = sweepWidth(tFrame, t.pGrow0, t.pGrow1, P_MAX, t.pCol0, t.pCol1);
-      const lW = sweepWidth(tFrame, t.lGrow0, t.lGrow1, L_MAX, t.lCol0, t.lCol1);
-      const uW = sweepWidth(tFrame, t.uGrow0, t.uGrow1, U_MAX, t.uCol0, t.uCol1);
-      const sW = sweepWidth(tFrame, t.sGrow0, t.sGrow1, S_MAX, t.sCol0, t.sCol1);
-
-      // Apply widths (attributes are valid CSS/SVG presentation attrs)
-      cSweep.setAttribute('width',  cW.toFixed(2));
-      xSweep.setAttribute('width',  xW.toFixed(2));
-      pClip.setAttribute('width',   pW.toFixed(2));
-      lClip.setAttribute('width',   lW.toFixed(2));
-      uClip.setAttribute('width',   uW.toFixed(2));
-      sClip.setAttribute('width',   sW.toFixed(2));
-
-      // X wiggle and pop (same on base and overlay)
-      const yT = xTranslateY(tFrame);
-      const sX = xScale(tFrame);
-      const xTransform = `translate(0,${yT.toFixed(3)}) scale(${sX.toFixed(4)})`;
-      xBaseWrap.setAttribute('transform', xTransform);
-      xMoveWrap.setAttribute('transform', xTransform);
-
-      // Plus accent
-      const ps = plusState(tFrame);
-      plusGlyph.setAttribute('opacity', ps.op.toFixed(3));
-      // Avoid negative/NaN transforms
-      const scl = clamp(ps.scale, 0, 3);
-      const rot = isFinite(ps.rot) ? ps.rot : 0;
-      plusGlyph.setAttribute('transform', `rotate(${rot.toFixed(3)}) scale(${scl.toFixed(4)})`);
-
-      requestAnimationFrame(step);
-    }
-    requestAnimationFrame(step);
-  })();
-  ]]></script>
 </svg>

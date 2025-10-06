@@ -81,6 +81,9 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         run_timeout_secs,
         summary_dir,
         shutdown_grace_ms,
+        force_cli_source,
+        keep_approval_policy,
+        seed,
         ..
     } = cli;
 
@@ -185,13 +188,17 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     };
 
     // Load configuration and determine approval policy
+    let approval_policy_override = if keep_approval_policy {
+        None
+    } else {
+        Some(AskForApproval::Never)
+    };
     let overrides = ConfigOverrides {
         model,
         review_model: None,
         config_profile,
-        // This CLI is intended to be headless and has no affordances for asking
-        // the user for approval.
-        approval_policy: Some(AskForApproval::Never),
+        // Preserve headless default unless user opts to keep approval policy.
+        approval_policy: approval_policy_override,
         sandbox_mode,
         cwd: cwd.map(|p| p.canonicalize().unwrap_or(p)),
         model_provider,
@@ -266,7 +273,12 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     }
 
     let auth_manager = AuthManager::shared(config.codex_home.clone(), true);
-    let conversation_manager = ConversationManager::new(auth_manager.clone(), SessionSource::Exec);
+    let session_source = if force_cli_source {
+        SessionSource::Cli
+    } else {
+        SessionSource::Exec
+    };
+    let conversation_manager = ConversationManager::new(auth_manager.clone(), session_source);
 
     // Handle resume subcommand by resolving a rollout path and using explicit resume API.
     let NewConversation {
@@ -530,6 +542,9 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         "started_unix_ms": ts_ms,
         "events_path": events_path,
         "last_error": last_error_message,
+        "session_source": format!("{:?}", session_source),
+        "seed": seed,
+        "approval_forced_never": !keep_approval_policy,
     });
     if let Err(e) = std::fs::write(
         &summary_path,

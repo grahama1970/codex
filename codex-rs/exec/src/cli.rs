@@ -131,6 +131,21 @@ pub struct Cli {
     /// MCP call timeout (ms). Overrides the default when set.
     #[arg(long = "prehook-mcp-call-timeout-ms")]
     pub prehook_mcp_call_timeout_ms: Option<u64>,
+
+    /// Treat this headless run as if it were an interactive (CLI) session upstream.
+    /// Sets SessionSource::Cli instead of SessionSource::Exec (metrics / attribution parity).
+    #[arg(long = "force-cli-source", default_value_t = false)]
+    pub force_cli_source: bool,
+
+    /// Keep the configured approval policy instead of forcing AskForApproval::Never.
+    /// Use when you want identical approval gating behavior to interactive sessions.
+    #[arg(long = "keep-approval-policy", default_value_t = false)]
+    pub keep_approval_policy: bool,
+
+    /// Optional deterministic seed (foundation for reproducible sampling).
+    /// Currently persisted to summary only; later will drive model sampling & internal RNG.
+    #[arg(long = "seed", value_name = "U64")]
+    pub seed: Option<u64>,
 }
 
 #[derive(Debug, clap::Subcommand)]
