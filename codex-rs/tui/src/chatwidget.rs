@@ -1179,6 +1179,35 @@ impl ChatWidget {
                 }
                 self.request_redraw();
             }
+            SlashCommand::Warmup => {
+                // Call `codex chutes warmup --secs 8` and append result to history.
+                let exe =
+                    std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("codex"));
+                let out = std::process::Command::new(exe)
+                    .arg("chutes")
+                    .arg("warmup")
+                    .arg("--secs")
+                    .arg("8")
+                    .output();
+                match out {
+                    Ok(res) => {
+                        let stdout = String::from_utf8_lossy(&res.stdout).trim().to_string();
+                        let status = if res.status.success() { "ok" } else { "failed" };
+                        let msg = if stdout.is_empty() {
+                            format!("/warmup {status}")
+                        } else {
+                            stdout
+                        };
+                        self.add_to_history(history_cell::new_info_event(msg, None));
+                    }
+                    Err(e) => {
+                        self.add_to_history(history_cell::new_error_event(format!(
+                            "/warmup error: {e}"
+                        )));
+                    }
+                }
+                self.request_redraw();
+            }
             SlashCommand::Model => {
                 self.open_model_popup();
             }

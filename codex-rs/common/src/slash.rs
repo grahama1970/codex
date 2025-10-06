@@ -27,6 +27,9 @@ pub enum SlashCommand {
     Fmt,
     Build,
     Test,
+    Warmup {
+        secs: Option<u64>,
+    },
     Unknown {
         raw: String,
     },
@@ -113,6 +116,11 @@ pub fn parse(line: &str) -> Option<SlashCommand> {
                     raw: raw.to_string(),
                 })
             }
+        }
+        "warmup" => {
+            // Optional integer seconds: /warmup 8
+            let secs = parts.get(1).and_then(|s| s.parse::<u64>().ok());
+            Some(SlashCommand::Warmup { secs })
         }
         "fmt" => Some(SlashCommand::Fmt),
         "build" => Some(SlashCommand::Build),

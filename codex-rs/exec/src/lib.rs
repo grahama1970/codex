@@ -513,6 +513,22 @@ async fn handle_slash_command(cmd: slash::SlashCommand) -> anyhow::Result<()> {
             }
             Err(e) => eprintln!("/open error: {e}"),
         },
+        slash::SlashCommand::Warmup { secs } => {
+            // Delegate to compiled binary subcommand: `codex chutes warmup --secs N`.
+            let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("codex"));
+            let mut cmd = tokio::process::Command::new(exe);
+            cmd.arg("chutes").arg("warmup");
+            if let Some(s) = secs {
+                cmd.arg("--secs").arg(s.to_string());
+            }
+            cmd.stdout(std::process::Stdio::inherit());
+            cmd.stderr(std::process::Stdio::inherit());
+            match cmd.output().await {
+                Ok(out) if out.status.success() => {}
+                Ok(out) => eprintln!("/warmup failed (status={})", out.status),
+                Err(e) => eprintln!("/warmup error: {e}"),
+            }
+        }
         slash::SlashCommand::Fmt => {
             slash_run_or_print("fmt", vec![]).await;
         }

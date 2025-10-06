@@ -15,6 +15,7 @@ pub enum SlashCommand {
     Model,
     Approvals,
     Discover,
+    Warmup,
     Review,
     New,
     Init,
@@ -34,6 +35,7 @@ impl SlashCommand {
     /// User-visible description shown in the popup.
     pub fn description(self) -> &'static str {
         match self {
+            SlashCommand::Warmup => "warm-up the current/selected Chutes model (tiny ping)",
             SlashCommand::Discover => "discover a coding-capable Chutes model (non‑SOTA)",
             SlashCommand::New => "start a new chat during a conversation",
             SlashCommand::Init => "create an AGENTS.md file with instructions for Codex",
@@ -72,6 +74,7 @@ impl SlashCommand {
             | SlashCommand::Logout => false,
             SlashCommand::Diff
             | SlashCommand::Discover
+            | SlashCommand::Warmup
             | SlashCommand::Mention
             | SlashCommand::Status
             | SlashCommand::Mcp

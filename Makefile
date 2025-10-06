@@ -10,8 +10,8 @@ CODEX_BIN := $(BIN_DIR)/$(BIN_NAME)
 RUST_MANIFEST := $(CODEX_RS_DIR)/Cargo.toml
 
 build:
-	@echo "==> Building $(BIN_NAME) (release)"
-	cargo build --manifest-path $(RUST_MANIFEST) -p codex-cli --release
+	@echo "==> Building $(BIN_NAME) (release)" 
+	@env RUSTUP_TOOLCHAIN="$(RUSTUP_TOOLCHAIN)" cargo build --manifest-path $(RUST_MANIFEST) -p codex-cli --release
 	@mkdir -p $(BIN_DIR)
 	@cp -f $(CODEX_RS_DIR)/target/release/$(BIN_NAME) $(CODEX_BIN)
 	@echo "Built: $(CODEX_BIN)"
@@ -98,6 +98,16 @@ release: package
 	# Provide a stable alias 'cxplus' that points at the canonical 'codex' symlink
 	@ln -sfn $(BIN_NAME) $(BIN_DIR)/cxplus
 	@echo "==> Deployed $(RELEASE_DIR)/$(BIN_NAME)-$(STAMP) and updated $(BIN_DIR)/$(BIN_NAME) (+ cxplus alias)"
+	# Write manifest with the current release stamp
+	@printf '{"stamp":"%s","binary":"%s"}\n' "$(STAMP)" "$(RELEASE_DIR)/$(BIN_NAME)-$(STAMP)" > $(DIST_DIR)/release.json
+	# Create Windows-friendly wrappers
+	@printf "@echo off\r\nsetlocal\r\nset DIR=%%~dp0\r\nset EXE=%%DIR%%codex.exe\r\nif exist \"%%EXE%%\" (\r\n  \"%%EXE%%\" %%*\r\n) else (\r\n  \"%%DIR%%codex\" %%*\r\n)\r\n" > $(BIN_DIR)/cxplus.cmd
+	@{ printf '%s\n' \
+	'$ErrorActionPreference = ''Stop''' \
+	'$dir = Split-Path -Parent $MyInvocation.MyCommand.Path' \
+	'$exe = Join-Path $dir ''codex.exe''' \
+	"if (Test-Path $exe) { & $exe @args } else { & (Join-Path $dir 'codex') @args }" \
+	; } > $(BIN_DIR)/cxplus.ps1
 
 # Deploy with an explicit STAMP=... if desired
 deploy: release

@@ -27,6 +27,8 @@ pub enum ChutesSubcommand {
     Recommend(RecommendArgs),
     /// Run `exec` using the recommended Chutes model.
     Exec(ChutesExecArgs),
+    /// Perform a lightweight warm-up request against a Chutes model (max_tokens=1) and print a result line.
+    Warmup(ChutesWarmupArgs),
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -93,6 +95,16 @@ pub struct ChutesExecArgs {
     /// You can also set CHUTES_WARMUP=1 and CHUTES_WARMUP_SECS (default 8) via env vars.
     #[arg(long = "warmup-secs")]
     pub warmup_secs: Option<u64>,
+}
+
+#[derive(Debug, Parser, Clone)]
+pub struct ChutesWarmupArgs {
+    /// Seconds to spend warming up (with brief retries), default 8
+    #[arg(long = "secs")]
+    pub secs: Option<u64>,
+    /// Optional explicit model id (openai/<name>), otherwise uses CODEX_MODEL or discovery fallback.
+    #[arg(long)]
+    pub model: Option<String>,
 }
 
 impl ChutesCli {
@@ -199,6 +211,41 @@ impl ChutesCli {
                 }
                 let exec_cli = codex_exec::Cli::parse_from(argv);
                 codex_exec::run_main(exec_cli, codex_linux_sandbox_exe).await?;
+            }
+            ChutesSubcommand::Warmup(args) => {
+                let secs = args.secs.unwrap_or(8);
+                let model_id = if let Some(m) = args.model.clone() {
+                    m
+                } else if let Ok(m) = std::env::var("CODEX_MODEL") {
+                    m
+                } else {
+                    // Discover a reasonable default coding model (10B–80B, price cap 3.0, text, coding,code)
+                    let (m, _item) = select_best(&RecommendArgs {
+                        min_params: 10_000_000_000,
+                        require_modalities: Some("text".to_string()),
+                        require_capabilities: Some("coding,code".to_string()),
+                        max_params: Some(80_000_000_000),
+                        max_output_ppm: Some(3.0),
+                        json: false,
+                        show_base: false,
+                    })
+                    .await?;
+                    m
+                };
+                let base = std::env::var("CHUTES_API_BASE")
+                    .ok()
+                    .unwrap_or_else(|| "https://llm.chutes.ai/v1".to_string());
+                let t0 = std::time::Instant::now();
+                match warmup_chat_completion(&base, &model_id, secs).await {
+                    Ok(()) => {
+                        let ms = t0.elapsed().as_millis();
+                        println!("warmup: ok model={model_id} base={base} latency_ms={ms}");
+                    }
+                    Err(e) => {
+                        println!("warmup: error model={model_id} base={base} err={e}");
+                        std::process::exit(1);
+                    }
+                }
             }
         }
 
