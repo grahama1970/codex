@@ -78,6 +78,45 @@ scenarios: package
 	@echo "==> Running live scenarios (may require network/creds)"
 	@set -a; [ -f .env ] && . ./.env; set +a; CODEX_BIN=$(CODEX_BIN) pytest -q -m live scenarios
 
+# -- Rapid deploy & versioning -------------------------------------------------
+
+# Create a versioned binary under dist/releases and point dist/bin/codex at it.
+# Version stamp: YYYYMMDDHHMM-<branch>-<shortsha>
+
+BRANCH := $(shell git rev-parse --abbrev-ref HEAD | tr '/' '-' )
+SHA := $(shell git rev-parse --short HEAD)
+STAMP ?= $(shell date -u +%Y%m%d%H%M)-$(BRANCH)-$(SHA)
+RELEASE_DIR := dist/releases
+
+.PHONY: release deploy list-releases switch rollback
+
+release: package
+	@mkdir -p $(RELEASE_DIR)
+	@cp -f $(BIN_DIR)/$(BIN_NAME) $(RELEASE_DIR)/$(BIN_NAME)-$(STAMP)
+	@chmod +x $(RELEASE_DIR)/$(BIN_NAME)-$(STAMP)
+	@ln -sfn ../releases/$(BIN_NAME)-$(STAMP) $(BIN_DIR)/$(BIN_NAME)
+	@echo "==> Deployed $(RELEASE_DIR)/$(BIN_NAME)-$(STAMP) and updated $(BIN_DIR)/$(BIN_NAME)"
+
+# Deploy with an explicit STAMP=... if desired
+deploy: release
+
+list-releases:
+	@ls -lt $(RELEASE_DIR) 2>/dev/null || echo "(none)"
+
+# Switch symlink to an existing version: make switch VERSION=<stamp>
+switch:
+	@if [ -z "$(VERSION)" ]; then echo "Usage: make switch VERSION=YYYYMMDDHHMM-branch-sha"; exit 1; fi
+	@test -x $(RELEASE_DIR)/$(BIN_NAME)-$(VERSION) || (echo "Missing $(RELEASE_DIR)/$(BIN_NAME)-$(VERSION)" && exit 1)
+	@ln -sfn ../releases/$(BIN_NAME)-$(VERSION) $(BIN_DIR)/$(BIN_NAME)
+	@echo "==> Switched $(BIN_DIR)/$(BIN_NAME) -> $(BIN_NAME)-$(VERSION)"
+
+# Roll back to the previous version by timestamp sort
+rollback:
+	@last=$$(ls -1t $(RELEASE_DIR)/$(BIN_NAME)-* 2>/dev/null | sed -n '2p'); \
+	 if [ -z "$$last" ]; then echo "No previous release to roll back to"; exit 1; fi; \
+	 ln -sfn ../releases/$$(basename $$last) $(BIN_DIR)/$(BIN_NAME); \
+	 echo "==> Rolled back to $$(basename $$last)"
+
 verify: test
 	@if [ "$(RUN_LIVE)" = "1" ]; then \
 	  $(MAKE) scenarios; \

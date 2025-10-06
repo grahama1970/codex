@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "name": "alpha/model-small",
+      "modalities": ["text", "image"],
+      "tagline": "12B parameters",
+      "current_estimated_price": {
+        "per_million_tokens": {
+          "output": {"usd": null},
+          "input": {"usd": "0.90"}
+        }
+      },
+      "max_input_tokens": 150000
+    },
+    {
+      "name": "beta/model-large",
+      "modalities": ["text", "image"],
+      "tagline": "40B activated",
+      "current_estimated_price": {
+        "per_million_tokens": {
+          "output": {"usd": "   "},
+          "input": {"usd": "1.10"}
+        }
+      },
+      "max_input_tokens": 200000
+    }
+  ]
+}
+
