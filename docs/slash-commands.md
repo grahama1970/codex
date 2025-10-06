@@ -40,5 +40,4 @@ Environment
  - `OPEN_MAX_KB=1024` — adjust `/open` file size guard.
  - `GREP_MAX_LINES=400` — adjust `/grep` output cap.
  - `APPLY_DISCOVER_AUTO=1` — TUI: auto-apply the discovered model to the current session.
- - `ENABLE_SLASH_WRITE=1` — enable running `make` targets for `/fmt`, `/build`, `/test` (emits a one‑time warning).
- - `ENABLE_SLASH_WRITE=1` — enable running `make` targets for `/fmt`, `/build`, `/test` (emits a one‑time warning).
+- `ENABLE_SLASH_WRITE=1` — enable running `make` targets for `/fmt`, `/build`, `/test` (emits a one‑time warning).

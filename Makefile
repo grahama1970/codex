@@ -120,6 +120,18 @@ rollback:
 	 ln -sfn $(BIN_NAME) $(BIN_DIR)/cxplus; \
 	 echo "==> Rolled back to $$(basename $$last) (+ refreshed cxplus alias)"
 
+# Print current active binary and target release
+.PHONY: current doctor
+current:
+	@echo "codex -> $$(readlink -f $(BIN_DIR)/$(BIN_NAME) 2>/dev/null || echo '(missing)')"
+	@echo "cxplus -> $$(readlink -f $(BIN_DIR)/cxplus 2>/dev/null || echo '(missing)')"
+
+# Basic PATH check for cxplus usability
+doctor:
+	@which cxplus >/dev/null 2>&1 || { echo "cxplus not on PATH; run 'make install-local' or add dist/bin to PATH"; exit 1; }
+	@echo "cxplus on PATH: $$(command -v cxplus)"
+	@echo "OK"
+
 # Install or uninstall a user-level symlink named 'cxplus' without touching any global 'codex' binary.
 .PHONY: install-local uninstall-local
 LOCAL_BIN ?= $(HOME)/.local/bin

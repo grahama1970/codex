@@ -88,7 +88,7 @@ pub fn parse(line: &str) -> Option<SlashCommand> {
             if !errs.is_empty() {
                 let joined = errs.join("; ");
                 return Some(SlashCommand::Unknown {
-                    raw: format!("parse-error: {joined}"),
+                    raw: format!("parse-error: {joined} (use /help for flags)"),
                 });
             }
             Some(SlashCommand::Discover(args))

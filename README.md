@@ -156,3 +156,4 @@ Details: docs/chutes.md
 
 - See QUICKSTART.md for a 60‑second build, test, and live‑scenario walkthrough.
 - See FEATURES.md for an overview table of major CLI/TUI features, discovery, scenarios, and safety controls.
+- See docs/SCILLM_LOCAL.md for using a local scillm (litellm) checkout from downstream Python projects.

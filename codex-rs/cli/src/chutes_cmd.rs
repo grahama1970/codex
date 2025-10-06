@@ -246,9 +246,7 @@ async fn warmup_chat_completion(
         tokio::time::sleep(Duration::from_secs(backoff)).await;
         backoff = std::cmp::min(backoff * 2, 5);
     }
-    eprintln!(
-        "[chutes] warm-up timed out for {model_id} ({budget_secs}s)"
-    );
+    eprintln!("[chutes] warm-up timed out for {model_id} ({budget_secs}s)");
     Ok(())
 }
 
@@ -267,13 +265,14 @@ fn catalog_url() -> Result<Url> {
 
 async fn fetch_catalog() -> Result<Value> {
     if let Ok(fixture) = env::var("CHUTES_CATALOG_FIXTURE")
-        && !fixture.trim().is_empty() {
-            let data = fs::read_to_string(&fixture)
-                .with_context(|| format!("reading CHUTES_CATALOG_FIXTURE {fixture}"))?;
-            let json: Value = serde_json::from_str(&data)
-                .with_context(|| "parsing CHUTES_CATALOG_FIXTURE JSON")?;
-            return Ok(json);
-        }
+        && !fixture.trim().is_empty()
+    {
+        let data = fs::read_to_string(&fixture)
+            .with_context(|| format!("reading CHUTES_CATALOG_FIXTURE {fixture}"))?;
+        let json: Value =
+            serde_json::from_str(&data).with_context(|| "parsing CHUTES_CATALOG_FIXTURE JSON")?;
+        return Ok(json);
+    }
     let url = catalog_url()?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(8))
@@ -502,7 +501,7 @@ pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
         && any_seen
     {
         if debug {
-            eprintln!("[chutes] relaxing price cap (all candidates had NaN price)");
+            eprintln!("[chutes-relax] relaxing price cap (all candidates had NaN price)");
         }
         let mut relaxed_candidates: Vec<(f64, f64, i64, i64, String, Value)> = Vec::new();
         for item in items {
