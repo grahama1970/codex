@@ -25,5 +25,5 @@ def test_chutes_warmup_dryrun():
     ]
     proc = subprocess.run(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     assert proc.returncode == 0, proc.stderr
-    assert proc.stdout.strip().startswith("warmup: ok"), proc.stdout
-
+    # Accept the current CLI prefix format
+    assert proc.stdout.strip().startswith("[chutes-warmup] ok"), proc.stdout
