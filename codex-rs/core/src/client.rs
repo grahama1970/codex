@@ -49,6 +49,11 @@ use crate::protocol::RateLimitWindow;
 use crate::protocol::TokenUsage;
 use crate::token_data::PlanType;
 use crate::util::backoff;
+use codex_context::ArangoContextProvider;
+use codex_context::ContextProvider as KFProvider;
+use codex_context::MinimalContextProvider;
+use codex_context::SectionQuotas;
+use codex_context::TurnInput;
 use codex_otel::otel_event_manager::OtelEventManager;
 use codex_protocol::config_types::ReasoningEffort as ReasoningEffortConfig;
 use codex_protocol::config_types::ReasoningSummary as ReasoningSummaryConfig;
@@ -127,9 +132,16 @@ impl ModelClient {
         match self.provider.wire_api {
             WireApi::Responses => self.stream_responses(prompt).await,
             WireApi::Chat => {
-                // Create the raw streaming connection first.
+                // Optionally rebuild prompt with Knowledge‑First sections (Phase‑0).
+                let mut effective_prompt = prompt.clone();
+                if self.config.context_max_tokens > 0 {
+                    if let Some(kf) = self.try_build_knowledge_first(prompt) {
+                        effective_prompt = kf;
+                    }
+                }
+                // Create the raw streaming connection.
                 let response_stream = stream_chat_completions(
-                    prompt,
+                    &effective_prompt,
                     &self.config.model_family,
                     &self.client,
                     &self.provider,
@@ -460,6 +472,125 @@ impl ModelClient {
 
     pub fn get_auth_manager(&self) -> Option<Arc<AuthManager>> {
         self.auth_manager.clone()
+    }
+}
+
+impl ModelClient {
+    /// Phase‑0: Build knowledge‑first sections and inject into base instructions.
+    fn try_build_knowledge_first(&self, prompt: &Prompt) -> Option<Prompt> {
+        let cfg = &self.config;
+        // Build turn input
+        let recent_turns = prompt
+            .get_formatted_input()
+            .iter()
+            .filter_map(|ri| match ri {
+                codex_protocol::models::ResponseItem::Message { role, content, .. } => {
+                    let mut buf = String::new();
+                    for c in content {
+                        match c {
+                            codex_protocol::models::ContentItem::InputText { text }
+                            | codex_protocol::models::ContentItem::OutputText { text } => {
+                                buf.push_str(text);
+                            }
+                            _ => {}
+                        }
+                    }
+                    Some(format!("{}: {}", role, buf))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let last_user = prompt
+            .get_formatted_input()
+            .iter()
+            .rev()
+            .find_map(|ri| match ri {
+                codex_protocol::models::ResponseItem::Message { role, content, .. }
+                    if role == "user" =>
+                {
+                    let mut buf = String::new();
+                    for c in content {
+                        if let codex_protocol::models::ContentItem::InputText { text }
+                        | codex_protocol::models::ContentItem::OutputText { text } = c
+                        {
+                            buf.push_str(text);
+                        }
+                    }
+                    Some(buf)
+                }
+                _ => None,
+            })
+            .unwrap_or_default();
+
+        let quotas = SectionQuotas {
+            recent_pct: cfg.context_budget.0,
+            plan_pct: cfg.context_budget.1,
+            evidence_pct: cfg.context_budget.2,
+            tools_pct: cfg.context_budget.3,
+        };
+        let input = TurnInput {
+            user_text: last_user,
+            recent_turns,
+            plan_text: None,
+            tool_deltas: vec![],
+            max_context_tokens: cfg.context_max_tokens as usize,
+            quotas,
+        };
+
+        let provider: Box<dyn KFProvider> = match cfg.context_provider {
+            crate::config::ContextProviderKind::Minimal => Box::new(MinimalContextProvider),
+            crate::config::ContextProviderKind::Arango => Box::new(ArangoContextProvider {
+                mcp_tool: cfg
+                    .context_arango_mcp_tool
+                    .clone()
+                    .unwrap_or_else(|| "memory-agent".into()),
+                endpoint: cfg
+                    .context_arango_endpoint
+                    .clone()
+                    .unwrap_or_else(|| "http://localhost:8529".into()),
+                database: cfg
+                    .context_arango_database
+                    .clone()
+                    .unwrap_or_else(|| "codex".into()),
+            }),
+        };
+        let debug = std::env::var("CONTEXT_DEBUG").ok().as_deref() == Some("1");
+        let t0 = std::time::Instant::now();
+        let bundle = match provider.build(&input) {
+            Ok(b) => b,
+            Err(e) => {
+                if debug {
+                    eprintln!("[context] provider error (fallback): {e}");
+                }
+                return None;
+            }
+        };
+        let elapsed_ms = t0.elapsed().as_millis() as u64;
+        if debug {
+            eprintln!(
+                "[context] summary provider={:?} tokens recent={} plan={} evidence={} tools={} elapsed_ms={}",
+                cfg.context_provider,
+                bundle.recent_tokens,
+                bundle.plan_tokens,
+                bundle.evidence_tokens,
+                bundle.tools_tokens,
+                elapsed_ms
+            );
+        }
+        let mut rebuilt = prompt.clone();
+        let prefix = format!(
+            "### Recent (trimmed={})\n{}\n\n### Plan (trimmed={})\n{}\n\n### Evidence (trimmed={})\n{}\n\n### Tools (trimmed={})\n{}\n\n---\n",
+            bundle.truncated_recent,
+            bundle.recent,
+            bundle.truncated_plan,
+            bundle.plan,
+            bundle.truncated_evidence,
+            bundle.evidence,
+            bundle.truncated_tools,
+            bundle.tools
+        );
+        rebuilt.inject_context_prefix(prefix);
+        Some(rebuilt)
     }
 }
 

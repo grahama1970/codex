@@ -12,6 +12,35 @@ use crate::config_types::SandboxWorkspaceWrite;
 use crate::config_types::ShellEnvironmentPolicy;
 use crate::config_types::ShellEnvironmentPolicyToml;
 use crate::config_types::Tui;
+// ---- Context (Knowledge-First) Phase-0 additions ----
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContextProviderKind {
+    Minimal,
+    Arango,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+pub struct ContextBudgetToml {
+    pub recent_pct: Option<u8>,
+    pub plan_pct: Option<u8>,
+    pub evidence_pct: Option<u8>,
+    pub tools_pct: Option<u8>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+pub struct ContextArangoToml {
+    pub endpoint: Option<String>,
+    pub database: Option<String>,
+    pub mcp_tool: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+pub struct ContextToml {
+    pub provider: Option<String>, // "minimal"|"arango"
+    pub max_context_tokens: Option<u32>,
+    pub budget: Option<ContextBudgetToml>,
+    pub arango: Option<ContextArangoToml>,
+}
 use crate::config_types::UriBasedFileOpener;
 use crate::git_info::resolve_root_git_project_for_trust;
 use crate::model_family::ModelFamily;
@@ -215,6 +244,14 @@ pub struct Config {
 
     /// OTEL configuration (exporter type, endpoint, headers, etc.).
     pub otel: crate::config_types::OtelConfig,
+
+    // Context (Phase‑0)
+    pub context_provider: ContextProviderKind,
+    pub context_max_tokens: u32,
+    pub context_budget: (u8, u8, u8, u8), // recent, plan, evidence, tools
+    pub context_arango_endpoint: Option<String>,
+    pub context_arango_database: Option<String>,
+    pub context_arango_mcp_tool: Option<String>,
 }
 
 impl Config {
@@ -741,6 +778,8 @@ pub struct ConfigToml {
 
     /// OTEL configuration.
     pub otel: Option<crate::config_types::OtelConfigToml>,
+    /// Knowledge‑First context settings (Phase‑0: default disabled)
+    pub context: Option<ContextToml>,
 }
 
 impl From<ConfigToml> for UserSavedConfig {
@@ -1120,6 +1159,49 @@ impl Config {
                     exporter,
                 }
             },
+            // Context (Phase‑0)
+            context_provider: {
+                if std::env::var("CONTEXT_FORCE_MINIMAL").ok().as_deref() == Some("1") {
+                    ContextProviderKind::Minimal
+                } else {
+                    match cfg
+                        .context
+                        .as_ref()
+                        .and_then(|c| c.provider.clone())
+                        .unwrap_or_else(|| "minimal".to_string())
+                        .to_ascii_lowercase()
+                        .as_str()
+                    {
+                        "arango" => ContextProviderKind::Arango,
+                        _ => ContextProviderKind::Minimal,
+                    }
+                }
+            },
+            context_max_tokens: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.max_context_tokens)
+                .unwrap_or(8192),
+            context_budget: {
+                let b = cfg.context.as_ref().and_then(|c| c.budget.as_ref());
+                let recent = b.and_then(|x| x.recent_pct).unwrap_or(15);
+                let plan = b.and_then(|x| x.plan_pct).unwrap_or(10);
+                let evidence = b.and_then(|x| x.evidence_pct).unwrap_or(60);
+                let tools = b.and_then(|x| x.tools_pct).unwrap_or(15);
+                (recent, plan, evidence, tools)
+            },
+            context_arango_endpoint: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.endpoint.clone()),
+            context_arango_database: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.database.clone()),
+            context_arango_mcp_tool: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.mcp_tool.clone()),
         };
         Ok(config)
     }

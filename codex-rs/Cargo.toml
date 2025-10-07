@@ -35,6 +35,7 @@ members = [
     "utils/json-to-toml",
     "utils/readiness",
     "utils/string",
+    "context",
 ]
 resolver = "2"
 
