@@ -423,7 +423,7 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                 "ts_unix_ms": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
                 "elapsed_ms": monotonic_start.elapsed().as_millis() as u64,
                 "kind": "context.summary",
-                "version": 1,
+                "version": 2,
                 "provider": format!("{:?}", provider),
                 "max_context_tokens": config.context_max_tokens,
                 "budget": {
@@ -431,7 +431,16 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                   "plan_pct": config.context_budget.1,
                   "evidence_pct": config.context_budget.2,
                   "tools_pct": config.context_budget.3
-                }
+                },
+                // v2 metrics placeholders (filled once retrieval is live; zeros ok for minimal/arango before retrieval)
+                "retrieval_ms": 0,
+                "evidence_items": 0,
+                "search_k": config.context_arango_search_k,
+                "neighbors_depth": config.context_arango_neighbors_depth,
+                "reflowed_from": { "plan": 0, "recent": 0, "tools": 0 },
+                "total_tokens": 0,
+                "section_tokens": { "evidence": 0, "plan": 0, "recent": 0, "tools": 0 },
+                "truncated": { "evidence": false, "plan": false, "recent": false, "tools": false }
             });
             if let Ok(s) = serde_json::to_string(&line) {
                 let _ = std::io::Write::write_all(f, s.as_bytes());

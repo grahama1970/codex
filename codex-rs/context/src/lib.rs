@@ -137,16 +137,25 @@ impl ContextProvider for ArangoContextProvider {
             String::new()
         } else {
             let mut s = String::from("### Evidence\n");
-            for l in &lines { s.push_str(l); s.push('\n'); }
+            for l in &lines {
+                s.push_str(l);
+                s.push('\n');
+            }
             s
         };
         // Adaptive reflow to evidence
         let quotas = input.quotas.normalize();
         let budget = input.max_context_tokens.max(256);
         let mut ev_budget = (budget as f32 * (quotas.evidence_pct as f32 / 100.0)) as usize;
-        if minimal.plan.is_empty() { ev_budget += (budget as f32 * (quotas.plan_pct as f32 / 100.0)) as usize; }
-        if minimal.recent.is_empty() { ev_budget += (budget as f32 * (quotas.recent_pct as f32 / 100.0)) as usize; }
-        if minimal.tools.is_empty() { ev_budget += (budget as f32 * (quotas.tools_pct as f32 / 100.0)) as usize; }
+        if minimal.plan.is_empty() {
+            ev_budget += (budget as f32 * (quotas.plan_pct as f32 / 100.0)) as usize;
+        }
+        if minimal.recent.is_empty() {
+            ev_budget += (budget as f32 * (quotas.recent_pct as f32 / 100.0)) as usize;
+        }
+        if minimal.tools.is_empty() {
+            ev_budget += (budget as f32 * (quotas.tools_pct as f32 / 100.0)) as usize;
+        }
 
         let (evidence_trimmed, trunc_evidence) = truncate_tokens(&evidence_text, ev_budget);
         minimal.evidence = evidence_trimmed;
@@ -171,10 +180,13 @@ struct FixtureItem {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct FixtureRoot { items: Vec<FixtureItem> }
+struct FixtureRoot {
+    items: Vec<FixtureItem>,
+}
 
 fn load_fixture_items(path: &str) -> Result<Vec<FixtureItem>, ContextError> {
-    let data = std::fs::read(path).map_err(|e| ContextError::Internal(format!("read fixture: {e}")))?;
+    let data =
+        std::fs::read(path).map_err(|e| ContextError::Internal(format!("read fixture: {e}")))?;
     let root: FixtureRoot = serde_json::from_slice(&data)
         .map_err(|e| ContextError::Internal(format!("parse fixture: {e}")))?;
     Ok(root.items)
@@ -186,36 +198,85 @@ fn shape_evidence_lines(mut items: Vec<FixtureItem>, max_items: u32) -> Vec<Stri
     items.retain(|it| seen.insert(it.id.clone()));
     // Type priority: fact < procedure < episode (ascending)
     fn type_prio(t: &str) -> u8 {
-        match t.to_ascii_lowercase().as_str() { "fact" => 0, "procedure" => 1, "episode" => 2, _ => 3 }
+        match t.to_ascii_lowercase().as_str() {
+            "fact" => 0,
+            "procedure" => 1,
+            "episode" => 2,
+            _ => 3,
+        }
     }
     items.sort_by(|a, b| {
         type_prio(&a.r#type)
             .cmp(&type_prio(&b.r#type))
-            .then_with(|| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal))
+            .then_with(|| {
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .then_with(|| a.id.cmp(&b.id))
     });
     let allow_code = std::env::var("CONTEXT_EVIDENCE_ALLOW_CODE").ok().as_deref() == Some("1");
     let mut out = Vec::new();
     for (i, it) in items.into_iter().take(max_items as usize).enumerate() {
         let mut text = it.content.replace('\n', " ");
-        if !allow_code { text = text.replace("```", ""); }
+        if !allow_code {
+            text = text.replace("```", "");
+        }
         text = redact_secrets(&text);
-        let line = format!("- [{}{:03}] {}", type_prefix(&it.r#type), i, one_line(&text));
+        let line = format!(
+            "- [{}{:03}] {}",
+            type_prefix(&it.r#type),
+            i,
+            one_line(&text)
+        );
         out.push(line);
     }
     out
 }
 
-fn type_prefix(t: &str) -> &'static str { match t.to_ascii_lowercase().as_str() { "fact" => "F", "procedure" => "P", "episode" => "E", _ => "X" } }
+fn type_prefix(t: &str) -> &'static str {
+    match t.to_ascii_lowercase().as_str() {
+        "fact" => "F",
+        "procedure" => "P",
+        "episode" => "E",
+        _ => "X",
+    }
+}
 
 fn redact_secrets(s: &str) -> String {
     let mut out = s.to_string();
     let patterns = [
-        (regex_lite::Regex::new("sk-[A-Za-z0-9]{20,}").ok(), "sk-***redacted***"),
-        (regex_lite::Regex::new("ghp_[A-Za-z0-9]{20,}").ok(), "ghp_***redacted***"),
-        (regex_lite::Regex::new("AKIA[0-9A-Z]{12,}").ok(), "AKIA***redacted***"),
+        (
+            regex_lite::Regex::new("sk-[A-Za-z0-9]{20,}").ok(),
+            "sk-***redacted***",
+        ),
+        (
+            regex_lite::Regex::new("ghp_[A-Za-z0-9]{20,}").ok(),
+            "ghp_***redacted***",
+        ),
+        (
+            regex_lite::Regex::new("AKIA[0-9A-Z]{12,}").ok(),
+            "AKIA***redacted***",
+        ),
+        // OPTIONAL extras
+        (
+            regex_lite::Regex::new("xox[bp]-[A-Za-z0-9-]{20,}").ok(),
+            "xox***redacted***",
+        ),
+        (
+            regex_lite::Regex::new(r"ya29\.[A-Za-z0-9._-]{10,}").ok(),
+            "ya29.***redacted***",
+        ),
+        (
+            regex_lite::Regex::new("AIzaSy[A-Za-z0-9_-]{10,}").ok(),
+            "AIzaSy***redacted***",
+        ),
     ];
-    for (re, repl) in patterns.iter() { if let Some(re) = re { out = re.replace_all(&out, *repl).to_string(); } }
+    for (re, repl) in patterns.iter() {
+        if let Some(re) = re {
+            out = re.replace_all(&out, *repl).to_string();
+        }
+    }
     out
 }
 
@@ -330,5 +391,47 @@ mod tests {
         let bundle = prov.build(&input).unwrap();
         assert!(!bundle.recent.is_empty());
         assert!(bundle.evidence.is_empty());
+    }
+
+    #[test]
+    fn redact_sk() {
+        let s = "token sk-abcdefABCDEF0123456789 rest";
+        let r = redact_secrets(s);
+        assert!(r.contains("sk-***redacted***"));
+    }
+
+    #[test]
+    fn redact_ghp() {
+        let s = "ghp_1234567890ABCDEFghijklmnop";
+        let r = redact_secrets(s);
+        assert!(r.contains("ghp_***redacted***"));
+    }
+
+    #[test]
+    fn redact_akia() {
+        let s = "AKIAABCDEFGHIJKLMNOP";
+        let r = redact_secrets(s);
+        assert!(r.contains("AKIA***redacted***"));
+    }
+
+    #[test]
+    fn redact_slack() {
+        let s = "xoxb-1234-abcdefXYZ";
+        let r = redact_secrets(s);
+        assert!(r.contains("xox***redacted***"));
+    }
+
+    #[test]
+    fn redact_google_ya29() {
+        let s = "ya29.A0ARrdaM-abcDEF123";
+        let r = redact_secrets(s);
+        assert!(r.contains("ya29.***redacted***"));
+    }
+
+    #[test]
+    fn redact_google_apikey() {
+        let s = "AIzaSyAbCdEfGhIjKlMnOpQrSt";
+        let r = redact_secrets(s);
+        assert!(r.contains("AIzaSy***redacted***"));
     }
 }

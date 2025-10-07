@@ -540,9 +540,18 @@ impl ModelClient {
         let provider: Box<dyn KFProvider> = match cfg.context_provider {
             crate::config::ContextProviderKind::Minimal => Box::new(MinimalContextProvider),
             crate::config::ContextProviderKind::Arango => Box::new(ArangoContextProvider {
-                mcp_tool: cfg.context_arango_mcp_tool.clone().unwrap_or_else(|| "memory-agent".into()),
-                endpoint: cfg.context_arango_endpoint.clone().unwrap_or_else(|| "http://localhost:8529".into()),
-                database: cfg.context_arango_database.clone().unwrap_or_else(|| "codex".into()),
+                mcp_tool: cfg
+                    .context_arango_mcp_tool
+                    .clone()
+                    .unwrap_or_else(|| "memory-agent".into()),
+                endpoint: cfg
+                    .context_arango_endpoint
+                    .clone()
+                    .unwrap_or_else(|| "http://localhost:8529".into()),
+                database: cfg
+                    .context_arango_database
+                    .clone()
+                    .unwrap_or_else(|| "codex".into()),
                 search_k: cfg.context_arango_search_k,
                 neighbors_depth: cfg.context_arango_neighbors_depth,
                 timeout_ms: cfg.context_arango_timeout_ms,
