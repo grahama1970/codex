@@ -23,16 +23,16 @@
 
 ---
 
-## What's New in This Fork (Skimmable)
+## What’s New in This Fork (Skimmable)
 
 - Faster setup flow: `make package` builds a signed binary and drops it at `dist/bin/codex` (symlink `cxplus`).
 - Headless reliability: `codex exec` writes artifacts (`.codex/runs/*.ndjson`, `*summary.json`) and supports `--run-timeout-secs`.
 - Chutes integration: `codex chutes recommend` auto-discovers cost‑effective models; `chutes exec` runs compiled, images supported.
-- Knowledge‑First (experimental): emits a single `context.summary` v2 line with real retrieval metrics before streaming.
+- Knowledge‑First (experimental): externalized, cached context via ArangoDB + memory‑agent; emits one `context.summary` v2 line with real retrieval metrics.
 - Scenarios vs tests: `make test` (deterministic) and `make scenarios` (live) validate features against the compiled binary.
 - Quality‑of‑life: warmup, slash helpers, consistent theming/branding (animated, theme‑aware logo), capacity planning utilities.
- - API monitoring/export: OpenTelemetry log events with OTLP HTTP/GRPC exporters; portable NDJSON + summary artifacts locally.
- - Agent↔Agent comms: near‑instant communications channel for agent‑to‑agent coordination in workflows.
+- API monitoring/export: OpenTelemetry log events with OTLP HTTP/GRPC exporters; portable NDJSON + summary artifacts locally.
+- Agent↔Agent comms: near‑instant communications channel for agent‑to‑agent coordination in workflows.
 
 Jump to: [Quickstart](#quickstart) • [Scenarios](#build-and-test-repo-root) • [Features](FEATURES.md) • [Config](./docs/config.md)
 
@@ -45,7 +45,7 @@ As of October 2025, cxplus bundles capabilities we haven’t seen together in ot
 - Post‑compile verification: tests and live scenarios run against the compiled binary (no dev/runtime drift).
 - Headless parity + artifacts: every `codex exec` produces portable NDJSON + summary JSON; time‑budgeted runs with graceful shutdown.
 - Model auto‑discovery (Chutes): cost‑aware, capability‑aware selection with transparent skip reasons and safe price‑cap behavior.
-- Knowledge‑First context (experimental): deterministic evidence shaping and a single `context.summary` v2 line with real retrieval metrics.
+- Knowledge‑First context (experimental): deterministic evidence shaping; context is cached in ArangoDB so state does not “rot” with long chats; a single `context.summary` v2 line records retrieval metrics for each run.
 - One‑command packaging & rollback: stamped releases, switching, and rollback without re‑building.
 - Warmup & capacity helpers: optional warmup/heuristics folded into CLI ergonomics.
 - Safety rails: sandbox + approvals defaults tuned for CI automation.
@@ -61,6 +61,24 @@ As of October 2025, cxplus bundles capabilities we haven’t seen together in ot
 
 - Animated, theme‑aware branding assets; consistent hero placement.
 - TUI styling conventions and helpers; see `codex-rs/tui/styles.md` and [THEMING_AND_ANIMATIONS.md](./docs/THEMING_AND_ANIMATIONS.md).
+
+---
+
+## Feature Overview (Skimmable Table)
+
+| Area | What you get | Why it matters |
+| --- | --- | --- |
+| Build & Release | `make package`, stamped builds, `make switch/rollback`, `cxplus` alias | Ship compiled artifacts, switch versions instantly without re‑building |
+| Headless Reliability | NDJSON + summary JSON for every run; time budget + graceful shutdown | Reproduce, diff, and audit any run; deterministic CI |
+| Knowledge‑First Context | Retrieval + shaping via memory‑agent, cached in ArangoDB; no giant chat logs | Eliminates context rot; smaller prompts; traceable evidence |
+| Model Auto‑Discovery | Chutes recommend/exec with cost + capability filters and safe price caps | Pick cheap, capable models automatically, reproducibly |
+| Hooks (Pre/Post) | Pre‑execution MCP/script hooks; post‑run notifiers | Enforce policy, augment prompts (agent‑memory), notify on completion |
+| Agent↔Agent Comms | Near‑instant local/LAN messaging between agents | Orchestrate multi‑agent workflows simply |
+| Observability | OpenTelemetry export (HTTP/GRPC) + local artifacts | Integrate with your infra; inspect locally when you don’t |
+| Safety | Sensible sandbox/approval defaults for CI | Secure automation by default |
+| UX | Animated theme‑aware branding; TUI slash helpers | Better ergonomics without ceremony |
+
+---
 
 See [FEATURES.md](FEATURES.md) for details and examples.
 

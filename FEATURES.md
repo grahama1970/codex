@@ -84,6 +84,7 @@ This fork extends Codex CLI with discovery, testing, and deployment ergonomics. 
 ## Knowledge‑First Context (RFC, experimental)
 
 - Goal: source compact, cited evidence from ArangoDB via memory‑agent MCP before any LLM call; keep only a tiny recent chat window.
+- Persistent context cache: evidence lives in ArangoDB (via memory‑agent), not transient chat history — eliminating “context rot” during long sessions and across runs.
 - Benefits: 60–85% expected token reduction on real tasks; better traceability and determinism.
 - Status: design document added; wiring behind a provider flag/profile is planned (experimental).
 - Docs: `docs/feature_recipes/knowledge-first-context.md`
