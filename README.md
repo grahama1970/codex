@@ -23,19 +23,25 @@
 
 ---
 
+## TL;DR
+
+- Who it’s for: CLI-first devs who want reproducible runs and artifact trails.
+- Why it’s different: Chutes (model auto-discovery), deterministic headless parity, and pre/post hooks.
+- Try it now: `make package` → `make test` → `dist/bin/codex exec "hello"` and open `.codex/runs/*-events.ndjson`.
+
 ## What’s New in This Fork (Skimmable)
 
 | Feature | What it adds | Why it matters |
 | --- | --- | --- |
-| One‑command packaging | `make package` → `dist/bin/codex` (+ `cxplus` symlink); stamped releases with switch/rollback | Ship compiled artifacts; switch versions instantly without re‑building |
-| Exec reliability | Always‑on artifacts: NDJSON events + summary JSON; `--run-timeout-secs` + graceful shutdown | Reproduce, diff, and audit any run; deterministic CI |
-| Chutes model auto‑discovery | `codex chutes recommend/exec` with cost + capability filters; safe price caps; images support | Pick capable, budget‑aligned models automatically |
-| Knowledge‑First context | Externalized, cached context via ArangoDB + memory‑agent; single `context.summary` v2 metrics line | Eliminates context rot; smaller, traceable prompts |
-| Tests & scenarios (post‑compile) | `make test` deterministic + `make scenarios` live; `RUN_LIVE=1 make verify` | Confidence on the exact binary you ship |
-| Hooks (pre/post) | Pre‑execution MCP/script hooks; post‑run notifiers | Enforce policy, augment prompts (agent‑memory), notify on completion |
-| Agent↔Agent comms | Near‑instant local/LAN messaging between agents | Simple multi‑agent orchestration |
+| One-command packaging | `make package` → `dist/bin/codex` (+ `cxplus` symlink); stamped releases with switch/rollback | Ship compiled artifacts; switch versions instantly without rebuilding |
+| Exec reliability | Always-on artifacts: NDJSON events + summary JSON; `--run-timeout-secs` + graceful shutdown | Reproduce, diff, and audit any run; deterministic CI |
+| Chutes (model auto-discovery) | `codex chutes recommend/exec` with cost + capability filters; safe price caps; images support | Pick capable, budget-aligned models automatically |
+| Knowledge-First context | Externalized, cached context via ArangoDB + memory-agent; single `context.summary` v2 metrics line | Eliminates context rot; smaller, traceable prompts |
+| Tests & scenarios (post-compile) | `make test` deterministic + `make scenarios` live; `RUN_LIVE=1 make verify` | Confidence on the exact binary you ship |
+| Hooks (pre/post) | Pre-execution MCP/script hooks; post-run notifiers | Enforce policy; augment prompts (agent-memory); notify on completion |
+| Agent↔Agent comms | Near-instant local/LAN messaging between agents | Simple multi-agent orchestration |
 | Observability | OpenTelemetry export (HTTP/GRPC) + local artifacts | Integrate with your monitoring; inspect locally when you don’t |
-| UX & theming | Animated, theme‑aware branding; TUI slash helpers | Better ergonomics without ceremony |
+| UX & theming | Animated, theme-aware branding; TUI slash helpers | Better ergonomics without ceremony |
 
 Jump to: [Quickstart](#quickstart) • [Scenarios](#build-and-test-repo-root) • [Features](FEATURES.md) • [Config](./docs/config.md)
 
@@ -43,16 +49,16 @@ Jump to: [Quickstart](#quickstart) • [Scenarios](#build-and-test-repo-root) �
 
 ## Why cxplus (Beyond a Typical CLI)
 
-As of October 2025, cxplus bundles capabilities we haven’t seen together in other LLM CLIs:
+cxplus bundles capabilities that make a CLI practical for CI/CD and automation:
 
 - Post‑compile verification: tests and live scenarios run against the compiled binary (no dev/runtime drift).
 - Headless parity + artifacts: every `codex exec` produces portable NDJSON + summary JSON; time‑budgeted runs with graceful shutdown.
-- Model auto‑discovery (Chutes): cost‑aware, capability‑aware selection with transparent skip reasons and safe price‑cap behavior.
-- Knowledge‑First context (experimental): deterministic evidence shaping; context is cached in ArangoDB so state does not “rot” with long chats; a single `context.summary` v2 line records retrieval metrics for each run.
-- One‑command packaging & rollback: stamped releases, switching, and rollback without re‑building.
+- Model auto-discovery (Chutes): cost-aware, capability-aware selection with transparent skip reasons and safe price-cap behavior.
+- Knowledge-First context (experimental): deterministic evidence shaping; context is cached in ArangoDB so state does not "rot" with long chats; a single `context.summary` v2 line records retrieval metrics for each run.
+- One-command packaging & rollback: stamped releases, switching, and rollback without rebuilding.
 - Warmup & capacity helpers: optional warmup/heuristics folded into CLI ergonomics.
 - Safety rails: sandbox + approvals defaults tuned for CI automation.
-- Agent↔Agent comms: near‑instant messaging between agents for orchestration and delegation.
+- Agent↔Agent comms: near-instant messaging between agents for orchestration and delegation.
 
 ### Monitoring & Observability
 
