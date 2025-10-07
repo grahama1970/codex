@@ -556,11 +556,14 @@ impl ModelClient {
                 neighbors_depth: cfg.context_arango_neighbors_depth,
                 timeout_ms: cfg.context_arango_timeout_ms,
                 max_evidence_items: cfg.context_arango_max_evidence_items,
+                debug: std::env::var("CONTEXT_DEBUG").ok().as_deref() == Some("1"),
+                allow_code: std::env::var("CONTEXT_EVIDENCE_ALLOW_CODE").ok().as_deref() == Some("1"),
+                fixture_path: std::env::var("CONTEXT_MCP_FIXTURE").ok(),
             }),
         };
         let debug = std::env::var("CONTEXT_DEBUG").ok().as_deref() == Some("1");
         let t0 = std::time::Instant::now();
-        let bundle = match provider.build(&input) {
+        let (bundle, _metrics) = match provider.build(&input) {
             Ok(b) => b,
             Err(e) => {
                 if debug {
