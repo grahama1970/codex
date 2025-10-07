@@ -18,6 +18,7 @@ This fork extends Codex CLI with discovery, testing, and deployment ergonomics. 
 
 - Post‑compile verification: deterministic tests and live scenarios execute the compiled binary.
 - Headless artifacts by default: NDJSON event stream + summary JSON for every run.
+- OpenTelemetry API monitoring/export (HTTP/GRPC) with structured event catalog.
 - Cost‑aware model auto‑discovery (Chutes): parameters, capabilities, and price caps with debug skip reasons.
 - Knowledge‑First context (experimental): pre‑LLM retrieval + shaping; emits a single metrics summary line.
 - One‑command package/switch/rollback of stamped builds.
@@ -30,6 +31,7 @@ This fork extends Codex CLI with discovery, testing, and deployment ergonomics. 
 | --- | --- | --- |
 | Post‑compile tests/scenarios | ✖ | ✔ |
 | NDJSON + summary artifacts for every run | ✖ | ✔ |
+| OpenTelemetry API monitoring/export | △ | ✔ |
 | Time‑budgeted runs with graceful shutdown | △ | ✔ |
 | Model auto‑discovery with cost + capability filters | ✖ | ✔ |
 | Price‑cap safe handling (NaN/absent prices) | ✖ | ✔ |
