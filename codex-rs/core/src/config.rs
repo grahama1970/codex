@@ -177,6 +177,12 @@ pub struct Config {
     /// Base URL for requests to ChatGPT (as opposed to the OpenAI API).
     pub chatgpt_base_url: String,
 
+    /// Optional deterministic seed that, when set, may be used by clients to
+    /// enforce deterministic sampling (e.g., temperature=0, top_p=1) and seed
+    /// any internal RNG usage. Not all providers support a `seed` parameter;
+    /// callers should fall back gracefully.
+    pub deterministic_seed: Option<u64>,
+
     /// Include an experimental plan tool that the model can use to update its current plan and status of each step.
     pub include_plan_tool: bool,
 
@@ -875,6 +881,8 @@ pub struct ConfigOverrides {
     pub include_view_image_tool: Option<bool>,
     pub show_raw_agent_reasoning: Option<bool>,
     pub tools_web_search_request: Option<bool>,
+    /// Optional deterministic seed to encourage deterministic sampling.
+    pub deterministic_seed: Option<u64>,
 }
 
 impl Config {
@@ -903,6 +911,7 @@ impl Config {
             include_view_image_tool,
             show_raw_agent_reasoning,
             tools_web_search_request: override_tools_web_search_request,
+            deterministic_seed,
         } = overrides;
 
         let active_profile_name = config_profile_key
@@ -1079,6 +1088,7 @@ impl Config {
                 .chatgpt_base_url
                 .or(cfg.chatgpt_base_url)
                 .unwrap_or("https://chatgpt.com/backend-api/".to_string()),
+            deterministic_seed,
             include_plan_tool: include_plan_tool.unwrap_or(false),
             include_apply_patch_tool: include_apply_patch_tool.unwrap_or(false),
             tools_web_search_request,
@@ -1853,6 +1863,7 @@ model_verbosity = "high"
                 disable_paste_burst: false,
                 tui_notifications: Default::default(),
                 otel: OtelConfig::default(),
+                deterministic_seed: None,
             },
             o3_profile_config
         );
@@ -1914,6 +1925,7 @@ model_verbosity = "high"
             disable_paste_burst: false,
             tui_notifications: Default::default(),
             otel: OtelConfig::default(),
+            deterministic_seed: None,
         };
 
         assert_eq!(expected_gpt3_profile_config, gpt3_profile_config);
@@ -1990,6 +2002,7 @@ model_verbosity = "high"
             disable_paste_burst: false,
             tui_notifications: Default::default(),
             otel: OtelConfig::default(),
+            deterministic_seed: None,
         };
 
         assert_eq!(expected_zdr_profile_config, zdr_profile_config);
@@ -2052,6 +2065,7 @@ model_verbosity = "high"
             disable_paste_burst: false,
             tui_notifications: Default::default(),
             otel: OtelConfig::default(),
+            deterministic_seed: None,
         };
 
         assert_eq!(expected_gpt5_profile_config, gpt5_profile_config);

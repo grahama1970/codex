@@ -37,6 +37,7 @@ pub(crate) async fn stream_chat_completions(
     client: &reqwest::Client,
     provider: &ModelProviderInfo,
     otel_event_manager: &OtelEventManager,
+    deterministic_seed: Option<u64>,
 ) -> Result<ResponseStream> {
     if prompt.output_schema.is_some() {
         return Err(CodexErr::UnsupportedOperation(
@@ -277,12 +278,19 @@ pub(crate) async fn stream_chat_completions(
     }
 
     let tools_json = create_tools_json_for_chat_completions_api(&prompt.tools)?;
-    let payload = json!({
+    let mut payload = json!({
         "model": model_family.slug,
         "messages": messages,
         "stream": true,
         "tools": tools_json,
     });
+    if let Some(seed) = deterministic_seed {
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("temperature".to_string(), json!(0.0));
+            obj.insert("top_p".to_string(), json!(1.0));
+            obj.insert("seed".to_string(), json!(seed));
+        }
+    }
 
     debug!(
         "POST to {}: {}",

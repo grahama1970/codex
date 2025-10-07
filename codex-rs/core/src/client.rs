@@ -134,6 +134,7 @@ impl ModelClient {
                     &self.client,
                     &self.provider,
                     &self.otel_event_manager,
+                    self.config.deterministic_seed,
                 )
                 .await?;
 
@@ -238,6 +239,14 @@ impl ModelClient {
         };
 
         let mut payload_json = serde_json::to_value(&payload)?;
+        // Deterministic mode (opt-in): enforce low-variance sampling when a seed is set.
+        if let Some(seed) = self.config.deterministic_seed {
+            if let Some(obj) = payload_json.as_object_mut() {
+                obj.insert("temperature".to_string(), serde_json::json!(0.0));
+                obj.insert("top_p".to_string(), serde_json::json!(1.0));
+                obj.insert("seed".to_string(), serde_json::json!(seed));
+            }
+        }
         if azure_workaround {
             attach_item_ids(&mut payload_json, &input_with_instructions);
         }

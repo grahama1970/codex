@@ -134,12 +134,12 @@ pub struct Cli {
 
     /// Treat this headless run as if it were an interactive (CLI) session upstream.
     /// Sets SessionSource::Cli instead of SessionSource::Exec (metrics / attribution parity).
-    #[arg(long = "force-cli-source", default_value_t = false)]
+    #[arg(long = "force-cli-source", default_value_t = true)]
     pub force_cli_source: bool,
 
     /// Keep the configured approval policy instead of forcing AskForApproval::Never.
     /// Use when you want identical approval gating behavior to interactive sessions.
-    #[arg(long = "keep-approval-policy", default_value_t = false)]
+    #[arg(long = "keep-approval-policy", default_value_t = true)]
     pub keep_approval_policy: bool,
 
     /// Optional deterministic seed (foundation for reproducible sampling).

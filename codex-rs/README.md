@@ -98,6 +98,13 @@ codex --sandbox danger-full-access
 
 The same setting can be persisted in `~/.codex/config.toml` via the top-level `sandbox_mode = "MODE"` key, e.g. `sandbox_mode = "workspace-write"`.
 
+## Brand Assets
+
+- Current logos
+  - Animated: `logo5.svg` (static “x”, stronger “+” pop with pre‑bump)
+  - Static: `logo5-static.svg` (no animations; for print/PNG)
+- Deprecated experiments are archived under `deprecated-logos/` and should not be used.
+
 ## Code Organization
 
 This folder is the root of a Cargo workspace. It contains quite a bit of experimental code, but here are the key crates:
