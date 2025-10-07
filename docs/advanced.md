@@ -75,3 +75,19 @@ Use the MCP inspector and `codex mcp-server` to build a simple tic-tac-toe game 
 **sandbox:** workspace-write
 
 Click "Run Tool" and you should see a list of events emitted from the Codex MCP server as it builds the game.
+## Agent↔Agent Communications (experimental)
+
+cxplus supports a lightweight, near‑instant communications channel between agents for orchestration and delegation in complex workflows. The channel is optimized for low overhead and runs alongside normal CLI execution.
+
+- Status: experimental; interface subject to change.
+- Scope: intended for intra‑host or trusted LAN usage during development and CI.
+- Artifacts: when enabled, message events appear in the NDJSON stream (`codex exec`) with minimal payloads.
+
+Configuration (example):
+
+```
+[agents]
+comms_enabled = true
+```
+
+See FEATURES.md for a high‑level overview and the README “Why cxplus” section for positioning.

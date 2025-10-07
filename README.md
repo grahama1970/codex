@@ -31,6 +31,7 @@
 - Knowledge‑First (experimental): emits a single `context.summary` v2 line with real retrieval metrics before streaming.
 - Scenarios vs tests: `make test` (deterministic) and `make scenarios` (live) validate features against the compiled binary.
 - Quality‑of‑life: warmup, slash helpers, consistent theming/branding (animated, theme‑aware logo), capacity planning utilities.
+ - Agent↔Agent comms: near‑instant communications channel for agent‑to‑agent coordination in workflows.
 
 Jump to: [Quickstart](#quickstart) • [Scenarios](#build-and-test-repo-root) • [Features](FEATURES.md) • [Config](./docs/config.md)
 
@@ -47,6 +48,7 @@ As of October 2025, cxplus bundles capabilities we haven’t seen together in ot
 - One‑command packaging & rollback: stamped releases, switching, and rollback without re‑building.
 - Warmup & capacity helpers: optional warmup/heuristics folded into CLI ergonomics.
 - Safety rails: sandbox + approvals defaults tuned for CI automation.
+ - Agent↔Agent comms: near‑instant messaging between agents for orchestration and delegation.
 
 See [FEATURES.md](FEATURES.md) for details and examples.
 

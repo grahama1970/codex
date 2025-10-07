@@ -22,6 +22,7 @@ This fork extends Codex CLI with discovery, testing, and deployment ergonomics. 
 - Knowledge‑First context (experimental): pre‑LLM retrieval + shaping; emits a single metrics summary line.
 - One‑command package/switch/rollback of stamped builds.
 - Warmup + capacity helpers; CI‑friendly sandbox/approvals defaults.
+ - Agent↔Agent near‑instant communications for multi‑agent coordination.
 
 ## Feature Matrix (cxplus vs a typical LLM CLI)
 
@@ -36,6 +37,7 @@ This fork extends Codex CLI with discovery, testing, and deployment ergonomics. 
 | Stamped build switch/rollback | ✖ | ✔ |
 | Warmup + capacity hints | △ | ✔ |
 | Sandbox + approvals defaults for CI | △ | ✔ |
+| Agent↔Agent near‑instant communications | ✖ | ✔ |
 
 ## Exec Parity & Reliability
 
