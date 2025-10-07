@@ -413,6 +413,32 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
 
     // Send the prompt.
     let items: Vec<InputItem> = vec![InputItem::Text { text: prompt }];
+    // Phase-0 (Knowledge-First) context summary emission (single early line).
+    // We do not parse the full EvidenceBundle here—only the static budget metadata.
+    if let Some(f) = events_file.as_mut() {
+        use codex_core::config::ContextProviderKind;
+        let provider = &config.context_provider;
+        if !matches!(provider, ContextProviderKind::Minimal) {
+            let line = serde_json::json!({
+                "ts_unix_ms": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
+                "elapsed_ms": monotonic_start.elapsed().as_millis() as u64,
+                "kind": "context.summary",
+                "version": 1,
+                "provider": format!("{:?}", provider),
+                "max_context_tokens": config.context_max_tokens,
+                "budget": {
+                  "recent_pct": config.context_budget.0,
+                  "plan_pct": config.context_budget.1,
+                  "evidence_pct": config.context_budget.2,
+                  "tools_pct": config.context_budget.3
+                }
+            });
+            if let Ok(s) = serde_json::to_string(&line) {
+                let _ = std::io::Write::write_all(f, s.as_bytes());
+                let _ = std::io::Write::write_all(f, b"\n");
+            }
+        }
+    }
     let initial_prompt_task_id = conversation
         .submit(Op::UserTurn {
             items,

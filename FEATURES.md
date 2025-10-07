@@ -1,5 +1,9 @@
 # Features Overview
 
+<p align="center">
+  <img src="./codex-rs/logo.svg" alt="cxplus logo" width="360" />
+</p>
+
 This fork extends Codex CLI with discovery, testing, and deployment ergonomics. Below is a high‑level, scannable overview.
 
 ## Exec Parity & Reliability
@@ -48,6 +52,8 @@ This fork extends Codex CLI with discovery, testing, and deployment ergonomics. 
 - Benefits: 60–85% expected token reduction on real tasks; better traceability and determinism.
 - Status: design document added; wiring behind a provider flag/profile is planned.
 - Docs: `docs/feature_recipes/knowledge-first-context.md`
+
+Emits: when enabled, a single `context.summary` NDJSON record (version=1) with provider/quotas/max token metadata (no raw evidence content).
 
 ## Deploy & Versioning
 

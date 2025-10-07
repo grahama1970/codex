@@ -48,9 +48,9 @@ impl SectionQuotas {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EvidenceBundle {
-    pub recent: String,
-    pub plan: String,
     pub evidence: String,
+    pub plan: String,
+    pub recent: String,
     pub tools: String,
     pub recent_tokens: u32,
     pub plan_tokens: u32,
@@ -95,9 +95,9 @@ impl ContextProvider for MinimalContextProvider {
         let (evidence, trunc_evidence) = truncate_tokens("", evidence_budget);
 
         Ok(EvidenceBundle {
-            recent,
-            plan,
             evidence,
+            plan,
+            recent,
             tools,
             recent_tokens: count_tokens(&recent_concat) as u32,
             plan_tokens: count_tokens(input.plan_text.as_deref().unwrap_or("")) as u32,
@@ -123,10 +123,8 @@ impl ContextProvider for ArangoContextProvider {
         let t0 = Instant::now();
         let mut minimal = MinimalContextProvider.build(input)?;
         let query = &input.user_text;
-        let synthetic = format!(
-            "(evidence) query_head: {}",
-            query.chars().take(120).collect::<String>()
-        );
+        let head = query.chars().take(120).collect::<String>();
+        let synthetic = format!("### Evidence\n- [F000] {}", one_line(&head));
         let (evidence_trimmed, trunc_evidence) =
             truncate_tokens(&synthetic, (input.max_context_tokens / 2).max(64));
         minimal.evidence = evidence_trimmed;
@@ -147,6 +145,15 @@ fn truncate_tokens(s: &str, max_tokens: usize) -> (String, bool) {
         return (s.to_string(), false);
     }
     (tokens[..max_tokens].join(" ") + " …", true)
+}
+
+fn one_line(s: &str) -> String {
+    let mut out = s.replace('\n', " ");
+    if out.len() > 220 {
+        out.truncate(220);
+        out.push_str(" …");
+    }
+    out
 }
 
 pub struct TokenBudgeter {

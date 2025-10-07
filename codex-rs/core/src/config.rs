@@ -32,6 +32,10 @@ pub struct ContextArangoToml {
     pub endpoint: Option<String>,
     pub database: Option<String>,
     pub mcp_tool: Option<String>,
+    pub search_k: Option<u32>,
+    pub neighbors_depth: Option<u8>,
+    pub timeout_ms: Option<u64>,
+    pub max_evidence_items: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq)]
@@ -252,6 +256,10 @@ pub struct Config {
     pub context_arango_endpoint: Option<String>,
     pub context_arango_database: Option<String>,
     pub context_arango_mcp_tool: Option<String>,
+    pub context_arango_search_k: u32,
+    pub context_arango_neighbors_depth: u8,
+    pub context_arango_timeout_ms: u64,
+    pub context_arango_max_evidence_items: u32,
 }
 
 impl Config {
@@ -1202,6 +1210,26 @@ impl Config {
                 .context
                 .as_ref()
                 .and_then(|c| c.arango.as_ref()?.mcp_tool.clone()),
+            context_arango_search_k: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.search_k)
+                .unwrap_or(12),
+            context_arango_neighbors_depth: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.neighbors_depth)
+                .unwrap_or(1),
+            context_arango_timeout_ms: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.timeout_ms)
+                .unwrap_or(800),
+            context_arango_max_evidence_items: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.max_evidence_items)
+                .unwrap_or(12),
         };
         Ok(config)
     }
@@ -1946,6 +1974,13 @@ model_verbosity = "high"
                 tui_notifications: Default::default(),
                 otel: OtelConfig::default(),
                 deterministic_seed: None,
+                // context (Phase‑0 default expectations)
+                context_provider: ContextProviderKind::Minimal,
+                context_max_tokens: 8192,
+                context_budget: (15, 10, 60, 15),
+                context_arango_endpoint: None,
+                context_arango_database: None,
+                context_arango_mcp_tool: None,
             },
             o3_profile_config
         );
@@ -2008,6 +2043,12 @@ model_verbosity = "high"
             tui_notifications: Default::default(),
             otel: OtelConfig::default(),
             deterministic_seed: None,
+            context_provider: ContextProviderKind::Minimal,
+            context_max_tokens: 8192,
+            context_budget: (15, 10, 60, 15),
+            context_arango_endpoint: None,
+            context_arango_database: None,
+            context_arango_mcp_tool: None,
         };
 
         assert_eq!(expected_gpt3_profile_config, gpt3_profile_config);
@@ -2085,6 +2126,12 @@ model_verbosity = "high"
             tui_notifications: Default::default(),
             otel: OtelConfig::default(),
             deterministic_seed: None,
+            context_provider: ContextProviderKind::Minimal,
+            context_max_tokens: 8192,
+            context_budget: (15, 10, 60, 15),
+            context_arango_endpoint: None,
+            context_arango_database: None,
+            context_arango_mcp_tool: None,
         };
 
         assert_eq!(expected_zdr_profile_config, zdr_profile_config);
@@ -2148,6 +2195,12 @@ model_verbosity = "high"
             tui_notifications: Default::default(),
             otel: OtelConfig::default(),
             deterministic_seed: None,
+            context_provider: ContextProviderKind::Minimal,
+            context_max_tokens: 8192,
+            context_budget: (15, 10, 60, 15),
+            context_arango_endpoint: None,
+            context_arango_database: None,
+            context_arango_mcp_tool: None,
         };
 
         assert_eq!(expected_gpt5_profile_config, gpt5_profile_config);
