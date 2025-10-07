@@ -5,21 +5,26 @@
     <source media="(prefers-color-scheme: light)" srcset="codex-rs/logo-light-centered.svg" type="image/svg+xml">
     <img
       src="codex-rs/logo-light-centered.svg"
-      alt="cxplus — Knowledge-first Codex fork — enables agent-to-agent communication, deterministic runs, and auditable context via ArangoDB pre-hooks."
+      alt="knowledge-first Codex fork — enables agent-to-agent communication, deterministic runs, and auditable context via ArangoDB pre-hooks."
       width="600"
       style="max-width:92vw; height:auto;"
     >
   </picture>
 </p>
 
+<!-- Headline: one crisp sentence -->
 <p align="center">
-  <em>Knowledge-first Codex fork — enables agent-to-agent communication, deterministic runs, and auditable context via ArangoDB pre-hooks.</em>
+  <strong>cxplus</strong> — knowledge-first, deterministic Codex fork for agent-to-agent automation.
+</p>
+
+<!-- Subline: tight, scannable pillars -->
+<p align="center">
+  <sub>Agent-to-agent • ArangoDB pre-hooks • Deterministic runs • Auditable context</sub>
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="Apache‑2.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="Apache-2.0"></a>
 </p>
-
 ---
 
 # cxplus
