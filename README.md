@@ -5,7 +5,7 @@
     <source media="(prefers-color-scheme: light)" srcset="codex-rs/logo-light-centered.svg" type="image/svg+xml">
     <img
       src="codex-rs/logo-light-centered.svg"
-      alt="cxplus — deterministic, cost-aware Codex fork for CI & automation"
+      alt="cxplus — Knowledge-first Codex fork — enables agent-to-agent communication, deterministic runs, and auditable context via ArangoDB pre-hooks."
       width="600"
       style="max-width:92vw; height:auto;"
     >
@@ -13,9 +13,7 @@
 </p>
 
 <p align="center">
-  <strong>cxplus</strong> — deterministic, cost‑aware Codex fork for CI & automation.
-  <br />
-  <sub>Artifact trails • Policy hooks • Model auto‑discovery • Knowledge‑first context</sub>
+  <em>Knowledge-first Codex fork — enables agent-to-agent communication, deterministic runs, and auditable context via ArangoDB pre-hooks.</em>
 </p>
 
 <p align="center">
