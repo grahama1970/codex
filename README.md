@@ -36,6 +36,22 @@ Jump to: [Quickstart](#quickstart) • [Scenarios](#build-and-test-repo-root) �
 
 ---
 
+## Why cxplus (Beyond a Typical CLI)
+
+As of October 2025, cxplus bundles capabilities we haven’t seen together in other LLM CLIs:
+
+- Post‑compile verification: tests and live scenarios run against the compiled binary (no dev/runtime drift).
+- Headless parity + artifacts: every `codex exec` produces portable NDJSON + summary JSON; time‑budgeted runs with graceful shutdown.
+- Model auto‑discovery (Chutes): cost‑aware, capability‑aware selection with transparent skip reasons and safe price‑cap behavior.
+- Knowledge‑First context (experimental): deterministic evidence shaping and a single `context.summary` v2 line with real retrieval metrics.
+- One‑command packaging & rollback: stamped releases, switching, and rollback without re‑building.
+- Warmup & capacity helpers: optional warmup/heuristics folded into CLI ergonomics.
+- Safety rails: sandbox + approvals defaults tuned for CI automation.
+
+See [FEATURES.md](FEATURES.md) for details and examples.
+
+---
+
 ## Quickstart
 
 ### Installing and running Codex CLI

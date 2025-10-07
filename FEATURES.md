@@ -14,6 +14,29 @@
 
 This fork extends Codex CLI with discovery, testing, and deployment ergonomics. Below is a high‑level, scannable overview.
 
+## Unique Capabilities (at a glance)
+
+- Post‑compile verification: deterministic tests and live scenarios execute the compiled binary.
+- Headless artifacts by default: NDJSON event stream + summary JSON for every run.
+- Cost‑aware model auto‑discovery (Chutes): parameters, capabilities, and price caps with debug skip reasons.
+- Knowledge‑First context (experimental): pre‑LLM retrieval + shaping; emits a single metrics summary line.
+- One‑command package/switch/rollback of stamped builds.
+- Warmup + capacity helpers; CI‑friendly sandbox/approvals defaults.
+
+## Feature Matrix (cxplus vs a typical LLM CLI)
+
+| Capability | Typical CLI | cxplus |
+| --- | --- | --- |
+| Post‑compile tests/scenarios | ✖ | ✔ |
+| NDJSON + summary artifacts for every run | ✖ | ✔ |
+| Time‑budgeted runs with graceful shutdown | △ | ✔ |
+| Model auto‑discovery with cost + capability filters | ✖ | ✔ |
+| Price‑cap safe handling (NaN/absent prices) | ✖ | ✔ |
+| Knowledge‑First metrics line (context.summary v2) | ✖ | ✔ |
+| Stamped build switch/rollback | ✖ | ✔ |
+| Warmup + capacity hints | △ | ✔ |
+| Sandbox + approvals defaults for CI | △ | ✔ |
+
 ## Exec Parity & Reliability
 
 - Headless runs (`codex exec`) are reliable by default and mirror interactive semantics where it matters for CI:
