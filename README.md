@@ -15,14 +15,21 @@
   <sub>Deterministic CLI for LLM work—artifact trails, policy hooks, and cost‑aware model auto‑discovery.</sub>
   <br/>
   <sub>Built to match @grahama1970/scillm and Graph‑Memory Operator: knowledge‑first (ArangoDB) retrieval before the turn, agent↔agent messaging, and run notifications—without extra glue.</sub>
-</p>
+ </p>
 <p align="center">
   <img src="./.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
 </p>
 
 > Experimental fork disclaimer
 >
-> This repository is an experimental, personal fork ("cxplus playground"). It is not intended to be merged upstream into OpenAI’s Codex, and it has no official support. See FORK_POLICY.md for details.
+> This repository is an experimental, personal fork ("cxplus playground"). It is not intended to be merged upstream into OpenAI’s Codex, and it has no official support. See `FORK_POLICY.md` for details.
+
+```bash
+# Try it now (60 seconds)
+make package && \
+make test && \
+dist/bin/codex exec "hello" --summary-dir ./.codex/runs
+```
 
 ---
 
@@ -63,7 +70,7 @@
 
 > **Chutes** = cost-/capability-aware model auto-discovery for `codex` that can recommend/execute under price caps (includes image models).
 
-**Jump to:** [Quickstart](./QUICKSTART.md) • [Scenarios](./scenarios/) • [Features](./FEATURES.md) • [Config](./docs/config.md)
+**Jump to:** [Quickstart](./QUICKSTART.md) · [Scenarios](./scenarios/) · [Features](./FEATURES.md) · [Config](./docs/config.md)
 
 ### Security & Privacy
 
@@ -82,7 +89,7 @@ cxplus bundles capabilities that make a CLI practical for CI/CD and automation:
 - One-command packaging & rollback: stamped releases, switching, and rollback without rebuilding.
 - Warmup & capacity helpers: optional warmup/heuristics folded into CLI ergonomics.
 - Safety rails: sandbox + approvals defaults tuned for CI automation.
-- Agent↔Agent comms: near-instant messaging between agents for orchestration and delegation.
+- Agent↔agent comms: near‑instant messaging between agents for orchestration and delegation.
 
 ### Monitoring & Observability
 
@@ -106,7 +113,7 @@ cxplus bundles capabilities that make a CLI practical for CI/CD and automation:
 | Knowledge‑First Context | Retrieval + shaping via memory‑agent, cached in ArangoDB; no giant chat logs | Eliminates context rot; smaller prompts; traceable evidence |
 | Model Auto‑Discovery | Chutes recommend/exec with cost + capability filters and safe price caps | Pick cheap, capable models automatically, reproducibly |
 | Hooks (Pre/Post) | Pre‑execution MCP/script hooks; post‑run notifiers | Enforce policy, augment prompts (agent‑memory), notify on completion |
-| Agent↔Agent Comms | Near‑instant local/LAN messaging between agents | Orchestrate multi‑agent workflows simply |
+| Agent↔agent comms | Near‑instant local/LAN messaging between agents | Orchestrate multi‑agent workflows simply |
 | Observability | OpenTelemetry export (HTTP/GRPC) + local artifacts | Integrate with your infra; inspect locally when you don’t |
 | Safety | Sensible sandbox/approval defaults for CI | Secure automation by default |
 | UX | Animated theme‑aware branding; TUI slash helpers | Better ergonomics without ceremony |
@@ -118,6 +125,8 @@ See [FEATURES.md](FEATURES.md) for details and examples.
 ---
 
 ## Quickstart
+
+> Note: Auth, MCP, and general CLI usage follow upstream Codex docs. This fork adds packaging/switch/rollback, pre/post hooks, Chutes discovery, and knowledge‑first options.
 
 ### Installing and running Codex CLI
 

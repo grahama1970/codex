@@ -22,6 +22,22 @@ A production‑focused fork of Codex CLI for CI/CD automation and operator workf
 
 ---
 
+## Feature Overview (Skimmable)
+
+| Feature | What it adds | Why it matters |
+| --- | --- | --- |
+| One-command packaging | `make package` → `dist/bin/codex` (+ `cxplus` symlink); stamped releases; instant switch/rollback | Ship compiled artifacts; switch instantly—no rebuilds |
+| Execution reliability | Always-on artifacts (NDJSON events + summary JSON); `--run-timeout-secs` with graceful shutdown | Reproduce/diff any run; deterministic CI exits |
+| Chutes (model auto-discovery) | `codex chutes recommend/exec` with capability/cost filters; safe price caps; image models | Picks capable, budget-aligned models; explains skips |
+| Knowledge-first context | Externalized cache (ArangoDB + memory-agent); single `context.summary` v2 metrics line | Prevents context rot; smaller, traceable prompts |
+| Tests & scenarios | `make test`; `make scenarios`; `RUN_LIVE=1 make verify` | Validates the exact binary you ship |
+| Policy hooks (pre/post) | Pre-exec MCP/script hooks; post-run notifiers | Enforce org policies; augment prompts; notify on completion |
+| Agent↔agent comms | Low-latency local/LAN messaging between agents | Simple multi-agent orchestration |
+| Observability | OpenTelemetry export (HTTP/GRPC) + local artifacts | Plug into monitoring; inspect locally when you can’t |
+| UX & theming | Animated, theme-aware branding; TUI slash helpers | Better ergonomics with minimal ceremony |
+
+> Chutes = cost-/capability-aware model auto-discovery for `codex` that can recommend/execute under price caps (includes image models).
+
 ## Why this fork (one paragraph)
 
 Build agents that are reliable, cost‑aware, and auditable. cxplus calls databases/tools first, then the model; selects capable, budget‑aligned models; supports determinism; and validates behavior after compile via a one‑command pipeline. This lets teams ship with predictable cost, fewer regressions, and faster feedback.
@@ -144,7 +160,7 @@ Idle‑only halo, robust c/x masks, and a themeable `--accent`. Respect `prefers
 - Knowledge‑First context (experimental): pre‑LLM retrieval + shaping; emits a single metrics summary line.
 - One‑command package/switch/rollback of stamped builds.
 - Warmup + capacity helpers; CI‑friendly sandbox/approvals defaults.
- - Agent↔Agent near‑instant communications for multi‑agent coordination.
+ - Agent↔agent near‑instant communications for multi‑agent coordination.
 
 ## Feature Matrix (cxplus vs a typical LLM CLI)
 
@@ -160,7 +176,7 @@ Idle‑only halo, robust c/x masks, and a themeable `--accent`. Respect `prefers
 | Stamped build switch/rollback | ✖ | ✔ |
 | Warmup + capacity hints | △ | ✔ |
 | Sandbox + approvals defaults for CI | △ | ✔ |
-| Agent↔Agent near‑instant communications | ✖ | ✔ |
+| Agent↔agent near‑instant communications | ✖ | ✔ |
 
 ## Exec Parity & Reliability
 
