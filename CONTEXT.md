@@ -1,10 +1,9 @@
-# Session Context — 2025-10-07
+# cxplus — Work Session Context (Oct 7, 2025)
 
-This file captures the exact state of work so we can resume tomorrow without re‑discovery.
+This is the runbook to resume instantly tomorrow.
 
 - Branch: `feat/chutes-profiles-scenarios`
-- Local time: 2025-10-07
-- Scope today: Knowledge‑First context plumbing and event semantics in the Rust workspace (`codex-rs`).
+- Scope today: Knowledge‑First plumbing + retrieval hardening + docs/branding refresh.
 
 ## What Landed (today)
 
@@ -60,18 +59,26 @@ This file captures the exact state of work so we can resume tomorrow without re�
   - `CONTEXT_MCP_FIXTURE=/path/to/fixture.json` — deterministic offline retrieval
   - `CONTEXT_EVIDENCE_ALLOW_CODE=1` — allow code blocks in evidence shaping (default off)
 
-## Open Items (next session)
+## Next Steps (execute tomorrow)
 
-- Optional: move metrics plumbing to the app‑server path (so both exec and server share the exact same built bundle and metrics). Current approach computes metrics in `exec` only for the NDJSON line.
-- Consider extracting a pure function for “filter/rank” of catalog items to unit‑test Chutes model selection offline (separate track from this PR set).
-- Tidy warnings in `codex-context` (unused fields/functions in fixtures and retrieval structs) or mark them with `#[allow]` where intentional.
-- If we want to run `just fix -p codex-core` cleanly across tests: adjust core config tests that use struct literals when new context fields become part of `Config` (not blocking today).
+P0 – Wire hooks + add scenarios
+- Prehook in `exec` (before first submit): use MCP preset (agent‑memory) to Augment prompt; handle Allow/Deny/Ask/Patch/Augment/RateLimit; emit `prehook_result` (NDJSON + OTEL).
+- Posthook pipeline: generic script posthook; keep Slack notifier compatibility; emit `posthook_result`.
+- Scenarios (compiled binary):
+  - `scenarios/prehook_augment_smoke.py` — asserts augmentation + event present.
+  - `scenarios/posthook_notifier_smoke.py` — asserts posthook executed.
+  - `scenarios/agent_comms_smoke.py` — two agents exchange 3–5 messages; assert <100ms local latency + NDJSON evidence.
+
+P1 – Reliability & docs (2–3 days)
+- Generate `docs/generated/events/context-summary-v2.json` + index.
+- Chutes offline unit tests with fixtures (filters, NaN price caps, tie‑breaks, base URL).
+- Scenarios: Chutes exec (fixture), warmup delta capture, timeout/run_timeout marker, image input path.
+- Docs: `docs/agent-comms.md`; expand `docs/advanced.md` with pre/post‑hook usage.
 
 ## Quick Resume Checklist
-
 1) `git switch feat/chutes-profiles-scenarios`
-2) `make package` (if you need the binary for scenarios)
-3) To verify metrics line quickly: `CONTEXT_FEATURE=1 dist/bin/codex exec "hello"` and check the latest `.codex/runs/*-events.ndjson` for a single `context.summary` v2 line.
+2) `make package`
+3) Run new scenarios after P0 lands; today: verify context line quickly → `CONTEXT_FEATURE=1 dist/bin/codex exec "hello"` and check the newest `.codex/runs/*-events.ndjson` for `{"kind":"context.summary","version":2,...}`.
 
 ---
 This CONTEXT.md summarizes only today’s Knowledge‑First/metrics work stream. The Chutes auto‑discovery and profiles integration work remains in this branch and can be iterated separately.
