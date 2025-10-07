@@ -7,9 +7,9 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./codex-rs/logo-dark.svg" />
-    <source media="(prefers-color-scheme: light)" srcset="./codex-rs/logo-light.svg" />
-    <img src="./codex-rs/logo-light.svg" alt="cxplus logo" width="640" style="display:block;margin:0 auto; transform: translateX(36px);" />
+    <source media="(prefers-color-scheme: dark)" srcset="./codex-rs/logo-dark-centered.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="./codex-rs/logo-light-centered.svg" />
+    <img src="./codex-rs/logo-light-centered.svg" alt="cxplus logo" width="640" />
   </picture>
   
 </p>
@@ -28,6 +28,21 @@
 - Who it’s for: CLI-first devs who want reproducible runs and artifact trails.
 - Why it’s different: Chutes (model auto-discovery), deterministic headless parity, and pre/post hooks.
 - Try it now: `make package` → `make test` → `dist/bin/codex exec "hello"` and open `.codex/runs/*-events.ndjson`.
+
+> Ecosystem fit: Built to match our SciLLM + Graph‑Memory Operator stacks—knowledge‑first (ArangoDB) lookups, agent↔agent messaging, and notifications in a single deterministic CLI.
+
+**Stack highlights**
+- Knowledge-first: first-class ArangoDB lookups (Graph‑Memory Operator) before model calls.
+- Agent↔agent: local/LAN messaging so agents coordinate without bespoke glue.
+- Notify & govern: pre/post hooks with notifiers so runs follow policy and signal outcomes.
+
+#### Why we built this CLI (fits our stack)
+
+| Need | Baseline focus | This fork adds |
+| --- | --- | --- |
+| Knowledge-first retrieval | Prompt→model turn | ArangoDB queries via Graph‑Memory Operator before the turn |
+| Agent↔agent coordination | Single-agent runs | Lightweight agent messaging (local/LAN) |
+| Org policy + notifications | Manual wiring | Pre/Post hooks + notifiers for CI/ops |
 
 ## What's New in This Fork (Skimmable)
 
@@ -278,7 +293,7 @@ Details: docs/chutes.md
 ### Brand assets (SVG/PNG)
 
 - Animated wordmark: `codex-rs/logo.svg` (static base letters, strong “+” pop‑in/out, 5s idle pause)
-- Theme variants (animated backgrounds): `codex-rs/logo-dark.svg`, `codex-rs/logo-light.svg`
+- Theme variants (animated backgrounds): `codex-rs/logo-dark-centered.svg`, `codex-rs/logo-light-centered.svg`
 - Static snapshots: `codex-rs/logo-dark-static.svg`, `codex-rs/logo-light-static.svg`
 - PNG exports (720×160): `codex-rs/logo-dark.png`, `codex-rs/logo-light.png`
 

@@ -106,6 +106,7 @@ The same setting can be persisted in `~/.codex/config.toml` via the top-level `s
 
 - Canonical logo (animated): `logo.svg`
 - Theme variants (animated): `logo-dark.svg`, `logo-light.svg`
+- Centered wordmark variants (animated): `logo-dark-centered.svg`, `logo-light-centered.svg`
 - Static snapshots (SVG): `logo-dark-static.svg`, `logo-light-static.svg`
 - Flat static (SVG, no CSS vars/animations): `logo-dark-flat.svg`, `logo-light-flat.svg`
 - PNG exports (720×160): `logo-dark.png`, `logo-light.png`
