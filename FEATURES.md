@@ -4,6 +4,10 @@
   <img src="./codex-rs/logo.svg" alt="cxplus logo" width="360" />
 </p>
 
+> Experimental fork disclaimer
+>
+> This repository is an experimental, personal fork ("cxplus playground"). It is not intended to be merged upstream into OpenAI’s Codex, and it has no official support. See FORK_POLICY.md for details.
+
 This fork extends Codex CLI with discovery, testing, and deployment ergonomics. Below is a high‑level, scannable overview.
 
 ## Exec Parity & Reliability
@@ -53,7 +57,7 @@ This fork extends Codex CLI with discovery, testing, and deployment ergonomics. 
 - Status: design document added; wiring behind a provider flag/profile is planned (experimental).
 - Docs: `docs/feature_recipes/knowledge-first-context.md`
 
-Emits: when enabled, a single `context.summary` NDJSON record (version=2) with provider/quotas/max token metadata (no raw evidence content). Retrieval metrics will be added as they become available.
+Emits: when enabled, a single `context.summary` NDJSON record (version=2) is written once after context assembly (before streaming). It includes provider, quotas, max tokens, retrieval latency and counts, per‑section token usage, and truncation flags (no raw evidence content).
 
 Experimental config keys:
 
@@ -100,3 +104,10 @@ max_evidence_items = 12
 | `OPEN_MAX_KB` | `/open` size guard override |
 | `GREP_MAX_LINES` | `/grep` line cap override |
 | `ENABLE_SLASH_WRITE` | Allow write‑capable slash targets (one‑time notice) |
+
+## Docs (Auto‑generated)
+
+- Reference lives under `docs/generated/` (see `docs/generated/README.md`).
+- Regenerate locally: `make docs-gen` (or `make docs-fix` to generate + stage).
+- CI gate: `make docs-drift` runs on PRs and pushes to `main` (fails on drift).
+- Optional site: mdBook scaffold under `docs/book`; build with `make docs-book-build`.

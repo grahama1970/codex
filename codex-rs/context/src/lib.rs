@@ -1,11 +1,14 @@
-use serde::{Deserialize, Serialize};
-use sha1::{Digest, Sha1};
+use serde::Deserialize;
+use serde::Serialize;
+use sha1::Digest;
+use sha1::Sha1;
 use std::collections::HashMap;
-use std::time::Instant;
 use thiserror::Error;
 
 mod retrieval;
-use retrieval::{perform_retrieval, MemoryNode, RetrievalBundle, RetrievalConfig};
+use retrieval::perform_retrieval;
+use retrieval::MemoryNode;
+use retrieval::RetrievalConfig;
 
 #[derive(Debug, Clone)]
 pub struct TurnInput {
@@ -112,7 +115,8 @@ impl ContextProvider for MinimalContextProvider {
 
         let recent_concat = input.recent_turns.join("\n");
         let (recent, trunc_recent) = truncate_tokens(&recent_concat, recent_budget);
-        let (plan, trunc_plan) = truncate_tokens(input.plan_text.as_deref().unwrap_or(""), plan_budget);
+        let (plan, trunc_plan) =
+            truncate_tokens(input.plan_text.as_deref().unwrap_or(""), plan_budget);
         let deltas = input.tool_deltas.join("\n");
         let (tools, trunc_tools) = truncate_tokens(&deltas, tools_budget);
         let (evidence, trunc_evidence) = truncate_tokens("", evidence_budget);
@@ -186,17 +190,23 @@ impl ContextProvider for ArangoContextProvider {
                 .clone()
                 .or_else(|| std::env::var("CONTEXT_MCP_FIXTURE").ok()),
         };
-        // Build a tiny runtime for the async call (keeps trait sync for now)
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| ContextError::Internal(format!("rt: {e}")))?;
+        // Use the current Tokio runtime handle to perform async retrieval.
+        let handle = tokio::runtime::Handle::current();
         let mut cache = HashMap::new();
-        let retrieval = rt.block_on(async { perform_retrieval(&cfg, &input.user_text, &mut cache).await });
+        let retrieval =
+            handle.block_on(async { perform_retrieval(&cfg, &input.user_text, &mut cache).await });
 
         // Shape evidence
-        let lines = shape_evidence(&retrieval.nodes, self.max_evidence_items as usize, self.allow_code);
-        let evidence_text = if lines.is_empty() { String::new() } else { lines.join("\n") };
+        let lines = shape_evidence(
+            &retrieval.nodes,
+            self.max_evidence_items as usize,
+            self.allow_code,
+        );
+        let evidence_text = if lines.is_empty() {
+            String::new()
+        } else {
+            lines.join("\n")
+        };
 
         // Build minimal and merge
         let (mut out, mut metrics) = MinimalContextProvider.build(input)?;
@@ -206,20 +216,24 @@ impl ContextProvider for ArangoContextProvider {
         // Adaptive reflow (heuristic) and metrics
         let quotas = input.quotas.normalize();
         if out.plan_tokens == 0 {
-            metrics.reflowed_from_plan = (quotas.plan_pct as u32) * input.max_context_tokens as u32 / 100;
+            metrics.reflowed_from_plan =
+                (quotas.plan_pct as u32) * input.max_context_tokens as u32 / 100;
         }
         if out.recent_tokens == 0 {
-            metrics.reflowed_from_recent = (quotas.recent_pct as u32) * input.max_context_tokens as u32 / 100;
+            metrics.reflowed_from_recent =
+                (quotas.recent_pct as u32) * input.max_context_tokens as u32 / 100;
         }
         if out.tools_tokens == 0 {
-            metrics.reflowed_from_tools = (quotas.tools_pct as u32) * input.max_context_tokens as u32 / 100;
+            metrics.reflowed_from_tools =
+                (quotas.tools_pct as u32) * input.max_context_tokens as u32 / 100;
         }
 
         metrics.retrieval_ms = retrieval.retrieval_ms;
         metrics.evidence_items = retrieval.evidence_items as u32;
         metrics.search_k = self.search_k;
         metrics.neighbors_depth = self.neighbors_depth as u32;
-        metrics.total_tokens = (out.recent_tokens + out.plan_tokens + out.evidence_tokens + out.tools_tokens) as u32;
+        metrics.total_tokens =
+            (out.recent_tokens + out.plan_tokens + out.evidence_tokens + out.tools_tokens);
         metrics.evidence_tokens = out.evidence_tokens;
         metrics.truncated_evidence = out.truncated_evidence;
 
@@ -239,19 +253,36 @@ fn shape_evidence(nodes: &[MemoryNode], max_items: usize, allow_code: bool) -> V
         let pa = type_prio(&a.r#type);
         let pb = type_prio(&b.r#type);
         pa.cmp(&pb)
-            .then_with(|| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal))
+            .then_with(|| {
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .then_with(|| a.id.cmp(&b.id))
     });
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for n in vec.into_iter() {
-        if !seen.insert(n.id.clone()) { continue; }
-        if out.len() >= max_items { break; }
+        if !seen.insert(n.id.clone()) {
+            continue;
+        }
+        if out.len() >= max_items {
+            break;
+        }
         let mut text = n.content.replace('\n', " ");
-        if !allow_code { text = strip_code_fences(&text); }
+        if !allow_code {
+            text = strip_code_fences(&text);
+        }
         text = redact_secrets(&text);
-        if text.len() > 220 { text = text.chars().take(220).collect::<String>() + " …"; }
-        out.push(format!("- [{}{}] {}", type_prefix(&n.r#type), short_hash(&n.id), text));
+        if text.len() > 220 {
+            text = text.chars().take(220).collect::<String>() + " …";
+        }
+        out.push(format!(
+            "- [{}{}] {}",
+            type_prefix(&n.r#type),
+            short_hash(&n.id),
+            text
+        ));
     }
     out
 }
@@ -297,11 +328,15 @@ fn redact_secrets(s: &str) -> String {
     out
 }
 
-fn count_tokens(s: &str) -> usize { s.split_whitespace().count() }
+fn count_tokens(s: &str) -> usize {
+    s.split_whitespace().count()
+}
 
 fn truncate_tokens(s: &str, max_tokens: usize) -> (String, bool) {
     let tokens: Vec<&str> = s.split_whitespace().collect();
-    if tokens.len() <= max_tokens { return (s.to_string(), false); }
+    if tokens.len() <= max_tokens {
+        return (s.to_string(), false);
+    }
     (tokens[..max_tokens].join(" ") + " …", true)
 }
 
@@ -310,8 +345,14 @@ fn strip_code_fences(s: &str) -> String {
     let mut in_fence = false;
     for line in s.split('\n') {
         let l = line.trim();
-        if l.starts_with("```") { in_fence = !in_fence; continue; }
-        if !in_fence { out.push_str(line); out.push(' '); }
+        if l.starts_with("```") {
+            in_fence = !in_fence;
+            continue;
+        }
+        if !in_fence {
+            out.push_str(line);
+            out.push(' ');
+        }
     }
     out.trim().to_string()
 }
@@ -320,7 +361,13 @@ fn short_hash(id: &str) -> String {
     let mut h = Sha1::new();
     h.update(id.as_bytes());
     let s = format!("{:x}", h.finalize());
-    s.chars().rev().take(4).collect::<String>().chars().rev().collect()
+    s.chars()
+        .rev()
+        .take(4)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect()
 }
 
 fn one_line(s: &str) -> String {
@@ -331,4 +378,3 @@ fn one_line(s: &str) -> String {
     }
     out
 }
-

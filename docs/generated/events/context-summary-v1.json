@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "budget": {
+      "properties": {
+        "evidence_pct": {
+          "type": "integer"
+        },
+        "plan_pct": {
+          "type": "integer"
+        },
+        "recent_pct": {
+          "type": "integer"
+        },
+        "tools_pct": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "recent_pct",
+        "plan_pct",
+        "evidence_pct",
+        "tools_pct"
+      ],
+      "type": "object"
+    },
+    "kind": {
+      "const": "context.summary"
+    },
+    "max_context_tokens": {
+      "type": "integer"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "kind",
+    "version",
+    "provider",
+    "max_context_tokens",
+    "budget"
+  ],
+  "title": "context.summary.v1",
+  "type": "object"
+}

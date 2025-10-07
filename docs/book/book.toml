@@ -1,0 +1,12 @@
+[book]
+title = "cxplus Reference"
+author = "cxplus"
+description = "Auto-generated reference for CLI, config, events, and slash commands"
+
+[build]
+create-missing = true
+
+[output.html]
+git-repository-url = ""
+default-theme = "light"
+copy-fonts = true

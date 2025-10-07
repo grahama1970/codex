@@ -47,6 +47,26 @@ If you run into problems setting up the project, would like feedback on an idea,
 
 Together we can make Codex CLI an incredible tool. **Happy hacking!** :rocket:
 
+### Regenerating Reference Docs
+
+When you add or rename CLI flags, config keys, or events:
+
+```bash
+make docs-gen
+git add docs/generated
+```
+
+CI will fail if `make docs-drift` detects uncommitted changes.
+
+Note: files under `docs/generated/` are machine-generated. Please do not edit them manually—changes should come from the generator (`codex-rs/docs`) and be committed after running `make docs-gen`.
+
+Optional pre-commit hook to auto-regenerate:
+
+```
+git config core.hooksPath .githooks
+```
+This enables `.githooks/pre-commit`, which runs `scripts/pre-commit-docs.sh` to refresh docs and stage updates.
+
 ### Contributor license agreement (CLA)
 
 All contributors **must** accept the CLA. The process is lightweight:

@@ -170,3 +170,47 @@ verify: test
 clean:
 	@rm -rf $(DIST_DIR)
 	@echo "Cleaned $(DIST_DIR)"
+# -------- Documentation (auto-reference) --------------------------------------
+.PHONY: docs-gen docs-drift
+
+docs-gen: ensure-bin
+	@echo "==> Generating CLI / config / events reference"
+	@cargo run --manifest-path $(RUST_MANIFEST) -p codex-docs -- generate-cli docs/generated/cli
+	@cargo run --manifest-path $(RUST_MANIFEST) -p codex-docs -- generate-config docs/generated/config
+	@cargo run --manifest-path $(RUST_MANIFEST) -p codex-docs -- generate-events docs/generated/events
+	@cargo run --manifest-path $(RUST_MANIFEST) -p codex-docs -- generate-slash docs/generated/slash
+	@cargo run --manifest-path $(RUST_MANIFEST) -p codex-docs -- generate-index docs/generated
+
+# Fail CI if generated references are stale
+docs-drift: docs-gen
+	@git diff --quiet -- docs/generated || (echo "Docs drift detected: run 'make docs-gen' and commit changes." && exit 1)
+
+.PHONY: ensure-bin
+ensure-bin:
+	@if [ ! -x $(BIN_DIR)/$(BIN_NAME) ]; then \
+	  echo "==> Compiled codex not found; building with stable toolchain"; \
+	  RUSTUP_TOOLCHAIN=1.90.0 $(MAKE) package; \
+	else \
+	  echo "==> Using existing $(BIN_DIR)/$(BIN_NAME)"; \
+	fi
+
+.PHONY: docs-fix
+docs-fix:
+	@$(MAKE) docs-gen
+	@git add docs/generated || true
+	@echo "Docs regenerated and staged (if this is a git repo)."
+
+# -------- mdBook site (Phase C) ---------------------------------------------
+.PHONY: docs-book-clean docs-book-gen docs-book-build
+
+docs-book-clean:
+	@rm -rf docs/book/src/generated
+
+docs-book-gen: docs-gen docs-book-clean
+	@mkdir -p docs/book/src/generated
+	@cp -R docs/generated/* docs/book/src/generated/
+	@echo "==> Copied generated docs into mdBook src/"
+
+docs-book-build: docs-book-gen
+	@command -v mdbook >/dev/null 2>&1 || cargo install mdbook
+	@mdbook build docs/book

@@ -1,5 +1,9 @@
 # Codex CLI (Rust Implementation)
 
+> Experimental fork disclaimer
+>
+> This `codex-rs` workspace lives in an experimental, personal fork ("cxplus playground"). It is not intended for upstream merge into OpenAI’s Codex and carries no official support. See ../../FORK_POLICY.md.
+
 We provide Codex CLI as a standalone, native executable to ensure a zero-dependency install.
 
 ## Installing Codex
@@ -100,10 +104,24 @@ The same setting can be persisted in `~/.codex/config.toml` via the top-level `s
 
 ## Brand Assets
 
-- Current logos
-  - Animated: `logo5.svg` (static “x”, stronger “+” pop with pre‑bump)
-  - Static: `logo5-static.svg` (no animations; for print/PNG)
-- Deprecated experiments are archived under `deprecated-logos/` and should not be used.
+- Canonical logo (animated): `logo.svg`
+- Theme variants (animated): `logo-dark.svg`, `logo-light.svg`
+- Static snapshots (SVG): `logo-dark-static.svg`, `logo-light-static.svg`
+- Flat static (SVG, no CSS vars/animations): `logo-dark-flat.svg`, `logo-light-flat.svg`
+- PNG exports (720×160): `logo-dark.png`, `logo-light.png`
+- Legacy (older) assets remain for reference: the `logo5.*` family; deprecated experiments live under `deprecated-logos/` and should not be used.
+
+Embed examples:
+
+```html
+<img src="/codex-rs/logo.svg" alt="cxplus">                      <!-- animated -->
+<img src="/codex-rs/logo-dark-static.svg" alt="cxplus">          <!-- static dark -->
+<img src="/codex-rs/logo-light-static.svg" alt="cxplus">         <!-- static light -->
+```
+
+Notes:
+- Honors `prefers-reduced-motion` by freezing to a legible end state (fully revealed cyan + visible “+”).
+- To force static per instance when inlining SVG, add `data-static="true"` to the `<svg>` element.
 
 ## Code Organization
 

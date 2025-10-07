@@ -23,5 +23,14 @@ def test_context_summary_ndjson_emitted():
     assert new_files, "expected a new events.ndjson file"
     with open(new_files[-1], "r", encoding="utf-8") as f:
         lines = f.readlines()
-    assert any('"kind":"context.summary"' in ln for ln in lines), "context.summary line missing"
-
+    # Ensure a single completed context.summary v2 line exists
+    ctx_lines = [ln for ln in lines if '"kind":"context.summary"' in ln]
+    assert ctx_lines, "context.summary line missing"
+    import json
+    obj = json.loads(ctx_lines[0])
+    assert obj.get("version") == 2, "expected version=2"
+    assert "budget" in obj
+    # If fixture present and provider=Arango, evidence_items should be >= 1
+    import os as _os
+    if _os.environ.get("CONTEXT_MCP_FIXTURE") and "Arango" in obj.get("provider", ""):
+        assert obj.get("evidence_items", 0) >= 1

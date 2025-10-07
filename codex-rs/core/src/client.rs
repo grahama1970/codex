@@ -135,7 +135,7 @@ impl ModelClient {
                 // Optionally rebuild prompt with Knowledge‑First sections (Phase‑0).
                 let mut effective_prompt = prompt.clone();
                 if self.config.context_max_tokens > 0
-                    && let Some(kf) = self.try_build_knowledge_first(prompt)
+                    && let Some((kf, _metrics)) = self.try_build_knowledge_first(prompt)
                 {
                     effective_prompt = kf;
                 }
@@ -477,7 +477,11 @@ impl ModelClient {
 
 impl ModelClient {
     /// Phase‑0: Build knowledge‑first sections and inject into base instructions.
-    fn try_build_knowledge_first(&self, prompt: &Prompt) -> Option<Prompt> {
+    /// Returns the rebuilt Prompt and context metrics when successful.
+    fn try_build_knowledge_first(
+        &self,
+        prompt: &Prompt,
+    ) -> Option<(Prompt, codex_context::ContextMetrics)> {
         let cfg = &self.config;
         // Build turn input
         let recent_turns = prompt
@@ -557,13 +561,14 @@ impl ModelClient {
                 timeout_ms: cfg.context_arango_timeout_ms,
                 max_evidence_items: cfg.context_arango_max_evidence_items,
                 debug: std::env::var("CONTEXT_DEBUG").ok().as_deref() == Some("1"),
-                allow_code: std::env::var("CONTEXT_EVIDENCE_ALLOW_CODE").ok().as_deref() == Some("1"),
+                allow_code: std::env::var("CONTEXT_EVIDENCE_ALLOW_CODE").ok().as_deref()
+                    == Some("1"),
                 fixture_path: std::env::var("CONTEXT_MCP_FIXTURE").ok(),
             }),
         };
         let debug = std::env::var("CONTEXT_DEBUG").ok().as_deref() == Some("1");
         let t0 = std::time::Instant::now();
-        let (bundle, _metrics) = match provider.build(&input) {
+        let (bundle, metrics) = match provider.build(&input) {
             Ok(b) => b,
             Err(e) => {
                 if debug {
@@ -598,7 +603,23 @@ impl ModelClient {
             bundle.tools
         );
         rebuilt.inject_context_prefix(prefix);
-        Some(rebuilt)
+        Some((rebuilt, metrics))
+    }
+}
+
+impl ModelClient {
+    /// Public helper for callers that want to build Knowledge‑First context once
+    /// and access the computed metrics. If context is disabled or an error
+    /// occurs, returns the original prompt and None.
+    pub fn prepare_prompt_with_context(
+        &self,
+        original: &Prompt,
+    ) -> (Prompt, Option<codex_context::ContextMetrics>) {
+        if self.config.context_max_tokens > 0
+            && let Some((rebuilt, metrics)) = self.try_build_knowledge_first(original) {
+                return (rebuilt, Some(metrics));
+            }
+        (original.clone(), None)
     }
 }
 

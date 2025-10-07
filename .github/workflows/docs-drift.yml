@@ -1,0 +1,28 @@
+name: Docs Drift
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  docs-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.90.0
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify generated reference docs are up to date
+        run: |
+          make docs-drift
+

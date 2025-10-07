@@ -3,12 +3,17 @@
 //! - Falls back silently (debug log if CONTEXT_DEBUG=1) on errors.
 //! - No raw evidence lines ever leave this module; shaping occurs in lib.rs.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::anyhow;
+use anyhow::Context;
+use anyhow::Result;
 use serde::Deserialize;
-use serde_json::{json, Value};
-use sha1::{Digest, Sha1};
+use serde_json::json;
+use serde_json::Value;
+use sha1::Digest;
+use sha1::Sha1;
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use std::time::Instant;
 use tokio::time::timeout;
 
 #[derive(Debug, Clone)]
@@ -157,7 +162,9 @@ pub async fn perform_retrieval(
         if cfg.neighbors_depth > 0 {
             let neighbor_ids: Vec<String> = nodes.iter().take(5).map(|n| n.id.clone()).collect();
             for id in neighbor_ids {
-                if nodes.len() >= cfg.max_items * 2 { break; }
+                if nodes.len() >= cfg.max_items * 2 {
+                    break;
+                }
                 let params = json!({
                   "id": id,
                   "depth": cfg.neighbors_depth,
@@ -177,7 +184,11 @@ pub async fn perform_retrieval(
                             }
                         }
                     }
-                    Err(e) => { if cfg.debug { eprintln!("[context] neighbors error: {e}"); } }
+                    Err(e) => {
+                        if cfg.debug {
+                            eprintln!("[context] neighbors error: {e}");
+                        }
+                    }
                 }
             }
         }
@@ -185,18 +196,97 @@ pub async fn perform_retrieval(
         Ok::<(), anyhow::Error>(())
     };
 
-    match timeout(deadline, fut).await {
-        Err(_) => return fallback_bundle(t0, cfg, true),
-        Ok(Err(e)) => {
-            if e.to_string().contains("429") {
-                if cfg.debug { eprintln!("[context] search 429, retrying once"); }
-                // Retry path can be implemented by refactoring fut; for now, fallback.
-                return fallback_bundle(t0, cfg, false);
-            } else {
+    // First attempt with overall deadline
+    let first = timeout(deadline, fut).await;
+    if first.is_err() {
+        return fallback_bundle(t0, cfg, true);
+    }
+    if let Ok(Err(e)) = &first {
+        if e.to_string().contains("429") {
+            // Retry once with small backoff if time remains
+            let spent = t0.elapsed();
+            if spent >= deadline {
                 return fallback_bundle(t0, cfg, false);
             }
+            let remain = deadline - spent;
+            if cfg.debug {
+                eprintln!(
+                    "[context] search 429, retrying after 100ms (remain {:?})",
+                    remain
+                );
+            }
+            if remain > Duration::from_millis(150) {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            // Re-run full flow with fresh client and local buffers
+            let mut nodes_retry: Vec<MemoryNode> = vec![];
+            let retry_client = JsonRpcClient::new(cfg.endpoint.clone(), cfg.debug);
+            let query_norm = normalize_query(query_raw);
+            let retry = async {
+                let search_params = json!({
+                  "q": query_norm,
+                  "k": cfg.search_k,
+                  "types": ["facts","procedures","episodes"]
+                });
+                let search_val = retry_client.call("memory.search", search_params).await?;
+                if let Some(arr) = search_val
+                    .get("result")
+                    .and_then(|v| v.get("items"))
+                    .and_then(|v| v.as_array())
+                {
+                    for v in arr {
+                        if let Ok(node) = serde_json::from_value::<MemoryNode>(v.clone()) {
+                            nodes_retry.push(node);
+                        }
+                    }
+                } else {
+                    return Err(anyhow!("schema mismatch: search.result.items"));
+                }
+                if cfg.neighbors_depth > 0 {
+                    let ids: Vec<String> =
+                        nodes_retry.iter().take(5).map(|n| n.id.clone()).collect();
+                    for id in ids {
+                        let params = json!({
+                          "id": id,
+                          "depth": cfg.neighbors_depth,
+                          "types": ["facts","procedures"]
+                        });
+                        if let Ok(val) = retry_client.call("memory.neighbors", params).await {
+                            if let Some(items) = val
+                                .get("result")
+                                .and_then(|r| r.get("items"))
+                                .and_then(|i| i.as_array())
+                            {
+                                for it in items {
+                                    if let Ok(node) =
+                                        serde_json::from_value::<MemoryNode>(it.clone())
+                                    {
+                                        nodes_retry.push(node);
+                                    }
+                                }
+                            }
+                        }
+                        if nodes_retry.len() >= cfg.max_items * 2 {
+                            break;
+                        }
+                    }
+                }
+                Ok::<(), anyhow::Error>(())
+            };
+            let remain_after = deadline.saturating_sub(t0.elapsed());
+            let retry_res = timeout(remain_after, retry).await;
+            match retry_res {
+                Err(_) => return fallback_bundle(t0, cfg, true),
+                Ok(Err(_)) => return fallback_bundle(t0, cfg, false),
+                Ok(Ok(())) => {
+                    if nodes.is_empty() {
+                        nodes = nodes_retry;
+                    }
+                }
+            }
+        } else {
+            return fallback_bundle(t0, cfg, false);
         }
-        Ok(Ok(())) => {}
     }
 
     let retrieval_ms = t0.elapsed().as_millis() as u64;
@@ -230,7 +320,11 @@ fn fallback_bundle(start: Instant, cfg: &RetrievalConfig, timeout_hit: bool) -> 
 
 fn normalize_query(raw: &str) -> String {
     let trimmed = raw.trim().to_lowercase();
-    if trimmed.len() <= 256 { trimmed } else { trimmed.chars().take(256).collect() }
+    if trimmed.len() <= 256 {
+        trimmed
+    } else {
+        trimmed.chars().take(256).collect()
+    }
 }
 
 fn load_fixture(path: &str, _cfg: &RetrievalConfig) -> RetrievalBundle {
@@ -238,16 +332,41 @@ fn load_fixture(path: &str, _cfg: &RetrievalConfig) -> RetrievalBundle {
         Ok(s) => {
             let mut nodes: Vec<MemoryNode> = vec![];
             if let Ok(val) = serde_json::from_str::<Value>(&s) {
-                if let Some(items) = val.get("search").and_then(|v| v.get("items")).and_then(Value::as_array) {
-                    for it in items { if let Ok(node) = serde_json::from_value::<MemoryNode>(it.clone()) { nodes.push(node); } }
+                if let Some(items) = val
+                    .get("search")
+                    .and_then(|v| v.get("items"))
+                    .and_then(Value::as_array)
+                {
+                    for it in items {
+                        if let Ok(node) = serde_json::from_value::<MemoryNode>(it.clone()) {
+                            nodes.push(node);
+                        }
+                    }
                 }
-                if let Some(neigh) = val.get("neighbors").and_then(|v| v.get("items")).and_then(Value::as_array) {
-                    for it in neigh { if let Ok(node) = serde_json::from_value::<MemoryNode>(it.clone()) { nodes.push(node); } }
+                if let Some(neigh) = val
+                    .get("neighbors")
+                    .and_then(|v| v.get("items"))
+                    .and_then(Value::as_array)
+                {
+                    for it in neigh {
+                        if let Ok(node) = serde_json::from_value::<MemoryNode>(it.clone()) {
+                            nodes.push(node);
+                        }
+                    }
                 }
             }
-            RetrievalBundle { nodes: nodes.clone(), retrieval_ms: 5, evidence_items: nodes.len(), cache_hit: false }
+            RetrievalBundle {
+                nodes: nodes.clone(),
+                retrieval_ms: 5,
+                evidence_items: nodes.len(),
+                cache_hit: false,
+            }
         }
-        Err(_) => RetrievalBundle { nodes: vec![], retrieval_ms: 0, evidence_items: 0, cache_hit: false },
+        Err(_) => RetrievalBundle {
+            nodes: vec![],
+            retrieval_ms: 0,
+            evidence_items: 0,
+            cache_hit: false,
+        },
     }
 }
-

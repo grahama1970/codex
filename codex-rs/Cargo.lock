@@ -1020,6 +1020,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "codex-context"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "parking_lot",
+ "regex",
+ "regex-lite",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha1",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "codex-core"
 version = "0.0.0"
 dependencies = [
@@ -1033,6 +1050,7 @@ dependencies = [
  "chrono",
  "codex-app-server-protocol",
  "codex-apply-patch",
+ "codex-context",
  "codex-file-search",
  "codex-mcp-client",
  "codex-otel",
@@ -1087,6 +1105,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "codex-docs"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "codex-exec"
 version = "0.0.0"
 dependencies = [
@@ -1095,6 +1123,7 @@ dependencies = [
  "clap",
  "codex-arg0",
  "codex-common",
+ "codex-context",
  "codex-core",
  "codex-ollama",
  "codex-protocol",

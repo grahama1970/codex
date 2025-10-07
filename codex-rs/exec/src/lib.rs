@@ -12,6 +12,12 @@ pub mod exec_events;
 
 pub use cli::Cli;
 use codex_common::slash;
+use codex_context::ArangoContextProvider;
+use codex_context::ContextMetrics;
+use codex_context::ContextProvider as KfProvider;
+use codex_context::MinimalContextProvider;
+use codex_context::SectionQuotas;
+use codex_context::TurnInput;
 use codex_core::AuthManager;
 use codex_core::BUILT_IN_OSS_MODEL_PROVIDER_ID;
 use codex_core::ConversationManager;
@@ -412,40 +418,87 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     }
 
     // Send the prompt.
-    let items: Vec<InputItem> = vec![InputItem::Text { text: prompt }];
-    // Phase-0 (Knowledge-First) context summary emission (single early line).
-    // We do not parse the full EvidenceBundle here—only the static budget metadata.
+    let items: Vec<InputItem> = vec![InputItem::Text {
+        text: prompt.clone(),
+    }];
+    // Emit a single completed context.summary line with real metrics (pre-stream).
     if let Some(f) = events_file.as_mut() {
         use codex_core::config::ContextProviderKind;
-        let provider = &config.context_provider;
-        if !matches!(provider, ContextProviderKind::Minimal) {
-            let line = serde_json::json!({
-                "ts_unix_ms": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
-                "elapsed_ms": monotonic_start.elapsed().as_millis() as u64,
-                "kind": "context.summary",
-                "version": 2,
-                "provider": format!("{:?}", provider),
-                "max_context_tokens": config.context_max_tokens,
-                "budget": {
-                  "recent_pct": config.context_budget.0,
-                  "plan_pct": config.context_budget.1,
-                  "evidence_pct": config.context_budget.2,
-                  "tools_pct": config.context_budget.3
-                },
-                // v2 metrics placeholders (filled once retrieval is live; zeros ok for minimal/arango before retrieval)
-                "retrieval_ms": 0,
-                "evidence_items": 0,
-                "search_k": config.context_arango_search_k,
-                "neighbors_depth": config.context_arango_neighbors_depth,
-                "reflowed_from": { "plan": 0, "recent": 0, "tools": 0 },
-                "total_tokens": 0,
-                "section_tokens": { "evidence": 0, "plan": 0, "recent": 0, "tools": 0 },
-                "truncated": { "evidence": false, "plan": false, "recent": false, "tools": false }
-            });
-            if let Ok(s) = serde_json::to_string(&line) {
-                let _ = std::io::Write::write_all(f, s.as_bytes());
-                let _ = std::io::Write::write_all(f, b"\n");
+        let provider_kind = &config.context_provider;
+        // Build provider and compute metrics based on current prompt.
+        let quotas = SectionQuotas {
+            recent_pct: config.context_budget.0,
+            plan_pct: config.context_budget.1,
+            evidence_pct: config.context_budget.2,
+            tools_pct: config.context_budget.3,
+        };
+        let input = TurnInput {
+            user_text: prompt.clone(),
+            recent_turns: vec![],
+            plan_text: None,
+            tool_deltas: vec![],
+            max_context_tokens: config.context_max_tokens as usize,
+            quotas,
+        };
+        let debug_ctx = std::env::var("CONTEXT_DEBUG").ok().as_deref() == Some("1");
+        let mut metrics: ContextMetrics = ContextMetrics::default();
+        match provider_kind {
+            ContextProviderKind::Minimal => {
+                let _ = MinimalContextProvider
+                    .build(&input)
+                    .map(|(_b, m)| metrics = m);
             }
+            ContextProviderKind::Arango => {
+                let provider = ArangoContextProvider {
+                    mcp_tool: config
+                        .context_arango_mcp_tool
+                        .clone()
+                        .unwrap_or_else(|| "memory-agent".into()),
+                    endpoint: config
+                        .context_arango_endpoint
+                        .clone()
+                        .unwrap_or_else(|| "http://localhost:8529".into()),
+                    database: config
+                        .context_arango_database
+                        .clone()
+                        .unwrap_or_else(|| "codex".into()),
+                    search_k: config.context_arango_search_k,
+                    neighbors_depth: config.context_arango_neighbors_depth,
+                    timeout_ms: config.context_arango_timeout_ms,
+                    max_evidence_items: config.context_arango_max_evidence_items,
+                    debug: debug_ctx,
+                    allow_code: std::env::var("CONTEXT_EVIDENCE_ALLOW_CODE").ok().as_deref()
+                        == Some("1"),
+                    fixture_path: std::env::var("CONTEXT_MCP_FIXTURE").ok(),
+                };
+                let _ = provider.build(&input).map(|(_b, m)| metrics = m);
+            }
+        }
+        let line = serde_json::json!({
+            "ts_unix_ms": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
+            "elapsed_ms": monotonic_start.elapsed().as_millis() as u64,
+            "kind": "context.summary",
+            "version": 2,
+            "provider": format!("{:?}", provider_kind),
+            "max_context_tokens": config.context_max_tokens,
+            "budget": {
+              "recent_pct": config.context_budget.0,
+              "plan_pct": config.context_budget.1,
+              "evidence_pct": config.context_budget.2,
+              "tools_pct": config.context_budget.3
+            },
+            "retrieval_ms": metrics.retrieval_ms,
+            "evidence_items": metrics.evidence_items,
+            "search_k": config.context_arango_search_k,
+            "neighbors_depth": config.context_arango_neighbors_depth,
+            "reflowed_from": { "plan": metrics.reflowed_from_plan, "recent": metrics.reflowed_from_recent, "tools": metrics.reflowed_from_tools },
+            "total_tokens": metrics.total_tokens,
+            "section_tokens": { "evidence": metrics.evidence_tokens, "plan": metrics.plan_tokens, "recent": metrics.recent_tokens, "tools": metrics.tools_tokens },
+            "truncated": { "evidence": metrics.truncated_evidence, "plan": metrics.truncated_plan, "recent": metrics.truncated_recent, "tools": metrics.truncated_tools }
+        });
+        if let Ok(s) = serde_json::to_string(&line) {
+            let _ = std::io::Write::write_all(f, s.as_bytes());
+            let _ = std::io::Write::write_all(f, b"\n");
         }
     }
     let initial_prompt_task_id = conversation

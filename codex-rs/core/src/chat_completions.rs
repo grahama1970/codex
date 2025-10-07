@@ -284,12 +284,12 @@ pub(crate) async fn stream_chat_completions(
         "stream": true,
         "tools": tools_json,
     });
-    if let Some(seed) = deterministic_seed {
-        if let Some(obj) = payload.as_object_mut() {
-            obj.insert("temperature".to_string(), json!(0.0));
-            obj.insert("top_p".to_string(), json!(1.0));
-            obj.insert("seed".to_string(), json!(seed));
-        }
+    if let Some(seed) = deterministic_seed
+        && let Some(obj) = payload.as_object_mut()
+    {
+        obj.insert("temperature".to_string(), json!(0.0));
+        obj.insert("top_p".to_string(), json!(1.0));
+        obj.insert("seed".to_string(), json!(seed));
     }
 
     debug!(

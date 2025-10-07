@@ -247,4 +247,4 @@ timeout_ms = 800
 max_evidence_items = 12
 ```
 
-Artifacts: when enabled, one `context.summary` (version=2) line is written to `*-events.ndjson` with provider, quota, and budget info (no raw evidence). Retrieval metrics will be added in a follow‑up.
+Artifacts: when enabled, a single `context.summary` (version=2) line is written once per run to `*-events.ndjson` after context assembly and before streaming. It includes provider, quotas, max token budget, and retrieval metrics (durations, item counts, per‑section token usage, truncation flags). No raw evidence is logged.

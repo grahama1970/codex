@@ -1,5 +1,13 @@
 # Quickstart
 
+<p align="center">
+  <img src="./codex-rs/logo.svg" alt="cxplus logo" width="360" />
+</p>
+
+> Experimental fork disclaimer
+>
+> This repository is an experimental, personal fork ("cxplus playground"). It is not intended to be merged upstream into OpenAI’s Codex, and it has no official support. See FORK_POLICY.md for details.
+
 This fork ("cxplus") provides a compiled, versioned CLI with Chutes auto‑discovery (fixture mode), warm‑up, slash command QOL, capacity planning, and a frictionless deploy/switch/rollback flow. This guide is the fastest way for any project agent (human or automated) to build, test, deploy, and use cxplus.
 
 ## 0) Prereqs
@@ -130,3 +138,9 @@ export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/…"
 ```
 
 Optionally, pass an explicit URL: `notify = ["codex-notify-slack", "--webhook", "https://hooks…"]`.
+
+## 14) Docs (auto‑generated)
+
+- Reference is generated under `docs/generated/`.
+- Regenerate locally: `make docs-gen` (or `make docs-fix` to generate + stage changes).
+- CI checks for drift on PRs and `main` via `make docs-drift`.
