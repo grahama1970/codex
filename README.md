@@ -24,10 +24,6 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="Apache-2.0"></a>
-  <!-- Optional badges:
-  <a href="#"><img src="https://img.shields.io/github/actions/workflow/status/<owner>/<repo>/cxplus-check.yml?branch=main" alt="CI"></a>
-  <a href="#"><img src="https://img.shields.io/github/v/release/<owner>/<repo>" alt="Releases"></a>
-  -->
 </p>
 
 ---
@@ -241,3 +237,6 @@ Embed with the `<picture>` block at the top (as shown).
 ## License
 
 Licensed under the [Apache-2.0 License](LICENSE).
+
+::contentReference[oaicite:0]{index=0}
+```
