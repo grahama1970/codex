@@ -25,14 +25,17 @@
 
 ## What’s New in This Fork (Skimmable)
 
-- Faster setup flow: `make package` builds a signed binary and drops it at `dist/bin/codex` (symlink `cxplus`).
-- Headless reliability: `codex exec` writes artifacts (`.codex/runs/*.ndjson`, `*summary.json`) and supports `--run-timeout-secs`.
-- Chutes integration: `codex chutes recommend` auto-discovers cost‑effective models; `chutes exec` runs compiled, images supported.
-- Knowledge‑First (experimental): externalized, cached context via ArangoDB + memory‑agent; emits one `context.summary` v2 line with real retrieval metrics.
-- Scenarios vs tests: `make test` (deterministic) and `make scenarios` (live) validate features against the compiled binary.
-- Quality‑of‑life: warmup, slash helpers, consistent theming/branding (animated, theme‑aware logo), capacity planning utilities.
-- API monitoring/export: OpenTelemetry log events with OTLP HTTP/GRPC exporters; portable NDJSON + summary artifacts locally.
-- Agent↔Agent comms: near‑instant communications channel for agent‑to‑agent coordination in workflows.
+| Feature | What it adds | Why it matters |
+| --- | --- | --- |
+| One‑command packaging | `make package` → `dist/bin/codex` (+ `cxplus` symlink); stamped releases with switch/rollback | Ship compiled artifacts; switch versions instantly without re‑building |
+| Exec reliability | Always‑on artifacts: NDJSON events + summary JSON; `--run-timeout-secs` + graceful shutdown | Reproduce, diff, and audit any run; deterministic CI |
+| Chutes model auto‑discovery | `codex chutes recommend/exec` with cost + capability filters; safe price caps; images support | Pick capable, budget‑aligned models automatically |
+| Knowledge‑First context | Externalized, cached context via ArangoDB + memory‑agent; single `context.summary` v2 metrics line | Eliminates context rot; smaller, traceable prompts |
+| Tests & scenarios (post‑compile) | `make test` deterministic + `make scenarios` live; `RUN_LIVE=1 make verify` | Confidence on the exact binary you ship |
+| Hooks (pre/post) | Pre‑execution MCP/script hooks; post‑run notifiers | Enforce policy, augment prompts (agent‑memory), notify on completion |
+| Agent↔Agent comms | Near‑instant local/LAN messaging between agents | Simple multi‑agent orchestration |
+| Observability | OpenTelemetry export (HTTP/GRPC) + local artifacts | Integrate with your monitoring; inspect locally when you don’t |
+| UX & theming | Animated, theme‑aware branding; TUI slash helpers | Better ergonomics without ceremony |
 
 Jump to: [Quickstart](#quickstart) • [Scenarios](#build-and-test-repo-root) • [Features](FEATURES.md) • [Config](./docs/config.md)
 
