@@ -29,7 +29,9 @@
 
 # cxplus
 
-**cxplus** is a focused fork of OpenAI’s **Codex CLI**. We keep upstream CLI/TUI and MCP, and add **reliability**, **cost controls**, and **post‑compile validation** built for pipelines and automation.
+**cxplus** is a knowledge-first fork of OpenAI’s Codex CLI.  
+It introduces **agent-to-agent communication**, **ArangoDB pre-hooks** for cited context retrieval, and **deterministic, cost-aware execution** for CI/CD pipelines — keeping the familiar Codex interface while extending it for multi-agent automation.
+
 
 > If you want Codex in your editor (VS Code, Cursor, Windsurf), see <a href="https://developers.openai.com/codex/ide">install in your IDE</a>.  
 > For OpenAI’s cloud agent (**Codex Web**), visit <a href="https://chatgpt.com/codex">chatgpt.com/codex</a>.
