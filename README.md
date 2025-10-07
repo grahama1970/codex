@@ -84,7 +84,9 @@ dist/bin/cxplus chutes exec --json "Say hello"
 
 ---
 
-## Using cxplus with scillm (litellm fork)
+## Using cxplus with [scillm](docs/SCILLM_LOCAL.md) (litellm fork)
+
+*See also:* [litellm upstream](https://github.com/BerriAI/litellm)
 
 cxplus serves as the operator-facing CLI around **scillm (litellm router)** + **Chutes**.
 
@@ -102,7 +104,7 @@ dist/bin/cxplus chutes exec --json "List three refactor steps"
 
 * Tiny context keeps routers spending tokens on **code**.
 * `--seed` makes nightly pipelines debuggable.
-* See `docs/SCILLM_LOCAL.md` and the litellm README for router setup.
+* See the [scillm guide](docs/SCILLM_LOCAL.md) and [litellm upstream](https://github.com/BerriAI/litellm) for router setup.
 
 ---
 
