@@ -128,7 +128,7 @@
     }
     @keyframes xTranslate{
       0%,6%   { transform: translateY(0px);   animation-timing-function: var(--ease); }
-      16%     { transform: translateY(-0.8px);animation-timing-function: var(--ease); }
+      16%     { transform: translateY(-2px);  animation-timing-function: var(--ease); }
       26%,100%{ transform: translateY(0px); }
     }
     #xS, #xMoveS{
@@ -136,8 +136,8 @@
       animation: xScale var(--cycle) linear infinite both;
     }
     @keyframes xScale{
-      0%,14%     { transform: scale(1);     animation-timing-function: var(--ease); }
-      18.167%    { transform: scale(1.06);  animation-timing-function: var(--ease); }
+      0%,14%       { transform: scale(1);     animation-timing-function: var(--ease); }
+      18.167%      { transform: scale(1.12);  animation-timing-function: var(--ease); }
       22.333%,100% { transform: scale(1); }
     }
 
@@ -173,11 +173,12 @@
       animation: plusScale var(--cycle) linear infinite both;
     }
     @keyframes plusScale{
-      0%,24%      { transform: scale(0);     animation-timing-function: var(--ease); }
-      28.667%     { transform: scale(1.08);  animation-timing-function: var(--ease); }
-      30.667%     { transform: scale(1);     animation-timing-function: linear; }
-      61.333%     { transform: scale(1);     animation-timing-function: var(--ease); }
-      65.333%,100%{ transform: scale(0); }
+      0%,24%        { transform: scale(0);     animation-timing-function: var(--ease); }
+      28.667%       { transform: scale(1.18);  animation-timing-function: var(--ease); }
+      30.667%       { transform: scale(1);     animation-timing-function: linear; }
+      61.333%       { transform: scale(1);     animation-timing-function: var(--ease); }
+      62.333%       { transform: scale(1.12);  animation-timing-function: var(--ease); }
+      65.333%,100%  { transform: scale(0); }
     }
 
     /* Optional subtle glow for pop */

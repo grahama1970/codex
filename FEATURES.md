@@ -2,6 +2,16 @@
 
 This fork extends Codex CLI with discovery, testing, and deployment ergonomics. Below is a high‑level, scannable overview.
 
+## Exec Parity & Reliability
+
+- Headless runs (`codex exec`) are reliable by default and mirror interactive semantics where it matters for CI:
+  - Always‑on artifacts under `./.codex/runs/` (unless `--summary-dir` is used)
+    - Events NDJSON: one event per line with `seq` and `run_id`; synthetic `run_timeout` marker on budget expiry
+    - Summary JSON: `schema_version`, `status`, `exit_code`, `duration_ms`, `event_count`, model/provider, `events_path`, and last error if any
+  - Time budget with graceful stop: `--run-timeout-secs <n>` (exit code `5` on timeout); `--shutdown-grace-ms` tunes grace (default 800ms)
+  - Helpful stderr hints (rate‑limit, DNS/resolve, timeout) and pointers to artifact paths
+  - Advanced parity flags (optional; defaults already stable): `--force-cli-source`, `--keep-approval-policy`, `--seed <u64>`
+
 ## CLI & Provider Integration
 
 - Chutes auto‑discovery: `codex chutes recommend`
@@ -54,4 +64,3 @@ This fork extends Codex CLI with discovery, testing, and deployment ergonomics. 
 | `OPEN_MAX_KB` | `/open` size guard override |
 | `GREP_MAX_LINES` | `/grep` line cap override |
 | `ENABLE_SLASH_WRITE` | Allow write‑capable slash targets (one‑time notice) |
-

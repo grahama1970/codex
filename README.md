@@ -82,6 +82,21 @@ Codex CLI supports a rich set of configuration options, with preferences stored 
   - [Auth methods](./docs/authentication.md#forcing-a-specific-auth-method-advanced)
   - [Login on a "Headless" machine](./docs/authentication.md#connecting-on-a-headless-machine)
 - [**Non-interactive mode**](./docs/exec.md)
+
+#### Headless parity & reliability (under the hood)
+
+`codex exec` now mirrors the reliability of interactive runs by default. You do not need extra flags.
+
+- Always‑on artifacts (written to `./.codex/runs/` unless overridden with `--summary-dir`):
+  - `exec-<unix_ms>-events.ndjson`: one JSON event per line (includes `seq`, `run_id`).
+  - `exec-<unix_ms>-summary.json`: compact summary (`schema_version`, `status`, `exit_code`, `duration_ms`, `event_count`, model/provider, `events_path`).
+- Time budget & graceful stop: `--run-timeout-secs <n>` sends Interrupt, waits a short grace, then requests Shutdown (exit code `5`).
+- Helpful stderr hints on failure plus pointers to the artifacts for fast debugging.
+- Advanced knobs (optional; defaults are already reliable):
+  - `--force-cli-source` (attribute run as CLI for upstream parity telemetry)
+  - `--keep-approval-policy` (do not force `AskForApproval::Never`)
+  - `--shutdown-grace-ms` (tune grace after timeout; default 800ms)
+  - `--seed <u64>` (persisted; foundation for deterministic sampling)
 - [**Advanced**](./docs/advanced.md)
   - [Non-interactive / CI mode](./docs/advanced.md#non-interactive--ci-mode)
   - [Tracing / verbose logging](./docs/advanced.md#tracing--verbose-logging)
@@ -162,5 +177,5 @@ Details: docs/chutes.md
 ### Quick start and features index
 
 - See QUICKSTART.md for a 60‑second build, test, and live‑scenario walkthrough.
-- See FEATURES.md for an overview table of major CLI/TUI features, discovery, scenarios, and safety controls.
+- See FEATURES.md for an overview table of major CLI/TUI features, exec parity & reliability, discovery, scenarios, and safety controls.
 - See docs/SCILLM_LOCAL.md for using a local scillm (litellm) checkout from downstream Python projects.
