@@ -42,6 +42,13 @@ This fork extends Codex CLI with discovery, testing, and deployment ergonomics. 
 - Live, post‑compile scenarios: `make scenarios`
 - Fixture‑based scenario validates price‑cap relaxation notice
 
+## Knowledge‑First Context (RFC)
+
+- Goal: source compact, cited evidence from ArangoDB via memory‑agent MCP before any LLM call; keep only a tiny recent chat window.
+- Benefits: 60–85% expected token reduction on real tasks; better traceability and determinism.
+- Status: design document added; wiring behind a provider flag/profile is planned.
+- Docs: `docs/feature_recipes/knowledge-first-context.md`
+
 ## Deploy & Versioning
 
 - `make release` → stamped binary in `dist/releases` and updates active symlink in `dist/bin`

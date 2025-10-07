@@ -179,3 +179,13 @@ Details: docs/chutes.md
 - See QUICKSTART.md for a 60‑second build, test, and live‑scenario walkthrough.
 - See FEATURES.md for an overview table of major CLI/TUI features, exec parity & reliability, discovery, scenarios, and safety controls.
 - See docs/SCILLM_LOCAL.md for using a local scillm (litellm) checkout from downstream Python projects.
+
+### Knowledge‑First context (RFC)
+
+cxplus is moving to a Knowledge‑First architecture that builds prompts from compact, cited evidence stored in ArangoDB via the memory‑agent MCP, rather than maintaining large in‑memory chat transcripts. This is designed to cut prompt tokens while improving determinism and traceability.
+
+- Status: RFC/draft (implementation gated behind a provider switch)
+- Design: docs/feature_recipes/knowledge-first-context.md
+- Impact: tiny recent chat window, structured evidence with citations, deterministic prompt sections
+
+This does not change the quickstart flow or Makefile targets. When the feature ships, it will be enabled profile‑by‑profile with safe fallbacks.

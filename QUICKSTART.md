@@ -33,6 +33,8 @@ Notes:
 - Partial NaN: at least one valid priced candidate prevents relaxation.
 - Warm‑up dry run: works without keys (`--dry-run` or `CHUTES_WARMUP_DRYRUN=1`).
 
+Note: A Knowledge‑First context mode (RFC) is being prepared to reduce prompt size by retrieving evidence from ArangoDB via the memory‑agent MCP. This does not affect the quickstart flow. See `docs/feature_recipes/knowledge-first-context.md` for the design.
+
 ## 4) Rapid deploy & versioning
 Create a stamped release and update the active binary + alias:
 ```
