@@ -14,6 +14,10 @@
 
 This fork ("cxplus") provides a compiled, versioned CLI with Chutes auto‑discovery (fixture mode), warm‑up, slash command QOL, capacity planning, and a frictionless deploy/switch/rollback flow. This guide is the fastest way for any project agent (human or automated) to build, test, deploy, and use cxplus.
 
+### Security & Privacy
+
+Telemetry is off by default. OpenTelemetry export is opt‑in; artifacts remain local in `./.codex/runs/`.
+
 ## 0) Prereqs
 - Rust toolchain (we test with `RUSTUP_TOOLCHAIN=1.90.0`)
 - Optional helpers: `just`, `rg`, `cargo-insta` (`make rust-prepare` will suggest/install)

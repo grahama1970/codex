@@ -11,7 +11,10 @@
     <source media="(prefers-color-scheme: light)" srcset="./codex-rs/logo-light-centered.svg" />
     <img src="./codex-rs/logo-light-centered.svg" alt="cxplus logo" width="640" />
   </picture>
-  
+  <br/>
+  <sub>Deterministic CLI for LLM work—artifact trails, policy hooks, and cost‑aware model auto‑discovery.</sub>
+  <br/>
+  <sub>Built to match @grahama1970/scillm and Graph‑Memory Operator: knowledge‑first (ArangoDB) retrieval before the turn, agent↔agent messaging, and run notifications—without extra glue.</sub>
 </p>
 <p align="center">
   <img src="./.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
@@ -61,6 +64,10 @@
 > **Chutes** = cost-/capability-aware model auto-discovery for `codex` that can recommend/execute under price caps (includes image models).
 
 **Jump to:** [Quickstart](./QUICKSTART.md) • [Scenarios](./scenarios/) • [Features](./FEATURES.md) • [Config](./docs/config.md)
+
+### Security & Privacy
+
+Telemetry is off by default. OpenTelemetry export is opt‑in, and no data leaves your machine unless you enable it. Artifacts are written locally to `./.codex/runs/`.
 
 ---
 
