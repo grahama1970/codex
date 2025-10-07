@@ -1,6 +1,6 @@
 <!-- cxplus — logo7 (light mode) -->
 <!-- Derived from logo7.svg with light background/dark foreground preset -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" role="img" aria-labelledby="t d" text-rendering="geometricPrecision" data-static="false" focusable="false">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 0 400 80" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="t d" text-rendering="geometricPrecision" data-static="false" focusable="false">
   <title id="t">cxplus — animated wordmark (light)</title>
   <desc id="d">Light-mode variant. Background #FFFFFF, foreground #0B1220, accent via --accent (default cyan). Same animation and timing as logo7.svg.</desc>
   <style>
@@ -48,7 +48,7 @@
     <clipPath id="cpU" clipPathUnits="userSpaceOnUse"><rect id="uClipRect" class="anim" x="86" y="-200" width="0" height="400"/></clipPath>
     <clipPath id="cpS" clipPathUnits="userSpaceOnUse"><rect id="sClipRect" class="anim" x="112" y="-200" width="0" height="400"/></clipPath>
   </defs>
-  <g transform="translate(0,56)">
+  <g transform="translate(20,56)">
     <g id="wmGlowLayer" class="anim" aria-hidden="true">
       <text class="wm" x="0" y="0">c</text><text class="wm" x="22" y="0">x</text><text class="wm" x="50" y="0">p</text><text class="wm" x="76" y="0">l</text><text class="wm" x="86" y="0">u</text><text class="wm" x="112" y="0">s</text>
     </g>
