@@ -46,14 +46,37 @@ This fork extends Codex CLI with discovery, testing, and deployment ergonomics. 
 - Live, post‑compile scenarios: `make scenarios`
 - Fixture‑based scenario validates price‑cap relaxation notice
 
-## Knowledge‑First Context (RFC)
+## Knowledge‑First Context (RFC, experimental)
 
 - Goal: source compact, cited evidence from ArangoDB via memory‑agent MCP before any LLM call; keep only a tiny recent chat window.
 - Benefits: 60–85% expected token reduction on real tasks; better traceability and determinism.
-- Status: design document added; wiring behind a provider flag/profile is planned.
+- Status: design document added; wiring behind a provider flag/profile is planned (experimental).
 - Docs: `docs/feature_recipes/knowledge-first-context.md`
 
-Emits: when enabled, a single `context.summary` NDJSON record (version=1) with provider/quotas/max token metadata (no raw evidence content).
+Emits: when enabled, a single `context.summary` NDJSON record (version=2) with provider/quotas/max token metadata (no raw evidence content). Retrieval metrics will be added as they become available.
+
+Experimental config keys:
+
+```
+[context]
+provider = "arango"            # default is "minimal"
+max_context_tokens = 8192
+
+[context.budget]
+recent_pct = 15
+plan_pct = 10
+evidence_pct = 60
+tools_pct = 15
+
+[context.arango]
+endpoint = "http://localhost:8529"
+database = "codex"
+mcp_tool = "memory-agent"
+search_k = 12
+neighbors_depth = 1
+timeout_ms = 800
+max_evidence_items = 12
+```
 
 ## Deploy & Versioning
 

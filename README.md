@@ -6,8 +6,15 @@
 </br>If you are looking for the <em>cloud-based agent</em> from OpenAI, <strong>Codex Web</strong>, go to <a href="https://chatgpt.com/codex">chatgpt.com/codex</a></p>
 
 <p align="center">
+  <img src="./codex-rs/logo.svg" alt="cxplus logo" width="440" />
+</p>
+<p align="center">
   <img src="./.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
-  </p>
+</p>
+
+> Experimental fork disclaimer
+>
+> This repository is an experimental, personal fork ("cxplus playground"). It is not intended to be merged upstream into OpenAI’s Codex, and it has no official support. See FORK_POLICY.md for details.
 
 ---
 
@@ -82,6 +89,17 @@ Codex CLI supports a rich set of configuration options, with preferences stored 
   - [Auth methods](./docs/authentication.md#forcing-a-specific-auth-method-advanced)
   - [Login on a "Headless" machine](./docs/authentication.md#connecting-on-a-headless-machine)
 - [**Non-interactive mode**](./docs/exec.md)
+
+### Auto-generated Reference (Pre-Beta)
+
+Generated reference pages (CLI flags, config keys, event schemas) live under `docs/generated/`.
+Run:
+
+```bash
+make docs-gen
+```
+
+CI enforces drift with `make docs-drift`. These pages are pre-beta and may change.
 
 #### Headless parity & reliability (under the hood)
 
@@ -180,12 +198,53 @@ Details: docs/chutes.md
 - See FEATURES.md for an overview table of major CLI/TUI features, exec parity & reliability, discovery, scenarios, and safety controls.
 - See docs/SCILLM_LOCAL.md for using a local scillm (litellm) checkout from downstream Python projects.
 
-### Knowledge‑First context (RFC)
+### Brand assets (SVG/PNG)
+
+- Animated wordmark: `codex-rs/logo.svg` (static base letters, strong “+” pop‑in/out, 5s idle pause)
+- Theme variants (animated backgrounds): `codex-rs/logo-dark.svg`, `codex-rs/logo-light.svg`
+- Static snapshots: `codex-rs/logo-dark-static.svg`, `codex-rs/logo-light-static.svg`
+- PNG exports (720×160): `codex-rs/logo-dark.png`, `codex-rs/logo-light.png`
+
+Embed examples:
+
+```html
+<img src="./codex-rs/logo.svg" alt="cxplus" />
+<img src="./codex-rs/logo-dark-static.svg" alt="cxplus" />
+```
+
+The accent color is themeable; when inlining the SVG, set `style="--accent:#FF4DDE"` on the `<svg>` element to override the cyan accent. Animations honor `prefers-reduced-motion` and `data-static="true"`.
+
+### Knowledge‑First context (RFC, experimental)
 
 cxplus is moving to a Knowledge‑First architecture that builds prompts from compact, cited evidence stored in ArangoDB via the memory‑agent MCP, rather than maintaining large in‑memory chat transcripts. This is designed to cut prompt tokens while improving determinism and traceability.
 
-- Status: RFC/draft (implementation gated behind a provider switch)
+- Status: RFC/draft (experimental; gated behind a provider switch)
 - Design: docs/feature_recipes/knowledge-first-context.md
 - Impact: tiny recent chat window, structured evidence with citations, deterministic prompt sections
 
 This does not change the quickstart flow or Makefile targets. When the feature ships, it will be enabled profile‑by‑profile with safe fallbacks.
+
+Experimental config keys:
+
+```
+[context]
+provider = "arango"            # default is "minimal"
+max_context_tokens = 8192
+
+[context.budget]
+recent_pct = 15
+plan_pct = 10
+evidence_pct = 60
+tools_pct = 15
+
+[context.arango]
+endpoint = "http://localhost:8529"
+database = "codex"
+mcp_tool = "memory-agent"
+search_k = 12
+neighbors_depth = 1
+timeout_ms = 800
+max_evidence_items = 12
+```
+
+Artifacts: when enabled, one `context.summary` (version=2) line is written to `*-events.ndjson` with provider, quota, and budget info (no raw evidence). Retrieval metrics will be added in a follow‑up.
