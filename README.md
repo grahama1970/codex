@@ -9,7 +9,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./codex-rs/logo-dark-centered.svg" />
     <source media="(prefers-color-scheme: light)" srcset="./codex-rs/logo-light-centered.svg" />
-    <img src="./codex-rs/logo-light-centered.svg" alt="cxplus logo" width="640" style="display:block;margin:0 auto; transform: translateX(36px);" />
+    <img src="./codex-rs/logo-light-centered.svg" alt="cxplus logo" width="640" style="display:block;margin:0 auto;" />
   </picture>
   <br/>
   <sub>Deterministic CLI for LLM work—artifact trails, policy hooks, and cost‑aware model auto‑discovery.</sub>
