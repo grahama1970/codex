@@ -10,9 +10,11 @@
 
 > Experimental fork disclaimer
 >
-> This repository is an experimental, personal fork ("cxplus playground"). It is not intended to be merged upstream into OpenAI’s Codex, and it has no official support. See FORK_POLICY.md for details.
+> This repository is an experimental, personal fork ("cxplus playground"). It is not intended to be merged upstream into OpenAI’s Codex, and it has no official support. See `FORK_POLICY.md` for details.
 
 This fork ("cxplus") provides a compiled, versioned CLI with Chutes auto‑discovery (fixture mode), warm‑up, slash command QOL, capacity planning, and a frictionless deploy/switch/rollback flow. This guide is the fastest way for any project agent (human or automated) to build, test, deploy, and use cxplus.
+
+> Note: Auth, MCP, and general CLI usage follow upstream Codex docs. This fork adds packaging/switch/rollback, pre/post hooks, Chutes discovery, and knowledge‑first options.
 
 ### Security & Privacy
 
@@ -23,7 +25,7 @@ Telemetry is off by default. OpenTelemetry export is opt‑in; artifacts remain 
 - Optional helpers: `just`, `rg`, `cargo-insta` (`make rust-prepare` will suggest/install)
 
 ## 1) Build and package
-```
+```bash
 make package
 ```
 Outputs:
@@ -32,12 +34,12 @@ Outputs:
  - `dist/bin/cxplus` (alias pointing to `codex`)
 
 ## 2) Run deterministic tests (offline)
-```
+```bash
 RUSTUP_TOOLCHAIN=1.90.0 make test
 ```
 
 ## 3) Run live scenarios (post‑compile)
-```
+```bash
 RUSTUP_TOOLCHAIN=1.90.0 make scenarios
 ```
 Notes:
@@ -53,7 +55,7 @@ Note: A Knowledge‑First context mode (RFC) is being prepared to reduce prompt 
 
 ## 4) Rapid deploy & versioning
 Create a stamped release and update the active binary + alias:
-```
+```bash
 make release
 ```
 Artifacts:
@@ -63,18 +65,18 @@ Artifacts:
  - `dist/release.json` → `{ "stamp": "…", "binary": "…" }` (TUI `/status` shows the stamp)
 
 Switch / rollback:
-```
+```bash
 make list-releases
 make switch VERSION=<stamp>
 make rollback
 ```
 
 ## 5) Install a user‑level alias (safe)
-```
+```bash
 make install-local   # creates ~/.local/bin/cxplus -> dist/bin/cxplus
 ```
 Then add to your shell:
-```
+```bash
 alias cx=cxplus
 ```
 
@@ -93,14 +95,14 @@ alias cx=cxplus
   - Env overrides: `CHUTES_PERF_JSON`, `CHUTES_RATES_JSON`, `CHUTES_GPU_TYPE`, `CHUTES_HOURLY_RATE`
 
 ## 7) Chutes quick check
-```
+```bash
 export CHUTES_API_KEY=...            # or set via .env
 dist/bin/cxplus chutes recommend     # prints openai/<model-id>
 dist/bin/cxplus chutes exec --json "Say hello"
 ```
 
 ## 8) Windows packaging
-```
+```bash
 make package-windows   # writes dist/cxplus-windows.zip (cxplus.cmd/.ps1 + codex/codex.exe if present)
 ```
 Place cxplus.cmd or cxplus.ps1 on PATH and invoke `cxplus …`.
@@ -137,7 +139,7 @@ If unset, cxplus defaults to magenta.
 ## 13) Slack notifications (built‑in)
 To receive a Slack message when a turn completes, set a webhook and enable the notifier:
 
-```
+```toml
 # ~/.codex/config.toml
 notify = ["codex-notify-slack"]
 
