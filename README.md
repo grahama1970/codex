@@ -3,7 +3,12 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="codex-rs/logo-dark-centered.svg" type="image/svg+xml">
     <source media="(prefers-color-scheme: light)" srcset="codex-rs/logo-light-centered.svg" type="image/svg+xml">
-    <img src="codex-rs/logo-light-centered.svg" alt="cxplus — deterministic, cost‑aware Codex fork for CI & automation" width="420">
+    <img
+      src="codex-rs/logo-light-centered.svg"
+      alt="cxplus — deterministic, cost-aware Codex fork for CI & automation"
+      width="600"
+      style="max-width:92vw; height:auto;"
+    >
   </picture>
 </p>
 
