@@ -23,6 +23,19 @@
 
 ---
 
+## What's New in This Fork (Skimmable)
+
+- Faster setup flow: `make package` builds a signed binary and drops it at `dist/bin/codex` (symlink `cxplus`).
+- Headless reliability: `codex exec` writes artifacts (`.codex/runs/*.ndjson`, `*summary.json`) and supports `--run-timeout-secs`.
+- Chutes integration: `codex chutes recommend` auto-discovers cost‑effective models; `chutes exec` runs compiled, images supported.
+- Knowledge‑First (experimental): emits a single `context.summary` v2 line with real retrieval metrics before streaming.
+- Scenarios vs tests: `make test` (deterministic) and `make scenarios` (live) validate features against the compiled binary.
+- Quality‑of‑life: warmup, slash helpers, consistent theming/branding (animated, theme‑aware logo), capacity planning utilities.
+
+Jump to: [Quickstart](#quickstart) • [Scenarios](#build-and-test-repo-root) • [Features](FEATURES.md) • [Config](./docs/config.md)
+
+---
+
 ## Quickstart
 
 ### Installing and running Codex CLI
