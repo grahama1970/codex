@@ -116,23 +116,107 @@ pub struct ArangoContextProvider {
     pub mcp_tool: String,
     pub endpoint: String,
     pub database: String,
+    pub search_k: u32,
+    pub neighbors_depth: u8,
+    pub timeout_ms: u64,
+    pub max_evidence_items: u32,
 }
 
 impl ContextProvider for ArangoContextProvider {
     fn build(&self, input: &TurnInput) -> Result<EvidenceBundle, ContextError> {
         let t0 = Instant::now();
         let mut minimal = MinimalContextProvider.build(input)?;
-        let query = &input.user_text;
-        let head = query.chars().take(120).collect::<String>();
-        let synthetic = format!("### Evidence\n- [F000] {}", one_line(&head));
-        let (evidence_trimmed, trunc_evidence) =
-            truncate_tokens(&synthetic, (input.max_context_tokens / 2).max(64));
+        // Retrieval via fixture if provided (Phase‑1 safe path)
+        let items = if let Some(fix) = std::env::var("CONTEXT_MCP_FIXTURE").ok() {
+            load_fixture_items(&fix).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        let lines = shape_evidence_lines(items, self.max_evidence_items);
+        let evidence_text = if lines.is_empty() {
+            String::new()
+        } else {
+            let mut s = String::from("### Evidence\n");
+            for l in &lines { s.push_str(l); s.push('\n'); }
+            s
+        };
+        // Adaptive reflow to evidence
+        let quotas = input.quotas.normalize();
+        let budget = input.max_context_tokens.max(256);
+        let mut ev_budget = (budget as f32 * (quotas.evidence_pct as f32 / 100.0)) as usize;
+        if minimal.plan.is_empty() { ev_budget += (budget as f32 * (quotas.plan_pct as f32 / 100.0)) as usize; }
+        if minimal.recent.is_empty() { ev_budget += (budget as f32 * (quotas.recent_pct as f32 / 100.0)) as usize; }
+        if minimal.tools.is_empty() { ev_budget += (budget as f32 * (quotas.tools_pct as f32 / 100.0)) as usize; }
+
+        let (evidence_trimmed, trunc_evidence) = truncate_tokens(&evidence_text, ev_budget);
         minimal.evidence = evidence_trimmed;
         minimal.evidence_tokens = count_tokens(&minimal.evidence) as u32;
         minimal.truncated_evidence = trunc_evidence;
         let _elapsed = t0.elapsed();
         Ok(minimal)
     }
+}
+
+// ---------- Phase‑1 helpers: fixture + shaping ----------
+
+#[derive(Debug, Clone, Deserialize)]
+struct FixtureItem {
+    id: String,
+    #[serde(default)]
+    r#type: String,
+    #[serde(default)]
+    score: f32,
+    #[serde(default)]
+    content: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct FixtureRoot { items: Vec<FixtureItem> }
+
+fn load_fixture_items(path: &str) -> Result<Vec<FixtureItem>, ContextError> {
+    let data = std::fs::read(path).map_err(|e| ContextError::Internal(format!("read fixture: {e}")))?;
+    let root: FixtureRoot = serde_json::from_slice(&data)
+        .map_err(|e| ContextError::Internal(format!("parse fixture: {e}")))?;
+    Ok(root.items)
+}
+
+fn shape_evidence_lines(mut items: Vec<FixtureItem>, max_items: u32) -> Vec<String> {
+    // Dedup by id
+    let mut seen = std::collections::HashSet::new();
+    items.retain(|it| seen.insert(it.id.clone()));
+    // Type priority: fact < procedure < episode (ascending)
+    fn type_prio(t: &str) -> u8 {
+        match t.to_ascii_lowercase().as_str() { "fact" => 0, "procedure" => 1, "episode" => 2, _ => 3 }
+    }
+    items.sort_by(|a, b| {
+        type_prio(&a.r#type)
+            .cmp(&type_prio(&b.r#type))
+            .then_with(|| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal))
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    let allow_code = std::env::var("CONTEXT_EVIDENCE_ALLOW_CODE").ok().as_deref() == Some("1");
+    let mut out = Vec::new();
+    for (i, it) in items.into_iter().take(max_items as usize).enumerate() {
+        let mut text = it.content.replace('\n', " ");
+        if !allow_code { text = text.replace("```", ""); }
+        text = redact_secrets(&text);
+        let line = format!("- [{}{:03}] {}", type_prefix(&it.r#type), i, one_line(&text));
+        out.push(line);
+    }
+    out
+}
+
+fn type_prefix(t: &str) -> &'static str { match t.to_ascii_lowercase().as_str() { "fact" => "F", "procedure" => "P", "episode" => "E", _ => "X" } }
+
+fn redact_secrets(s: &str) -> String {
+    let mut out = s.to_string();
+    let patterns = [
+        (regex_lite::Regex::new("sk-[A-Za-z0-9]{20,}").ok(), "sk-***redacted***"),
+        (regex_lite::Regex::new("ghp_[A-Za-z0-9]{20,}").ok(), "ghp_***redacted***"),
+        (regex_lite::Regex::new("AKIA[0-9A-Z]{12,}").ok(), "AKIA***redacted***"),
+    ];
+    for (re, repl) in patterns.iter() { if let Some(re) = re { out = re.replace_all(&out, *repl).to_string(); } }
+    out
 }
 
 fn count_tokens(s: &str) -> usize {

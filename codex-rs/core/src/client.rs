@@ -134,10 +134,10 @@ impl ModelClient {
             WireApi::Chat => {
                 // Optionally rebuild prompt with Knowledge‑First sections (Phase‑0).
                 let mut effective_prompt = prompt.clone();
-                if self.config.context_max_tokens > 0 {
-                    if let Some(kf) = self.try_build_knowledge_first(prompt) {
-                        effective_prompt = kf;
-                    }
+                if self.config.context_max_tokens > 0
+                    && let Some(kf) = self.try_build_knowledge_first(prompt)
+                {
+                    effective_prompt = kf;
                 }
                 // Create the raw streaming connection.
                 let response_stream = stream_chat_completions(
@@ -252,12 +252,12 @@ impl ModelClient {
 
         let mut payload_json = serde_json::to_value(&payload)?;
         // Deterministic mode (opt-in): enforce low-variance sampling when a seed is set.
-        if let Some(seed) = self.config.deterministic_seed {
-            if let Some(obj) = payload_json.as_object_mut() {
-                obj.insert("temperature".to_string(), serde_json::json!(0.0));
-                obj.insert("top_p".to_string(), serde_json::json!(1.0));
-                obj.insert("seed".to_string(), serde_json::json!(seed));
-            }
+        if let Some(seed) = self.config.deterministic_seed
+            && let Some(obj) = payload_json.as_object_mut()
+        {
+            obj.insert("temperature".to_string(), serde_json::json!(0.0));
+            obj.insert("top_p".to_string(), serde_json::json!(1.0));
+            obj.insert("seed".to_string(), serde_json::json!(seed));
         }
         if azure_workaround {
             attach_item_ids(&mut payload_json, &input_with_instructions);
@@ -495,7 +495,7 @@ impl ModelClient {
                             _ => {}
                         }
                     }
-                    Some(format!("{}: {}", role, buf))
+                    Some(format!("{role}: {buf}"))
                 }
                 _ => None,
             })
@@ -540,18 +540,13 @@ impl ModelClient {
         let provider: Box<dyn KFProvider> = match cfg.context_provider {
             crate::config::ContextProviderKind::Minimal => Box::new(MinimalContextProvider),
             crate::config::ContextProviderKind::Arango => Box::new(ArangoContextProvider {
-                mcp_tool: cfg
-                    .context_arango_mcp_tool
-                    .clone()
-                    .unwrap_or_else(|| "memory-agent".into()),
-                endpoint: cfg
-                    .context_arango_endpoint
-                    .clone()
-                    .unwrap_or_else(|| "http://localhost:8529".into()),
-                database: cfg
-                    .context_arango_database
-                    .clone()
-                    .unwrap_or_else(|| "codex".into()),
+                mcp_tool: cfg.context_arango_mcp_tool.clone().unwrap_or_else(|| "memory-agent".into()),
+                endpoint: cfg.context_arango_endpoint.clone().unwrap_or_else(|| "http://localhost:8529".into()),
+                database: cfg.context_arango_database.clone().unwrap_or_else(|| "codex".into()),
+                search_k: cfg.context_arango_search_k,
+                neighbors_depth: cfg.context_arango_neighbors_depth,
+                timeout_ms: cfg.context_arango_timeout_ms,
+                max_evidence_items: cfg.context_arango_max_evidence_items,
             }),
         };
         let debug = std::env::var("CONTEXT_DEBUG").ok().as_deref() == Some("1");
@@ -578,14 +573,15 @@ impl ModelClient {
             );
         }
         let mut rebuilt = prompt.clone();
+        // Phase‑1 order per spec: Evidence → Plan → Recent → Tools
         let prefix = format!(
-            "### Recent (trimmed={})\n{}\n\n### Plan (trimmed={})\n{}\n\n### Evidence (trimmed={})\n{}\n\n### Tools (trimmed={})\n{}\n\n---\n",
-            bundle.truncated_recent,
-            bundle.recent,
-            bundle.truncated_plan,
-            bundle.plan,
+            "### Evidence (trimmed={})\n{}\n\n### Plan (trimmed={})\n{}\n\n### Recent (trimmed={})\n{}\n\n### Tools (trimmed={})\n{}\n\n---\n",
             bundle.truncated_evidence,
             bundle.evidence,
+            bundle.truncated_plan,
+            bundle.plan,
+            bundle.truncated_recent,
+            bundle.recent,
             bundle.truncated_tools,
             bundle.tools
         );
