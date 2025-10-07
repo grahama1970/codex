@@ -1,240 +1,237 @@
-<p align="center"><code>npm i -g @openai/codex</code><br />or <code>brew install codex</code></p>
-
-<p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
-</br>
-</br>If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="https://developers.openai.com/codex/ide">install in your IDE</a>
-</br>If you are looking for the <em>cloud-based agent</em> from OpenAI, <strong>Codex Web</strong>, go to <a href="https://chatgpt.com/codex">chatgpt.com/codex</a></p>
-
+<!-- Hero: centered SVG with PNG fallback (keeps layout consistent on GitHub) -->
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./codex-rs/logo-dark-centered.svg" />
-    <source media="(prefers-color-scheme: light)" srcset="./codex-rs/logo-light-centered.svg" />
-    <img src="./codex-rs/logo-light-centered.svg" alt="cxplus logo" width="640" style="display:block;margin:0 auto;" />
+    <!-- Theme-aware, centered logos (no hacks) -->
+    <source media="(prefers-color-scheme: dark)" srcset="codex-rs/logo-dark-centered.svg" type="image/svg+xml">
+    <source media="(prefers-color-scheme: light)" srcset="codex-rs/logo-light-centered.svg" type="image/svg+xml">
+    <!-- Optional static fallback (provide a PNG if you want): -->
+    <img src="codex-rs/logo-light-centered.svg" alt="cxplus — deterministic, cost-aware Codex fork for CI & automation" width="420">
   </picture>
-  <br/>
-  <sub>Deterministic CLI for LLM work—artifact trails, policy hooks, and cost‑aware model auto‑discovery.</sub>
-  <br/>
-  <sub>Built to match @grahama1970/scillm and Graph‑Memory Operator: knowledge‑first (ArangoDB) retrieval before the turn, agent↔agent messaging, and run notifications—without extra glue.</sub>
- </p>
-<p align="center">
-  <img src="./.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
 </p>
 
-> Experimental fork disclaimer
+<p align="center">
+  <strong>cxplus</strong> — deterministic, cost-aware Codex fork for CI & automation.
+  <br />
+  <sub>Artifact trails • Policy hooks • Cost-aware multi-model discovery • Knowledge-first context</sub>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="Apache-2.0"></a>
+</p>
+
+---
+
+# cxplus
+
+**cxplus** is our production-focused fork of OpenAI’s **Codex CLI**. It keeps upstream CLI/TUI and MCP, then adds **reliability**, **cost controls**, and **post-compile validation** for CI/CD and automation.
+
+> If you want Codex in your editor (VS Code, Cursor, Windsurf), see <a href="https://developers.openai.com/codex/ide">install in your IDE</a>.  
+> If you’re looking for OpenAI’s cloud agent, **Codex Web**, go to <a href="https://chatgpt.com/codex">chatgpt.com/codex</a>.
+
+---
+
+## Why this fork
+
+We operate cxplus as a **reliable, cost-aware engineering tool** for automation and CI.
+
+- **Tool-first, Knowledge-first** — call databases and tools **before** the model to keep prompts compact and decisions auditable.  
+- **Determinism on demand** — `--seed` locks sampling; every run emits NDJSON events + summary JSON for reproducibility and audits.  
+- **Post-compile confidence** — `make package` → `make test` (offline) → `make scenarios` (live) validates the **exact binary** you ship.  
+- **Cost-effective models** — Chutes discovery picks capable, **budget-aligned** models (not just the largest SOTA) with transparent filter reasons.
+
+> **Try it in 60 seconds**
 >
-> This repository is an experimental, personal fork ("cxplus playground"). It is not intended to be merged upstream into OpenAI’s Codex, and it has no official support. See `FORK_POLICY.md` for details.
+> ```bash
+> make package && RUSTUP_TOOLCHAIN=1.90.0 make test
+> ./dist/bin/codex exec "hello"    # see ./.codex/runs/*-events.ndjson
+> ```
+
+> **Fork scope & support**  
+> This is an experimental, personal fork. It’s not affiliated with OpenAI’s Codex and has no official support. See [FORK_POLICY.md](./FORK_POLICY.md).
+
+---
+
+## Chutes in 30 seconds
 
 ```bash
-# Try it now (60 seconds)
-make package && \
-make test && \
-dist/bin/codex exec "hello" --summary-dir ./.codex/runs
+export CHUTES_API_KEY=…
+# Optional: deterministic discovery without network
+export CHUTES_CATALOG_FIXTURE=/abs/path/to/catalog.json
+
+# Discover a capable, budget-aligned coding/multimodal model (≥70B bias)
+dist/bin/cxplus chutes recommend --show-base
+
+# Warm-up (dry-run works without keys)
+dist/bin/cxplus chutes warmup --secs 4 --dry-run
+
+# Execute (JSON mode)
+dist/bin/cxplus chutes exec --json "Say hello"
+````
+
+**Why it exists:** Choose **capability + price**, warm caches before real work, and keep context small so spend goes to **code**, not transcripts.
+
+---
+
+## Using cxplus with scillm (litellm)
+
+We use cxplus as the operator-facing CLI around **scillm (litellm router)** and **Chutes**.
+
+```bash
+# Point cxplus at your litellm (OpenAI-compatible) proxy (example)
+export OPENAI_API_BASE=http://localhost:4000/v1
+export OPENAI_API_KEY=sk-proxy-dev
+
+# Discover → warm-up → exec
+export CHUTES_API_KEY=…
+dist/bin/cxplus chutes recommend --show-base
+dist/bin/cxplus chutes warmup --secs 4 --dry-run
+dist/bin/cxplus chutes exec --json "List three refactor steps"
 ```
 
----
-
-## TL;DR
-
-- Who it’s for: CLI-first devs who want reproducible runs and artifact trails.
-- Why it’s different: Chutes (model auto-discovery), deterministic headless parity, and pre/post hooks.
-- Try it now: `make package` → `make test` → `dist/bin/codex exec "hello"` and open `.codex/runs/*-events.ndjson`.
-
-> Ecosystem fit: Built to match our SciLLM + Graph‑Memory Operator stacks—knowledge‑first (ArangoDB) lookups, agent↔agent messaging, and notifications in a single deterministic CLI.
-
-**Stack highlights**
-- Knowledge-first: first-class ArangoDB lookups (Graph‑Memory Operator) before model calls.
-- Agent↔agent: local/LAN messaging so agents coordinate without bespoke glue.
-- Notify & govern: pre/post hooks with notifiers so runs follow policy and signal outcomes.
-
-#### Why we built this CLI (fits our stack)
-
-| Need | Baseline focus | This fork adds |
-| --- | --- | --- |
-| Knowledge-first retrieval | Prompt→model turn | ArangoDB queries via Graph‑Memory Operator before the turn |
-| Agent↔agent coordination | Single-agent runs | Lightweight agent messaging (local/LAN) |
-| Org policy + notifications | Manual wiring | Pre/Post hooks + notifiers for CI/ops |
-
-## What's New in This Fork (Skimmable)
-
-| Feature | What it adds | Why it matters |
-| --- | --- | --- |
-| One-command packaging | `make package` → `dist/bin/codex` (+ `cxplus` symlink); stamped releases; instant switch/rollback | Ship compiled artifacts; switch versions instantly—no rebuilds |
-| Execution reliability | Always-on artifacts (NDJSON events + summary JSON); `--run-timeout-secs` with graceful shutdown | Reproduce/diff any run; deterministic CI exits |
-| **Chutes** (model auto-discovery) | `codex chutes recommend/exec` with capability/cost filters; safe price caps; image models | Picks capable, budget-aligned models; explains skips |
-| Knowledge-first context | Externalized cache (ArangoDB + memory-agent); single `context.summary` v2 metrics line | Prevents context rot; smaller, traceable prompts |
-| Tests & scenarios (post-compile) | `make test` deterministic; `make scenarios` live; `RUN_LIVE=1 make verify` | Validates the exact binary you ship |
-| Policy hooks (pre/post) | Pre-exec MCP/script hooks; post-run notifiers | Enforce org policies; augment prompts; notify on completion |
-| Agent↔Agent comms | Low-latency local/LAN messaging between agents | Simple multi-agent orchestration |
-| Observability | OpenTelemetry export (HTTP/GRPC) + local artifacts | Plug into monitoring; inspect locally when you can’t |
-| UX & theming | Animated, theme-aware branding; TUI slash helpers | Better ergonomics with minimal ceremony |
-
-> **Chutes** = cost-/capability-aware model auto-discovery for `codex` that can recommend/execute under price caps (includes image models).
-
-**Jump to:** [Quickstart](./QUICKSTART.md) · [Scenarios](./scenarios/) · [Features](./FEATURES.md) · [Config](./docs/config.md)
-
-### Security & Privacy
-
-Telemetry is off by default. OpenTelemetry export is opt‑in, and no data leaves your machine unless you enable it. Artifacts are written locally to `./.codex/runs/`.
+* We keep context tiny so routers spend tokens on **code**, not chat history.
+* Deterministic runs (`--seed`) make nightly pipelines debuggable.
+* See `docs/SCILLM_LOCAL.md` and the litellm README (internal path):
+  `/home/graham/workspace/experiments/litellm/README.md`
 
 ---
 
-## Why cxplus (Beyond a Typical CLI)
+## Reliability & artifacts (scriptable semantics)
 
-cxplus bundles capabilities that make a CLI practical for CI/CD and automation:
+Headless runs (`codex exec`) mirror interactive reliability.
 
-- Post‑compile verification: tests and live scenarios run against the compiled binary (no dev/runtime drift).
-- Headless parity + artifacts: every `codex exec` produces portable NDJSON + summary JSON; time‑budgeted runs with graceful shutdown.
-- Model auto-discovery (Chutes): cost-aware, capability-aware selection with transparent skip reasons and safe price-cap behavior.
-- Knowledge-First context (experimental): deterministic evidence shaping; context is cached in ArangoDB so state does not "rot" with long chats; a single `context.summary` v2 line records retrieval metrics for each run.
-- One-command packaging & rollback: stamped releases, switching, and rollback without rebuilding.
-- Warmup & capacity helpers: optional warmup/heuristics folded into CLI ergonomics.
-- Safety rails: sandbox + approvals defaults tuned for CI automation.
-- Agent↔agent comms: near‑instant messaging between agents for orchestration and delegation.
+* **Always-on artifacts** (to `./.codex/runs/` unless you pass `--summary-dir`)
 
-### Monitoring & Observability
+  * **Events NDJSON** — one event per line (`seq`, `run_id`), with a synthetic `run_timeout` marker on budget expiry.
+  * **Summary JSON** — fields include: `schema_version`, `status`, `exit_code`, `duration_ms`, `event_count`, **model/provider**, `events_path`, **seed** (when set), and last error.
+* **Time budget with graceful stop** — `--run-timeout-secs <n>` sends Interrupt, waits a short grace (`--shutdown-grace-ms`, default **800ms**), then requests Shutdown (exit code **5**).
+* **Helpful stderr hints** on failure, with pointers to artifacts.
 
-- Built‑in OpenTelemetry exporters (HTTP/GRPC) for request/response, tool calls, and run lifecycle.
-- Local artifacts for every run: NDJSON event stream + summary JSON for quick inspection.
-- Configure under `[otel]` in `~/.codex/config.toml`. See docs: [Monitoring via OTEL](./docs/config.md#otel).
+### Deterministic runs
 
-### Customization & Theming
-
-- Animated, theme‑aware branding assets; consistent hero placement.
-- TUI styling conventions and helpers; see `codex-rs/tui/styles.md` and [THEMING_AND_ANIMATIONS.md](./docs/THEMING_AND_ANIMATIONS.md).
+* `--seed <u64>` persists in summary; where supported we enforce **temperature=0** and **top_p=1** so repeated runs match.
 
 ---
 
-## Feature Overview (Skimmable Table)
+## Failure modes (and quick fixes)
 
-| Area | What you get | Why it matters |
-| --- | --- | --- |
-| Build & Release | `make package`, stamped builds, `make switch/rollback`, `cxplus` alias | Ship compiled artifacts, switch versions instantly without re‑building |
-| Headless Reliability | NDJSON + summary JSON for every run; time budget + graceful shutdown | Reproduce, diff, and audit any run; deterministic CI |
-| Knowledge‑First Context | Retrieval + shaping via memory‑agent, cached in ArangoDB; no giant chat logs | Eliminates context rot; smaller prompts; traceable evidence |
-| Model Auto‑Discovery | Chutes recommend/exec with cost + capability filters and safe price caps | Pick cheap, capable models automatically, reproducibly |
-| Hooks (Pre/Post) | Pre‑execution MCP/script hooks; post‑run notifiers | Enforce policy, augment prompts (agent‑memory), notify on completion |
-| Agent↔agent comms | Near‑instant local/LAN messaging between agents | Orchestrate multi‑agent workflows simply |
-| Observability | OpenTelemetry export (HTTP/GRPC) + local artifacts | Integrate with your infra; inspect locally when you don’t |
-| Safety | Sensible sandbox/approval defaults for CI | Secure automation by default |
-| UX | Animated theme‑aware branding; TUI slash helpers | Better ergonomics without ceremony |
+* **“No suitable model”** → Relax filters: lower `--min-params`, loosen `--max-output-ppm`, remove `--require-capabilities` / `--require-modalities`.
+* **Fixture mode produces nothing** → Verify `CHUTES_CATALOG_FIXTURE` path; JSON must have top-level `items`.
+* **Warm-up network failures** → Use `--dry-run` first; then set `CHUTES_API_KEY` and optionally `CHUTES_API_BASE`.
+* **Timeouts** → Increase `--run-timeout-secs`; adjust `--shutdown-grace-ms` (default 800ms).
+* **Artifacts missing** → Confirm working directory and `--summary-dir` overrides; check write permissions.
 
 ---
 
-See [FEATURES.md](FEATURES.md) for details and examples.
+## Install & run (upstream parity)
 
----
+Install the upstream Codex binary globally, then run as usual (cxplus is the forked experience in this repo).
 
-## Quickstart
-
-> Note: Auth, MCP, and general CLI usage follow upstream Codex docs. This fork adds packaging/switch/rollback, pre/post hooks, Chutes discovery, and knowledge‑first options.
-
-### Installing and running Codex CLI
-
-Install globally with your preferred package manager. If you use npm:
-
-```shell
+```bash
+# npm
 npm install -g @openai/codex
-```
 
-Alternatively, if you use Homebrew:
-
-```shell
+# Homebrew
 brew install codex
 ```
 
-Then simply run `codex` to get started:
+Run the CLI:
 
-```shell
-codex
+```bash
+codex    # canonical binary name
+# or the alias in this repo (see make target below):
+cxplus
 ```
 
 <details>
-<summary>You can also go to the <a href="https://github.com/openai/codex/releases/latest">latest GitHub Release</a> and download the appropriate binary for your platform.</summary>
+<summary>Download a prebuilt binary</summary>
 
-Each GitHub Release contains many executables, but in practice, you likely want one of these:
+Go to the <a href="https://github.com/openai/codex/releases/latest">latest GitHub Release</a> and grab the archive for your platform:
 
-- macOS
-  - Apple Silicon/arm64: `codex-aarch64-apple-darwin.tar.gz`
-  - x86_64 (older Mac hardware): `codex-x86_64-apple-darwin.tar.gz`
-- Linux
-  - x86_64: `codex-x86_64-unknown-linux-musl.tar.gz`
-  - arm64: `codex-aarch64-unknown-linux-musl.tar.gz`
+* macOS
 
-Each archive contains a single entry with the platform baked into the name (e.g., `codex-x86_64-unknown-linux-musl`), so you likely want to rename it to `codex` after extracting it.
+  * Apple Silicon/arm64: `codex-aarch64-apple-darwin.tar.gz`
+  * x86_64: `codex-x86_64-apple-darwin.tar.gz`
+* Linux
+
+  * x86_64: `codex-x86_64-unknown-linux-musl.tar.gz`
+  * arm64: `codex-aarch64-unknown-linux-musl.tar.gz`
+
+Extract and rename to `codex` for convenience.
 
 </details>
 
-### Using Codex with your ChatGPT plan
+### Using Codex with your ChatGPT plan (optional)
 
-<p align="center">
-  <img src="./.github/codex-cli-login.png" alt="Codex CLI login" width="80%" />
-  </p>
-
-Run `codex` and select **Sign in with ChatGPT**. We recommend signing into your ChatGPT account to use Codex as part of your Plus, Pro, Team, Edu, or Enterprise plan. [Learn more about what's included in your ChatGPT plan](https://help.openai.com/en/articles/11369540-codex-in-chatgpt).
-
-You can also use Codex with an API key, but this requires [additional setup](./docs/authentication.md#usage-based-billing-alternative-use-an-openai-api-key). If you previously used an API key for usage-based billing, see the [migration steps](./docs/authentication.md#migrating-from-usage-based-billing-api-key). If you're having trouble with login, please comment on [this issue](https://github.com/openai/codex/issues/1243).
-
-### Model Context Protocol (MCP)
-
-Codex CLI supports [MCP servers](./docs/advanced.md#model-context-protocol-mcp). Enable by adding an `mcp_servers` section to your `~/.codex/config.toml`.
-
-### Configuration
-
-Codex CLI supports a rich set of configuration options, with preferences stored in `~/.codex/config.toml`. For full configuration options, see [Configuration](./docs/config.md).
+Run `codex` and select **Sign in with ChatGPT** (Plus/Pro/Team/Edu/Enterprise).
+You can also use an API key—see `docs/authentication.md`.
 
 ---
 
-### Docs & FAQ
+## Knowledge-first context (RFC)
 
-- [**Getting started**](./docs/getting-started.md)
-  - [CLI usage](./docs/getting-started.md#cli-usage)
-  - [Running with a prompt as input](./docs/getting-started.md#running-with-a-prompt-as-input)
-  - [Example prompts](./docs/getting-started.md#example-prompts)
-  - [Memory with AGENTS.md](./docs/getting-started.md#memory-with-agentsmd)
-  - [Configuration](./docs/config.md)
-- [**Sandbox & approvals**](./docs/sandbox.md)
-- [**Authentication**](./docs/authentication.md)
-  - [Auth methods](./docs/authentication.md#forcing-a-specific-auth-method-advanced)
-  - [Login on a "Headless" machine](./docs/authentication.md#connecting-on-a-headless-machine)
-- [**Non-interactive mode**](./docs/exec.md)
+We’re adopting a **Knowledge-first** strategy: build prompts from compact, cited **evidence** (ArangoDB via the memory-agent MCP), not long transcripts.
 
-### Auto-generated Reference (Pre-Beta)
+* **Benefits:** 60–85% expected token reduction on real tasks; improved determinism and traceability.
+* **Status:** RFC/draft; initially gated behind a provider/profile switch.
+* **Design:** `docs/feature_recipes/knowledge-first-context.md`
 
-Generated reference pages (CLI flags, config keys, event schemas) live under `docs/generated/`.
-Run:
+> **Trade-off:** We keep only a tiny recent chat window and pass an evidence bundle with citations.
+
+---
+
+## Make targets you’ll use
+
+* `make package` — build + config
+* `make test` — deterministic, offline tests (uses `dist/config` via `CODEX_HOME`)
+* `make scenarios` — live, post-compile scenarios
+* `RUN_LIVE=1 make verify` — deterministic tests **plus** live scenarios
+* `make release` — stamped binary in `dist/releases/`; updates `dist/bin/codex` + `dist/bin/cxplus`
+* `make install-local` — creates `~/.local/bin/cxplus` → `dist/bin/cxplus`
+* `make chutes-profiles` — generate cached discovery profiles (when present in your repo)
+
+**Environment knobs**
+
+* General: `CODEX_BIN` (defaults to `dist/bin/codex`), `CODEX_HOME` (tests default to `dist/config`), `RUN_LIVE=1` for `make verify`
+* Chutes: `CHUTES_API_KEY`, `CHUTES_API_BASE`, `CHUTES_CATALOG_BASE`, `CHUTES_CATALOG_FIXTURE`, `CHUTES_DISCOVERY_DEBUG`, `CHUTES_EXTRA_CAPS`, `CHUTES_FORCE_PROVIDER_BASE`, `CHUTES_WARMUP`, `CHUTES_WARMUP_SECS`
+* Slash QOL: `GREP_MAX_LINES`, `OPEN_MAX_KB`, `ENABLE_SLASH_WRITE`
+* Notifications: `SLACK_WEBHOOK_URL` (enable via `notify = ["codex-notify-slack"]` in `~/.codex/config.toml`)
+
+---
+
+## Windows packaging
 
 ```bash
-make docs-gen
+make package-windows   # writes dist/cxplus-windows.zip
 ```
 
-CI enforces drift with `make docs-drift`. These pages are pre-beta and may change.
+Zip includes `cxplus.cmd` / `cxplus.ps1` wrappers and `codex` / `codex.exe` when available. Put `cxplus.cmd` on your `%PATH%`.
 
-#### Headless parity & reliability (under the hood)
+---
 
-`codex exec` now mirrors the reliability of interactive runs by default. You do not need extra flags.
+## Brand assets (SVG)
 
-- Always‑on artifacts (written to `./.codex/runs/` unless overridden with `--summary-dir`):
-  - `exec-<unix_ms>-events.ndjson`: one JSON event per line (includes `seq`, `run_id`).
-  - `exec-<unix_ms>-summary.json`: compact summary (`schema_version`, `status`, `exit_code`, `duration_ms`, `event_count`, model/provider, `events_path`).
-- Time budget & graceful stop: `--run-timeout-secs <n>` sends Interrupt, waits a short grace, then requests Shutdown (exit code `5`).
-- Helpful stderr hints on failure plus pointers to the artifacts for fast debugging.
-- Advanced knobs (optional; defaults are already reliable):
-  - `--force-cli-source` (attribute run as CLI for upstream parity telemetry)
-  - `--keep-approval-policy` (do not force `AskForApproval::Never`)
-  - `--shutdown-grace-ms` (tune grace after timeout; default 800ms)
-  - `--seed <u64>` (persisted; foundation for deterministic sampling)
-- [**Advanced**](./docs/advanced.md)
-  - [Non-interactive / CI mode](./docs/advanced.md#non-interactive--ci-mode)
-  - [Tracing / verbose logging](./docs/advanced.md#tracing--verbose-logging)
-  - [Model Context Protocol (MCP)](./docs/advanced.md#model-context-protocol-mcp)
-- [**Zero data retention (ZDR)**](./docs/zdr.md)
-- [**Contributing**](./docs/contributing.md)
-- [**Install & build**](./docs/install.md)
-  - [System Requirements](./docs/install.md#system-requirements)
-  - [DotSlash](./docs/install.md#dotslash)
-  - [Build from source](./docs/install.md#build-from-source)
-- [**FAQ**](./docs/faq.md)
-- [**Open source fund**](./docs/open-source-fund.md)
+* Animated wordmark: `codex-rs/logo-dark-centered.svg` and `codex-rs/logo-light-centered.svg`
+
+  * **Centered geometry:** `viewBox="0 0 400 80"` with `translate(126.5,56)`
+  * **Light wash fix:** c/x masks force white glyphs; the accent fully washes both letters
+  * **Themeable accent:** override with `style="--accent:#FF4DDE"` (CLI defaults to magenta)
+  * **Motion:** idle-only halo; zero movement of base letters; `+` accent pop-in/spin/pop-out
+  * **Accessibility:** honors `prefers-reduced-motion` and `data-static="true"`
+
+Embed in README using the `<picture>` block at the top (as shown).
+
+---
+
+## Docs & FAQ
+
+* Getting started: `docs/getting-started.md`, `docs/config.md`, `docs/authentication.md`, `docs/advanced.md`
+* Sandbox & approvals: `docs/sandbox.md`
+* Exec: `docs/exec.md`
+* ZDR: `docs/zdr.md`
+* FAQ: `docs/faq.md`
+* Chutes: `docs/chutes.md` (discovery + troubleshooting)
+* Slash commands: `docs/slash-commands.md`
+* Knowledge-first RFC: `docs/feature_recipes/knowledge-first-context.md`
 
 ---
 
@@ -242,117 +239,6 @@ CI enforces drift with `make docs-drift`. These pages are pre-beta and may chang
 
 This repository is licensed under the [Apache-2.0 License](LICENSE).
 
----
-
-## Build and Test (repo root)
-
-This fork adds a simple end‑to‑end workflow at the repo root to quickly produce binaries with a working `config.toml` and verify post‑compile behavior:
-
-- `make build` — compile the Rust CLI (`codex-rs/cli`) in release and copy the binary to `dist/bin/codex`.
-- `make config` — create a minimal `dist/config/config.toml` for local testing; tests use this via `CODEX_HOME` so your user config isn’t touched.
-- `make package` — runs both of the above.
-- `make test` — runs deterministic, offline tests in `tests/` against the compiled binary with `CODEX_HOME=dist/config`.
-- `make scenarios` — runs live, post‑compile scenarios in `scenarios/`. The included login round‑trip doesn’t require network, but additional scenarios can be added here.
-- `make verify` — runs deterministic tests, and runs live scenarios when `RUN_LIVE=1`.
-
-Environment variables used by the Makefile/tests:
-
-- `CODEX_BIN` — path to the compiled binary (defaults to `dist/bin/codex`).
-- `CODEX_HOME` — config and auth directory (tests default to `dist/config`).
-- `RUN_LIVE=1` — opt‑in to execute live scenarios via `make verify`.
-
-For Rust workspace development, continue to use `codex-rs/justfile` for formatting and clippy (`just fmt`, `just fix -p <crate>`), following the conventions in `AGENTS.md`.
-
-### Binary name and alias
-
-- Canonical name inside the repo: `codex` (binary at `dist/bin/codex`).
-- Public alias: `cxplus` — a symlink that always points to the currently selected `codex`.
-- Install a user‑level link without touching system binaries: `make install-local` (creates `~/.local/bin/cxplus`).
-- Your existing shell alias (e.g., `alias cx=cxplus`) continues to work and won’t be overridden by the repo.
-
-### Rapid deployment & versioning
-
-- `make release` → produces a stamped binary `dist/releases/codex-<YYYYMMDDHHMM>-<branch>-<sha>` and updates `dist/bin/codex` + `dist/bin/cxplus`.
-- `make list-releases` → lists available stamped binaries.
-- `make switch VERSION=<stamp>` → switches `dist/bin/codex` (and thus `cxplus`) to an older/newer stamped build.
-- `make rollback` → automatically points to the previously used stamped build.
-
-#### Windows packaging
-
-- `make package-windows` creates `dist/cxplus-windows.zip` containing:
-  - `cxplus.cmd` and `cxplus.ps1` (wrappers that invoke `codex.exe` if present, otherwise `codex`)
-  - `codex`/`codex.exe` (if available on the build host)
-- On Windows, place `cxplus.cmd` (or `cxplus.ps1`) on your `PATH` to use the CLI via the `cxplus` name. The canonical executable name remains `codex.exe`.
-
-### Chutes integration (auto‑discovery)
-
-- Place credentials in `.env`:
-  - `CHUTES_API_KEY` (required)
-  - `CHUTES_API_BASE` (optional; defaults to `https://llm.chutes.ai/v1`)
-  - `CHUTES_CATALOG_BASE` (optional; defaults to `https://api.chutes.ai/chutes/`)
-- The build emits `dist/config/config.toml` with a `chutes` provider (wire_api defaults to `chat`).
-- CLI:
-  - `codex chutes recommend` → prints `openai/<catalog_id>` for the cheapest multi‑modal model ≥70B.
-  - `codex chutes exec --json "Say hello"` → runs exec via Chutes; supports `--wire-api chat|responses` and `--images ...`.
-- Live tests exercise the compiled CLI subcommand when `CHUTES_API_KEY` is present.
-
-Details: docs/chutes.md
-
----
-
-### Quick start and features index
-
-- See QUICKSTART.md for a 60‑second build, test, and live‑scenario walkthrough.
-- See FEATURES.md for an overview table of major CLI/TUI features, exec parity & reliability, discovery, scenarios, and safety controls.
-- See docs/SCILLM_LOCAL.md for using a local scillm (litellm) checkout from downstream Python projects.
-
-### Brand assets (SVG/PNG)
-
-- Animated wordmark: `codex-rs/logo.svg` (static base letters, strong “+” pop‑in/out, 5s idle pause)
-- Theme variants (animated backgrounds): `codex-rs/logo-dark-centered.svg`, `codex-rs/logo-light-centered.svg`
-- Static snapshots: `codex-rs/logo-dark-static.svg`, `codex-rs/logo-light-static.svg`
-- PNG exports (720×160): `codex-rs/logo-dark.png`, `codex-rs/logo-light.png`
-
-Embed examples:
-
-```html
-<img src="./codex-rs/logo.svg" alt="cxplus" />
-<img src="./codex-rs/logo-dark-static.svg" alt="cxplus" />
 ```
-
-The accent color is themeable; when inlining the SVG, set `style="--accent:#FF4DDE"` on the `<svg>` element to override the cyan accent. Animations honor `prefers-reduced-motion` and `data-static="true"`.
-
-### Knowledge‑First context (RFC, experimental)
-
-cxplus is moving to a Knowledge‑First architecture that builds prompts from compact, cited evidence stored in ArangoDB via the memory‑agent MCP, rather than maintaining large in‑memory chat transcripts. This is designed to cut prompt tokens while improving determinism and traceability.
-
-- Status: RFC/draft (experimental; gated behind a provider switch)
-- Design: docs/feature_recipes/knowledge-first-context.md
-- Impact: tiny recent chat window, structured evidence with citations, deterministic prompt sections
-
-This does not change the quickstart flow or Makefile targets. When the feature ships, it will be enabled profile‑by‑profile with safe fallbacks.
-
-Experimental config keys:
-
+::contentReference[oaicite:0]{index=0}
 ```
-[context]
-provider = "arango"            # default is "minimal"
-max_context_tokens = 8192
-
-[context.budget]
-recent_pct = 15
-plan_pct = 10
-evidence_pct = 60
-tools_pct = 15
-
-[context.arango]
-endpoint = "http://localhost:8529"
-database = "codex"
-mcp_tool = "memory-agent"
-search_k = 12
-neighbors_depth = 1
-timeout_ms = 800
-max_evidence_items = 12
-```
-
-Artifacts: when enabled, a single `context.summary` (version=2) line is written once per run to `*-events.ndjson` after context assembly and before streaming. It includes provider, quotas, max token budget, and retrieval metrics (durations, item counts, per‑section token usage, truncation flags). No raw evidence is logged.
