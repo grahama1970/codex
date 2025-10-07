@@ -84,7 +84,7 @@ dist/bin/cxplus chutes exec --json "Say hello"
 
 ---
 
-## Using cxplus with scillm (litellm)
+## Using cxplus with scillm (litellm fork)
 
 cxplus serves as the operator-facing CLI around **scillm (litellm router)** + **Chutes**.
 
