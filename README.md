@@ -1,10 +1,8 @@
-<!-- Hero: centered SVG with PNG fallback (keeps layout consistent on GitHub) -->
+<!-- Hero: centered SVG with theme-aware sources (no hacks) -->
 <p align="center">
   <picture>
-    <!-- Theme-aware, centered logos (no hacks) -->
     <source media="(prefers-color-scheme: dark)" srcset="codex-rs/logo-dark-centered.svg" type="image/svg+xml">
     <source media="(prefers-color-scheme: light)" srcset="codex-rs/logo-light-centered.svg" type="image/svg+xml">
-    <!-- Optional static fallback (provide a PNG if you want): -->
     <img src="codex-rs/logo-light-centered.svg" alt="cxplus — deterministic, cost-aware Codex fork for CI & automation" width="420">
   </picture>
 </p>
@@ -32,12 +30,12 @@
 
 ## Why this fork
 
-We operate cxplus as a **reliable, cost-aware engineering tool** for automation and CI.
+We operate cxplus as a **reliable, cost-aware engineering tool** for automation and CI. **cxplus calls databases and tools first, then the model**, which keeps prompts compact and decisions auditable. It selects **capable, budget-aligned models** (not just the largest SOTA), can run **deterministic** when desired, and **validates behavior after compile** via a one-command pipeline. These choices let us ship agents with **predictable cost**, **fewer regressions**, and **faster feedback**.
 
-- **Tool-first, Knowledge-first** — call databases and tools **before** the model to keep prompts compact and decisions auditable.  
+- **Tool-first, Knowledge-first** — call DBs and tools before the model to cut token spend and reduce drift.  
 - **Determinism on demand** — `--seed` locks sampling; every run emits NDJSON events + summary JSON for reproducibility and audits.  
 - **Post-compile confidence** — `make package` → `make test` (offline) → `make scenarios` (live) validates the **exact binary** you ship.  
-- **Cost-effective models** — Chutes discovery picks capable, **budget-aligned** models (not just the largest SOTA) with transparent filter reasons.
+- **Cost-effective discovery** — Chutes picks capability **and** price, with transparent filter reasons.
 
 > **Try it in 60 seconds**
 >
@@ -118,7 +116,7 @@ Headless runs (`codex exec`) mirror interactive reliability.
 * **Fixture mode produces nothing** → Verify `CHUTES_CATALOG_FIXTURE` path; JSON must have top-level `items`.
 * **Warm-up network failures** → Use `--dry-run` first; then set `CHUTES_API_KEY` and optionally `CHUTES_API_BASE`.
 * **Timeouts** → Increase `--run-timeout-secs`; adjust `--shutdown-grace-ms` (default 800ms).
-* **Artifacts missing** → Confirm working directory and `--summary-dir` overrides; check write permissions.
+* **Artifacts missing** → Confirm working directory and any `--summary-dir` overrides; check write permissions.
 
 ---
 
