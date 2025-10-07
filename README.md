@@ -6,7 +6,12 @@
 </br>If you are looking for the <em>cloud-based agent</em> from OpenAI, <strong>Codex Web</strong>, go to <a href="https://chatgpt.com/codex">chatgpt.com/codex</a></p>
 
 <p align="center">
-  <img src="./codex-rs/logo.svg" alt="cxplus logo" width="440" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./codex-rs/logo-dark-static.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="./codex-rs/logo-light-static.svg" />
+    <img src="./codex-rs/logo-light-static.svg" alt="cxplus logo" width="440" />
+  </picture>
+  
 </p>
 <p align="center">
   <img src="./.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
