@@ -29,21 +29,23 @@
 - Why it’s different: Chutes (model auto-discovery), deterministic headless parity, and pre/post hooks.
 - Try it now: `make package` → `make test` → `dist/bin/codex exec "hello"` and open `.codex/runs/*-events.ndjson`.
 
-## What’s New in This Fork (Skimmable)
+## What's New in This Fork (Skimmable)
 
 | Feature | What it adds | Why it matters |
 | --- | --- | --- |
-| One-command packaging | `make package` → `dist/bin/codex` (+ `cxplus` symlink); stamped releases with switch/rollback | Ship compiled artifacts; switch versions instantly without rebuilding |
-| Exec reliability | Always-on artifacts: NDJSON events + summary JSON; `--run-timeout-secs` + graceful shutdown | Reproduce, diff, and audit any run; deterministic CI |
-| Chutes (model auto-discovery) | `codex chutes recommend/exec` with cost + capability filters; safe price caps; images support | Pick capable, budget-aligned models automatically |
-| Knowledge-First context | Externalized, cached context via ArangoDB + memory-agent; single `context.summary` v2 metrics line | Eliminates context rot; smaller, traceable prompts |
-| Tests & scenarios (post-compile) | `make test` deterministic + `make scenarios` live; `RUN_LIVE=1 make verify` | Confidence on the exact binary you ship |
-| Hooks (pre/post) | Pre-execution MCP/script hooks; post-run notifiers | Enforce policy; augment prompts (agent-memory); notify on completion |
-| Agent↔Agent comms | Near-instant local/LAN messaging between agents | Simple multi-agent orchestration |
-| Observability | OpenTelemetry export (HTTP/GRPC) + local artifacts | Integrate with your monitoring; inspect locally when you don’t |
-| UX & theming | Animated, theme-aware branding; TUI slash helpers | Better ergonomics without ceremony |
+| One-command packaging | `make package` → `dist/bin/codex` (+ `cxplus` symlink); stamped releases; instant switch/rollback | Ship compiled artifacts; switch versions instantly—no rebuilds |
+| Execution reliability | Always-on artifacts (NDJSON events + summary JSON); `--run-timeout-secs` with graceful shutdown | Reproduce/diff any run; deterministic CI exits |
+| **Chutes** (model auto-discovery) | `codex chutes recommend/exec` with capability/cost filters; safe price caps; image models | Picks capable, budget-aligned models; explains skips |
+| Knowledge-first context | Externalized cache (ArangoDB + memory-agent); single `context.summary` v2 metrics line | Prevents context rot; smaller, traceable prompts |
+| Tests & scenarios (post-compile) | `make test` deterministic; `make scenarios` live; `RUN_LIVE=1 make verify` | Validates the exact binary you ship |
+| Policy hooks (pre/post) | Pre-exec MCP/script hooks; post-run notifiers | Enforce org policies; augment prompts; notify on completion |
+| Agent↔Agent comms | Low-latency local/LAN messaging between agents | Simple multi-agent orchestration |
+| Observability | OpenTelemetry export (HTTP/GRPC) + local artifacts | Plug into monitoring; inspect locally when you can’t |
+| UX & theming | Animated, theme-aware branding; TUI slash helpers | Better ergonomics with minimal ceremony |
 
-Jump to: [Quickstart](#quickstart) • [Scenarios](#build-and-test-repo-root) • [Features](FEATURES.md) • [Config](./docs/config.md)
+> **Chutes** = cost-/capability-aware model auto-discovery for `codex` that can recommend/execute under price caps (includes image models).
+
+**Jump to:** [Quickstart](./QUICKSTART.md) • [Scenarios](./scenarios/) • [Features](./FEATURES.md) • [Config](./docs/config.md)
 
 ---
 
