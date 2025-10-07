@@ -51,7 +51,7 @@
     <clipPath id="cpU" clipPathUnits="userSpaceOnUse"><rect id="uClipRect" class="anim" x="86" y="-200" width="0" height="400"/></clipPath>
     <clipPath id="cpS" clipPathUnits="userSpaceOnUse"><rect id="sClipRect" class="anim" x="112" y="-200" width="0" height="400"/></clipPath>
   </defs>
-  <g transform="translate(51.5,56)">
+  <g transform="translate(39,56)">
     <g id="wmGlowLayer" class="anim" aria-hidden="true">
       <text class="wm" x="0" y="0">c</text><text class="wm" x="22" y="0">x</text><text class="wm" x="50" y="0">p</text><text class="wm" x="76" y="0">l</text><text class="wm" x="86" y="0">u</text><text class="wm" x="112" y="0">s</text>
     </g>

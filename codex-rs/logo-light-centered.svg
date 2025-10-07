@@ -153,7 +153,7 @@
   </defs>
 
   <!-- Layout group: baseline at y=56 -->
-  <g transform="translate(51.5,56)">
+  <g transform="translate(39,56)">
     <!-- Halo layer behind the wordmark -->
     <g id="wmGlowLayer" class="anim" aria-hidden="true">
       <text class="wm" x="0"  y="0">c</text>
