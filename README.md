@@ -238,5 +238,3 @@ Embed with the `<picture>` block at the top (as shown).
 
 Licensed under the [Apache-2.0 License](LICENSE).
 
-::contentReference[oaicite:0]{index=0}
-```
