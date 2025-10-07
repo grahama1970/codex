@@ -14,6 +14,127 @@
 
 This fork extends Codex CLI with discovery, testing, and deployment ergonomics. Below is a high‑level, scannable overview.
 
+---
+
+# cxplus — Features Overview
+
+A production‑focused fork of Codex CLI for CI/CD automation and operator workflows. This page maps features to the problems they solve.
+
+---
+
+## Why this fork (one paragraph)
+
+Build agents that are reliable, cost‑aware, and auditable. cxplus calls databases/tools first, then the model; selects capable, budget‑aligned models; supports determinism; and validates behavior after compile via a one‑command pipeline. This lets teams ship with predictable cost, fewer regressions, and faster feedback.
+
+---
+
+## Exec parity & reliability (scriptable semantics)
+
+- Headless parity: `codex exec` mirrors interactive where it matters for CI.
+- Artifacts (always on):
+  - Events NDJSON — one event/line (`seq`, `run_id`), with a synthetic `run_timeout` marker on budget expiry
+  - Summary JSON — fields: `schema_version`, `status`, `exit_code`, `duration_ms`, `event_count`, `events_path`, model/provider, seed (when set), and last error
+- Timeout budget + grace: `--run-timeout-secs <n>`; `--shutdown-grace-ms` (default 800ms)
+- Helpful stderr hints for rate‑limit, DNS, timeouts
+- Advanced parity flags (optional): `--force-cli-source`, `--keep-approval-policy`, `--seed <u64>`
+
+Why it exists: You can script around exit codes and files instead of scraping logs.
+
+---
+
+## Determinism & audits
+
+- `--seed <u64>` persisted to summary; enforces temperature=0 and top_p=1 where supported.
+- Use artifacts to reproduce, diff, and triage noisy runs.
+
+Why it exists: “If it ran last night, it runs tomorrow.”
+
+---
+
+## Chutes discovery & exec
+
+- Auto‑discovery: `codex chutes recommend`
+  - Filters: `--min-params`, `--max-params`, `--max-output-ppm`, `--require-modalities`, `--require-capabilities`
+  - Tie‑breaks: output price (asc) → effective params (desc) → context (desc) → input price (asc)
+  - NaN price relaxation: single pass with debug notice (so catalogs with unknown prices don’t dead‑end)
+  - Fixture mode for deterministic tests: `CHUTES_CATALOG_FIXTURE=/path.json`
+  - Optional: `--show-base` prints the derived base URL
+- Exec: `codex chutes exec ...`
+  - `--wire-api chat|responses`, `--images ...`, warm‑up via `--warmup-secs` or `CHUTES_WARMUP=1`
+
+Why it exists: Choose capability + price, not just largest SOTA, and warm caches before the real run.
+
+---
+
+## Testing & scenarios
+
+- Deterministic tests (offline): `make test`
+- Live, post‑compile scenarios: `make scenarios`
+- Verify combo: `RUN_LIVE=1 make verify`
+
+Why it exists: Confidence on the compiled binary you intend to ship.
+
+---
+
+## TUI & slash quality‑of‑life
+
+- `/discover` (read‑only), `/status`, `/model`, `/provider`, `/profile`
+- Exec helpers: `/grep` (with truncation), `/open` (size guard), `/fmt`, `/build`, `/test`
+- Write gating: set `ENABLE_SLASH_WRITE=1` (one‑time notice)
+
+---
+
+## Safety & ergonomics
+
+- `/open` size guard (default 512KB) → override `OPEN_MAX_KB`
+- `/grep` truncation (default 200 lines) → `GREP_MAX_LINES`
+- ZDR docs and approvals parity with upstream
+
+---
+
+## Knowledge‑First context (RFC)
+
+- Goal: Retrieve compact, cited evidence (ArangoDB via memory‑agent MCP) before any LLM call; keep only a tiny recent chat window.
+- Benefits: 60–85% expected token reduction on real tasks; improved determinism and traceability.
+- Status: Design complete; to be gated behind a provider/profile flag.
+- Docs: `docs/feature_recipes/knowledge-first-context.md`
+
+---
+
+## Deploy & versioning
+
+- `make release` — produce a stamped binary in `dist/releases` and update active symlinks in `dist/bin`
+- `make switch VERSION=<stamp>` / `make rollback`
+- Public alias: `dist/bin/cxplus` (symlink to `codex`); safe per‑user install: `make install-local`
+
+---
+
+## Environment variables (quick map)
+
+| Variable | Purpose |
+| --- | --- |
+| `CODEX_BIN` | Path to compiled binary (defaults to `dist/bin/codex`) |
+| `CODEX_HOME` | Config/auth directory for tests (defaults to `dist/config`) |
+| `RUN_LIVE` | When `1`, `make verify` includes live scenarios |
+| `CHUTES_API_KEY` | Chutes API key (Authorization: Bearer …) |
+| `CHUTES_API_BASE` | Inference base URL (OpenAI‑compatible) |
+| `CHUTES_CATALOG_BASE` | Discovery catalog base URL |
+| `CHUTES_CATALOG_FIXTURE` | Deterministic offline discovery JSON |
+| `CHUTES_DISCOVERY_DEBUG` | Print filter reasons + relaxation notice |
+| `CHUTES_EXTRA_CAPS` | Append capability keys (e.g., `programming,tools`) |
+| `CHUTES_FORCE_PROVIDER_BASE` | Force provider base instead of derived |
+| `CHUTES_WARMUP`, `CHUTES_WARMUP_SECS` | Optional warm‑up call |
+| `OPEN_MAX_KB` | `/open` size guard override |
+| `GREP_MAX_LINES` | `/grep` line cap override |
+| `ENABLE_SLASH_WRITE` | Allow write‑capable slash targets (one‑time notice) |
+
+---
+
+## Branding note (SVG)
+
+Animated wordmark: `codex-rs/logo.svg`  
+Idle‑only halo, robust c/x masks, and a themeable `--accent`. Respect `prefers-reduced-motion` and `data-static="true"` when embedding.
+
 ## Unique Capabilities (at a glance)
 
 - Post‑compile verification: deterministic tests and live scenarios execute the compiled binary.
