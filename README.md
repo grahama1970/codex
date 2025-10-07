@@ -239,6 +239,3 @@ Embed in README using the `<picture>` block at the top (as shown).
 
 This repository is licensed under the [Apache-2.0 License](LICENSE).
 
-```
-::contentReference[oaicite:0]{index=0}
-```
