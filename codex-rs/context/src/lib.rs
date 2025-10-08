@@ -190,11 +190,37 @@ impl ContextProvider for ArangoContextProvider {
                 .clone()
                 .or_else(|| std::env::var("CONTEXT_MCP_FIXTURE").ok()),
         };
-        // Use the current Tokio runtime handle to perform async retrieval.
-        let handle = tokio::runtime::Handle::current();
-        let mut cache = HashMap::new();
-        let retrieval =
-            handle.block_on(async { perform_retrieval(&cfg, &input.user_text, &mut cache).await });
+        // Execute retrieval without assuming a Tokio runtime context.
+        // - If a runtime exists, run on a separate thread with a lightweight runtime.
+        // - If not, create a current-thread runtime here and block_on once.
+        fn run_sync(cfg: &RetrievalConfig, q: &str) -> retrieval::RetrievalBundle {
+            let mut cache = HashMap::new();
+            // Try to detect an existing runtime; avoid Handle::block_on on a runtime thread.
+            let has_rt = tokio::runtime::Handle::try_current().is_ok();
+            if has_rt {
+                let cfg_cloned = cfg.clone();
+                let q_owned = q.to_string();
+                std::thread::spawn(move || {
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_time()
+                        .build()
+                        .expect("tokio rt");
+                    rt.block_on(async {
+                        let mut local_cache = std::collections::HashMap::new();
+                        perform_retrieval(&cfg_cloned, &q_owned, &mut local_cache).await
+                    })
+                })
+                .join()
+                .unwrap()
+            } else {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_time()
+                    .build()
+                    .expect("tokio rt");
+                rt.block_on(async { perform_retrieval(cfg, q, &mut cache).await })
+            }
+        }
+        let retrieval = run_sync(&cfg, &input.user_text);
 
         // Shape evidence
         let lines = shape_evidence(
@@ -233,7 +259,7 @@ impl ContextProvider for ArangoContextProvider {
         metrics.search_k = self.search_k;
         metrics.neighbors_depth = self.neighbors_depth as u32;
         metrics.total_tokens =
-            (out.recent_tokens + out.plan_tokens + out.evidence_tokens + out.tools_tokens);
+            out.recent_tokens + out.plan_tokens + out.evidence_tokens + out.tools_tokens;
         metrics.evidence_tokens = out.evidence_tokens;
         metrics.truncated_evidence = out.truncated_evidence;
 
