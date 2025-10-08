@@ -40,8 +40,6 @@ It introduces **agent-to-agent communication**, **ArangoDB pre-hooks** for cited
 
 ## Why this fork
 
-We ship automation with **predictable cost** and **fewer regressions**.
-
 - **Tool-first, Knowledge-first** → Call databases/tools **before** the model; compact prompts and auditable decisions.  
 - **Determinism on demand** → `--seed` + artifacts (NDJSON events, summary JSON) for reproducible runs and audits.  
 - **Confidence before release** → `make package` → `make test` (offline) → `make scenarios` (live) validates the **exact** binary.  
@@ -111,7 +109,7 @@ dist/bin/cxplus chutes exec --json "List three refactor steps"
   * **Events NDJSON** — one event per line (`seq`, `run_id`), with a `run_timeout` marker on budget expiry.
   * **Summary JSON** — `schema_version`, `status`, `exit_code`, `duration_ms`, `event_count`, **model/provider**, `events_path`, **seed** (when set), last error.
 * **Time budget & graceful stop** — `--run-timeout-secs <n>` sends Interrupt, waits a short grace (`--shutdown-grace-ms`, default **800ms**), then Shutdown (exit code **5**).
-* **Deterministic runs** — `--seed <u64>` persists; where supported we enforce **temperature=0** and **top_p=1**.
+* **Deterministic runs** — `--seed <u64>` persists; where supported I enforce **temperature=0** and **top_p=1**.
 
 ### CI quick check (GitHub Actions)
 

@@ -188,6 +188,9 @@ Behavior:
 - Blocks non‑local model providers unless explicitly allowlisted.
 - Disables web search tool and forces OTEL exporter off.
 - Locals (localhost/127.0.0.1/[::1]) always allowed.
+- Sets `CODEX_LOCAL_ONLY=1` inside the process so HTTP clients bypass environment proxies
+  (HTTP(S)_PROXY/ALL_PROXY). You can rely on this flag in future helpers to avoid
+  accidental egress when local‑only is active.
 
 ## Feature Matrix (cxplus vs a typical LLM CLI)
 

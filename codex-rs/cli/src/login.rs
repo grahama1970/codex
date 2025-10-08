@@ -13,6 +13,15 @@ use std::io::IsTerminal;
 use std::io::Read;
 use std::path::PathBuf;
 
+fn forbid_login_in_local_only() {
+    if std::env::var("CODEX_LOCAL_ONLY").as_deref() == Ok("1") {
+        eprintln!(
+            "Login is disabled: local-only mode is active (no external connections allowed)."
+        );
+        std::process::exit(1);
+    }
+}
+
 pub async fn login_with_chatgpt(codex_home: PathBuf) -> std::io::Result<()> {
     let opts = ServerOptions::new(codex_home, CLIENT_ID.to_string());
     let server = run_login_server(opts)?;
@@ -27,6 +36,7 @@ pub async fn login_with_chatgpt(codex_home: PathBuf) -> std::io::Result<()> {
 
 pub async fn run_login_with_chatgpt(cli_config_overrides: CliConfigOverrides) -> ! {
     let config = load_config_or_exit(cli_config_overrides);
+    forbid_login_in_local_only();
 
     match login_with_chatgpt(config.codex_home).await {
         Ok(_) => {
@@ -45,6 +55,7 @@ pub async fn run_login_with_api_key(
     api_key: String,
 ) -> ! {
     let config = load_config_or_exit(cli_config_overrides);
+    forbid_login_in_local_only();
 
     match login_with_api_key(&config.codex_home, &api_key) {
         Ok(_) => {
@@ -92,6 +103,7 @@ pub async fn run_login_with_device_code(
     client_id: Option<String>,
 ) -> ! {
     let config = load_config_or_exit(cli_config_overrides);
+    forbid_login_in_local_only();
     let mut opts = ServerOptions::new(
         config.codex_home,
         client_id.unwrap_or(CLIENT_ID.to_string()),
