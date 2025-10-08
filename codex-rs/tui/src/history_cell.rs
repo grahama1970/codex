@@ -1995,5 +1995,5 @@ mod tests {
         );
     }
 }
-//! History cell rendering and per‑step status display for the TUI.
-//! - Focus on readability and minimal styling; prefer Stylize helpers
+// History cell rendering and per-step status display for the TUI.
+// - Focus on readability and minimal styling; prefer Stylize helpers
