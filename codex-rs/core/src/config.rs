@@ -844,6 +844,13 @@ pub struct ConfigToml {
     /// Knowledge‑First context settings (Phase‑0: default disabled)
     pub context: Option<ContextToml>,
 
+    /// When true, enforce a strict local-only posture:
+    /// - Disables external model providers (only localhost/127.0.0.1 allowed)
+    /// - Disables web search tool
+    /// - Forces OTEL exporter to None
+    /// Defaults to false.
+    pub local_only: Option<bool>,
+
     /// When set to false, Codex will refuse to send requests to non-local
     /// model providers (anything except localhost/127.0.0.1). Defaults to true.
     pub allow_external_model_providers: Option<bool>,
@@ -1140,6 +1147,8 @@ impl Config {
             .or(cfg.review_model)
             .unwrap_or_else(default_review_model);
 
+        let local_only = cfg.local_only.unwrap_or(false);
+
         let config = Self {
             model,
             review_model,
@@ -1200,7 +1209,11 @@ impl Config {
             deterministic_seed,
             include_plan_tool: include_plan_tool.unwrap_or(false),
             include_apply_patch_tool: include_apply_patch_tool.unwrap_or(false),
-            tools_web_search_request,
+            tools_web_search_request: if local_only {
+                false
+            } else {
+                tools_web_search_request
+            },
             use_experimental_streamable_shell_tool: cfg
                 .experimental_use_exec_command_tool
                 .unwrap_or(false),
@@ -1222,14 +1235,22 @@ impl Config {
                 let environment = t
                     .environment
                     .unwrap_or(DEFAULT_OTEL_ENVIRONMENT.to_string());
-                let exporter = t.exporter.unwrap_or(OtelExporterKind::None);
+                let exporter = if local_only {
+                    OtelExporterKind::None
+                } else {
+                    t.exporter.unwrap_or(OtelExporterKind::None)
+                };
                 OtelConfig {
                     log_user_prompt,
                     environment,
                     exporter,
                 }
             },
-            allow_external_model_providers: cfg.allow_external_model_providers.unwrap_or(true),
+            allow_external_model_providers: if local_only {
+                false
+            } else {
+                cfg.allow_external_model_providers.unwrap_or(true)
+            },
             external_provider_allowlist: cfg.external_provider_allowlist.unwrap_or_default(),
             external_provider_denylist: cfg.external_provider_denylist.unwrap_or_default(),
             // Context (Phase‑0)
