@@ -40,10 +40,34 @@ It introduces **agent-to-agent communication**, **ArangoDB pre-hooks** for cited
 
 ## Why this fork
 
-- **Tool-first, Knowledge-first** → Call databases/tools **before** the model; compact prompts and auditable decisions.  
-- **Determinism on demand** → `--seed` + artifacts (NDJSON events, summary JSON) for reproducible runs and audits.  
-- **Confidence before release** → `make package` → `make test` (offline) → `make scenarios` (live) validates the **exact** binary.  
-- **Cost-aware discovery** → Chutes selects for capability **and** price (not just biggest SOTA), with transparent filter reasons.
+- Tool-first context: fetch evidence from tools/datastores before calling the
+  model to keep prompts small and decisions traceable.
+- Reproducible runs: `--seed <u64>` forces `temperature=0`, `top_p=1` and records
+  artifacts (events NDJSON + summary JSON) for diffable outputs in CI.
+- Binary verification: `make package` → `make test` (offline) → `make scenarios`
+  validates the exact compiled binary you ship.
+- Cost- and capability-aware routing: Chutes selects models by capability, latency
+  and price, and logs why options were included/excluded.
+
+### Local‑Only (ITAR) mode
+
+Enable a strict no‑egress posture:
+
+```toml
+# ~/.codex/config.toml
+local_only = true
+
+[tools]
+web_search = false  # redundant when local_only = true
+```
+
+Behavior when `local_only = true`:
+- External model providers are blocked; only localhost/127.0.0.1/[::1] are allowed.
+- Default HTTP clients bypass environment proxies (HTTP(S)_PROXY/ALL_PROXY) via
+  an internal `CODEX_LOCAL_ONLY=1` flag.
+- Web search tool disabled; OTEL exporter forced to None; remote MCP (HTTP) disabled.
+- Notifier hooks (e.g., Slack webhook) disabled to avoid accidental egress.
+- Login flows (device code / ChatGPT / API key) are blocked at the CLI.
 
 > **Try it in 60 seconds**
 >
