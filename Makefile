@@ -1,4 +1,4 @@
-.PHONY: build config package test scenarios verify clean rust-prepare copilot-review copilot-watch review-submit-async review-stop-watch
+.PHONY: build config package test scenarios verify clean rust-prepare copilot-review copilot-watch review-submit-async review-stop-watch copilot-web-send copilot-prompt-send copilot-web-wait copilot-process-review copilot-cycle copilot-calibrate copilot-remote-cycle copilot-playwright-install copilot-playwright copilot-playwright-cdp
 
 CODEX_RS_DIR := codex-rs
 BIN_NAME := codex
@@ -234,3 +234,68 @@ review-stop-watch:
 	@if [ -z "$(PR)" ]; then echo "Usage: make review-stop-watch PR=<number>"; exit 1; fi
 	@pidfile=local/review_watch_$(PR).pid; \
 	if [ -f $$pidfile ]; then kill $$(cat $$pidfile) 2>/dev/null || true; rm -f $$pidfile; echo "Stopped watcher for PR $(PR)"; else echo "No watcher pidfile for PR $(PR)"; fi
+copilot-web-send:
+	@./scripts/copilot_web_send.sh -f "$(FILE)" -b "$(BROWSER)" -u "$(URL)" -t "$(TABS)"
+
+## Build a prompt from repo metadata and (optionally) send it to Copilot Web (macOS only for send)
+copilot-prompt-send:
+	@./scripts/copilot_prompt_build.sh -o "$(OUT)" -t "$(TEMPLATE)" -s "$(SUMMARY)" $(if $(SEND),--send,) --browser "$(BROWSER)" --url "$(URL)" --tabs "$(TABS)"
+
+## Wait for Copilot Web output (macOS), then fetch page text
+copilot-web-wait:
+	@./scripts/copilot_web_wait_fetch.sh -o "$(OUT)" -b "$(BROWSER)" -u "$(URL)" -i "$(INTERVAL)" -s "$(STABLE)" -m "$(MAX)"
+
+## Process fetched Copilot text into TODOs and patch (best-effort)
+copilot-process-review:
+	@./scripts/copilot_process_review.sh -i "$(IN)" -t "$(TODO_OUT)" -p "$(PATCH_OUT)"
+
+## One-pass cycle: build+send prompt, wait for output, process results
+copilot-cycle:
+	@OUT?=local/copilot_prompt.txt; \
+	TODO?=local/copilot_todos.md; PATCH?=local/copilot_extracted.patch; \
+	BROWSER?=safari; URL?=https://github.com/copilot; TABS?=1; \
+	INTERVAL?=1; STABLE?=3; MAX?=60; \
+	./scripts/copilot_prompt_build.sh -o "$$OUT" -t "$(TEMPLATE)" -s "$(SUMMARY)" --send --browser "$$BROWSER" --url "$$URL" --tabs "$$TABS"; \
+	./scripts/copilot_web_wait_fetch.sh -o local/copilot_review.txt -b "$$BROWSER" -u "$$URL" -i "$$INTERVAL" -s "$$STABLE" -m "$$MAX"; \
+	./scripts/copilot_process_review.sh -i local/copilot_review.txt -t "$$TODO" -p "$$PATCH"; \
+	echo "Cycle complete: $$OUT -> local/copilot_review.txt -> $$TODO / $$PATCH"
+
+## Calibrate number of TABs to focus Copilot input (macOS)
+copilot-calibrate:
+	@./scripts/copilot_focus_calibrate.sh -b "$(BROWSER)" -u "$(URL)"
+
+## Run cycle on a remote macOS host over SSH (set MAC_HOST, MAC_USER)
+copilot-remote-cycle:
+	@MAC_HOST=$(MAC_HOST) MAC_USER=$(MAC_USER) SSH_OPTS="$(SSH_OPTS)" \
+	 ./scripts/copilot_remote_cycle.sh \
+	   --prompt "$(PROMPT)" --browser "$(BROWSER)" --url "$(URL)" --tabs "$(TABS)" \
+	   --send-mode "$(SEND_MODE)" --wait-method "$(WAIT_METHOD)" --out-dir "$(OUT)" \
+	   --interval "$(INTERVAL)" --stable "$(STABLE)" --max-wait "$(MAX)"
+## Install Playwright Chromium (local only)
+copilot-playwright-install:
+	@pnpm dlx playwright install chromium
+
+## Run Playwright PoC (headed by default)
+copilot-playwright:
+	@node scripts/playwright/copilot_poc.mjs \
+	  --prompt="$(PROMPT)" \
+	  --out="$(OUT)" \
+	  --url="$(URL)" \
+	  --profile="$(PROFILE)" \
+	  --headless=$(HEADLESS) \
+	  --autoSend=$(AUTO_SEND) \
+	  --meanDelay=$(MEAN_DELAY) \
+	  --waitStable=$(WAIT_STABLE) \
+	  --pollInterval=$(POLL_INTERVAL)
+
+## Connect to an already-running Chrome with remote debugging (CDP). Requires Chrome started with --remote-debugging-port=9222
+copilot-playwright-cdp:
+	@node scripts/playwright/copilot_cdp.mjs \
+	  --endpoint="$(ENDPOINT)" \
+	  --prompt="$(PROMPT)" \
+	  --out="$(OUT)" \
+	  --url="$(URL)" \
+	  --autoSend=$(AUTO_SEND) \
+	  --meanDelay=$(MEAN_DELAY) \
+	  --waitStable=$(WAIT_STABLE) \
+	  --pollInterval=$(POLL_INTERVAL)
