@@ -18,11 +18,7 @@ if [ "$count" -gt "$prev_count" ]; then
   gh pr view "$PR" -R "$REPO" --comments > "$OUT"
   echo "$count" > "$STATE_FILE"
   msg="Copilot posted new review comments on PR #$PR"
-  if command -v notify-send >/dev/null 2>&1; then
-    notify-send "Copilot Review" "$msg"
-  elif command -v osascript >/dev/null 2>&1; then
-    osascript -e "display notification \"$msg\" with title \"Copilot Review\""
-  fi
+  ./scripts/notify.sh "$msg" "Copilot Review" || true
   echo "$msg"
 else
   echo "$count" > "$STATE_FILE"

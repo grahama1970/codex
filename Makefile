@@ -1,4 +1,4 @@
-.PHONY: build config package test scenarios verify clean rust-prepare copilot-review copilot-watch
+.PHONY: build config package test scenarios verify clean rust-prepare copilot-review copilot-watch review-submit-async review-stop-watch
 
 CODEX_RS_DIR := codex-rs
 BIN_NAME := codex
@@ -223,3 +223,14 @@ copilot-review:
 
 copilot-watch:
 	./scripts/copilot_watch.sh
+
+
+# Submit or update a PR and start a background Copilot watch loop (non-blocking)
+review-submit-async:
+	./scripts/copilot_submit_async.sh
+
+# Stop background watch for a given PR: make review-stop-watch PR=4
+review-stop-watch:
+	@if [ -z "$(PR)" ]; then echo "Usage: make review-stop-watch PR=<number>"; exit 1; fi
+	@pidfile=local/review_watch_$(PR).pid; \
+	if [ -f $$pidfile ]; then kill $$(cat $$pidfile) 2>/dev/null || true; rm -f $$pidfile; echo "Stopped watcher for PR $(PR)"; else echo "No watcher pidfile for PR $(PR)"; fi
