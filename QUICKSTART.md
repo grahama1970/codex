@@ -53,6 +53,37 @@ Notes:
 
 Note: A Knowledge‑First context mode (RFC) is being prepared to reduce prompt size by retrieving evidence from ArangoDB via the memory‑agent MCP. This does not affect the quickstart flow. See `docs/feature_recipes/knowledge-first-context.md` for the design.
 
+
+## 3.2) Local‑Only (ITAR) quick start (no egress)
+
+Strict no‑egress posture with a minimal config:
+
+```toml
+# ~/.codex/config.toml
+local_only = true
+
+[tools]
+web_search = false  # redundant when local_only = true
+```
+
+Or one‑shot override for a single run:
+
+```bash
+codex -c local_only=true exec "hello" --seed 42
+```
+
+What this enforces:
+- Blocks non‑local model providers (only localhost/127.0.0.1/[::1] allowed)
+- Bypasses HTTP(S)_PROXY/ALL_PROXY (internal `CODEX_LOCAL_ONLY=1`)
+- Disables web search, RMCP (HTTP), OTEL exporter, notifier hooks
+- Blocks login commands (device code / ChatGPT / API key)
+
+Verify:
+
+```bash
+printf 'sk-test' | codex login --with-api-key; echo $?   # expect 1
+```
+
 ## 4) Rapid deploy & versioning
 Create a stamped release and update the active binary + alias:
 ```bash
