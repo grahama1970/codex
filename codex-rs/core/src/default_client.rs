@@ -160,6 +160,9 @@ fn is_sandboxed() -> bool {
 }
 
 fn is_local_only() -> bool {
+    if let Some(&b) = crate::config::LOCAL_ONLY.get() {
+        return b;
+    }
     std::env::var("CODEX_LOCAL_ONLY").as_deref() == Ok("1")
 }
 

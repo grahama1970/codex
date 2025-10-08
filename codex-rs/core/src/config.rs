@@ -68,8 +68,12 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use tempfile::NamedTempFile;
 use toml::Value as TomlValue;
+
+/// Global, process-local flag for "local-only" posture.
+pub static LOCAL_ONLY: OnceLock<bool> = OnceLock::new();
 use toml_edit::Array as TomlArray;
 use toml_edit::DocumentMut;
 use toml_edit::Item as TomlItem;
@@ -1148,9 +1152,7 @@ impl Config {
             .unwrap_or_else(default_review_model);
 
         let local_only = cfg.local_only.unwrap_or(false);
-        if local_only {
-            unsafe { std::env::set_var("CODEX_LOCAL_ONLY", "1") };
-        }
+        LOCAL_ONLY.get_or_init(|| local_only);
 
         let config = Self {
             model,

@@ -1,0 +1,57 @@
+name: no-egress-sentinel
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  no-egress:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          override: true
+          profile: minimal
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build workspace (dev)
+        run: cargo build --workspace --all-targets -q
+
+      - name: Test core policy (unit)
+        run: cargo test -p codex-core -q
+
+      - name: Test CLI login blocked (integration)
+        run: cargo test -p codex-cli --test login_local_only -q
+
+      - name: Smoke: policy blocks external provider immediately
+        run: |
+          set -euo pipefail
+          # Attempt an exec run with an external provider under local_only.
+          # Expect non-zero exit and a policy error on stderr without network egress.
+          set +e
+          OUT=$(cargo run -p codex-cli --quiet -- exec "hello" -c local_only=true -c model_provider=openai -c model=gpt-5-codex 2>&1)
+          CODE=$?
+          echo "$OUT"
+          if [ "$CODE" -eq 0 ]; then
+            echo "Expected failure under local_only when using external provider" >&2
+            exit 1
+          fi
+          echo "$OUT" | grep -i "external model provider blocked" >/dev/null || {
+            echo "Missing policy error in output" >&2
+            exit 1
+          }
