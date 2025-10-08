@@ -1148,6 +1148,9 @@ impl Config {
             .unwrap_or_else(default_review_model);
 
         let local_only = cfg.local_only.unwrap_or(false);
+        if local_only {
+            unsafe { std::env::set_var("CODEX_LOCAL_ONLY", "1") };
+        }
 
         let config = Self {
             model,
@@ -1165,7 +1168,7 @@ impl Config {
                 .unwrap_or_else(AskForApproval::default),
             sandbox_policy,
             shell_environment_policy,
-            notify: cfg.notify,
+            notify: if local_only { None } else { cfg.notify },
             user_instructions,
             base_instructions,
             mcp_servers: cfg.mcp_servers,
@@ -1220,7 +1223,11 @@ impl Config {
             use_experimental_unified_exec_tool: cfg
                 .experimental_use_unified_exec_tool
                 .unwrap_or(false),
-            use_experimental_use_rmcp_client: cfg.experimental_use_rmcp_client.unwrap_or(false),
+            use_experimental_use_rmcp_client: if local_only {
+                false
+            } else {
+                cfg.experimental_use_rmcp_client.unwrap_or(false)
+            },
             include_view_image_tool,
             active_profile: active_profile_name,
             disable_paste_burst: cfg.disable_paste_burst.unwrap_or(false),
@@ -1251,7 +1258,11 @@ impl Config {
             } else {
                 cfg.allow_external_model_providers.unwrap_or(true)
             },
-            external_provider_allowlist: cfg.external_provider_allowlist.unwrap_or_default(),
+            external_provider_allowlist: if local_only {
+                Vec::new()
+            } else {
+                cfg.external_provider_allowlist.unwrap_or_default()
+            },
             external_provider_denylist: cfg.external_provider_denylist.unwrap_or_default(),
             // Context (Phase‑0)
             context_provider: {

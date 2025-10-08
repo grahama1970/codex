@@ -148,7 +148,7 @@ pub fn create_client() -> reqwest::Client {
         .connect_timeout(std::time::Duration::from_millis(4_000))
         .timeout(std::time::Duration::from_millis(60_000))
         .pool_max_idle_per_host(8);
-    if is_sandboxed() {
+    if is_sandboxed() || is_local_only() {
         builder = builder.no_proxy();
     }
 
@@ -157,6 +157,10 @@ pub fn create_client() -> reqwest::Client {
 
 fn is_sandboxed() -> bool {
     std::env::var(CODEX_SANDBOX_ENV_VAR).as_deref() == Ok("seatbelt")
+}
+
+fn is_local_only() -> bool {
+    std::env::var("CODEX_LOCAL_ONLY").as_deref() == Ok("1")
 }
 
 #[cfg(test)]

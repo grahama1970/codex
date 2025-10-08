@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "run_id": "exec-1759960307992",
+  "status": "ok",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 116,
+  "event_count": 5,
+  "model": "gpt-5-codex",
+  "model_provider": {
+    "name": "mock",
+    "base_url": "http://127.0.0.1:44297/v1",
+    "env_key": "PATH",
+    "env_key_instructions": null,
+    "wire_api": "chat",
+    "query_params": null,
+    "http_headers": null,
+    "env_http_headers": null,
+    "request_max_retries": null,
+    "stream_max_retries": null,
+    "stream_idle_timeout_ms": null,
+    "requires_openai_auth": false
+  },
+  "cwd": "/home/graham/workspace/experiments/codex/codex-rs/core",
+  "started_unix_ms": 1759960307992,
+  "events_path": ".codex/runs/exec-1759960307992-events.ndjson",
+  "last_error": null,
+  "session_source": "Cli",
+  "seed": null,
+  "approval_forced_never": false
+}
