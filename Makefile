@@ -1,4 +1,4 @@
-.PHONY: build config package test scenarios verify clean rust-prepare copilot-review copilot-watch review-submit-async review-stop-watch
+.PHONY: build config package test scenarios verify clean rust-prepare copilot-review copilot-watch review-submit-async review-stop-watch copilot-web-send
 
 CODEX_RS_DIR := codex-rs
 BIN_NAME := codex
@@ -234,3 +234,5 @@ review-stop-watch:
 	@if [ -z "$(PR)" ]; then echo "Usage: make review-stop-watch PR=<number>"; exit 1; fi
 	@pidfile=local/review_watch_$(PR).pid; \
 	if [ -f $$pidfile ]; then kill $$(cat $$pidfile) 2>/dev/null || true; rm -f $$pidfile; echo "Stopped watcher for PR $(PR)"; else echo "No watcher pidfile for PR $(PR)"; fi
+copilot-web-send:
+	@./scripts/copilot_web_send.sh -f "$(FILE)" -b "$(BROWSER)" -u "$(URL)" -t "$(TABS)"
