@@ -12,6 +12,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::env::VarError;
 use std::time::Duration;
+use url::Url;
 
 use crate::error::EnvVarError;
 const DEFAULT_STREAM_IDLE_TIMEOUT_MS: u64 = 300_000;
@@ -197,6 +198,24 @@ impl ModelProviderInfo {
             }
         }
         builder
+    }
+
+    pub fn is_local(&self) -> bool {
+        let base = self.base_url.as_deref().unwrap_or("").trim().to_ascii_lowercase();
+        if base.is_empty() {
+            return false;
+        }
+        base.starts_with("http://127.0.0.1")
+            || base.starts_with("http://localhost")
+            || base.starts_with("https://127.0.0.1")
+            || base.starts_with("https://localhost")
+            || base.starts_with("http://[::1]")
+            || base.starts_with("https://[::1]")
+    }
+
+    pub fn host(&self) -> Option<String> {
+        let base = self.base_url.as_deref()?;
+        Url::parse(base).ok().and_then(|u| u.host_str().map(|s| s.to_string()))
     }
 
     /// If `env_key` is Some, returns the API key for this provider if present
