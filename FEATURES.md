@@ -115,6 +115,9 @@ Why it exists: Confidence on the compiled binary you intend to ship.
 - Status: Design complete; to be gated behind a provider/profile flag.
 - Docs: `docs/feature_recipes/knowledge-first-context.md`
 
+See `docs/feature_recipes/agent-to-agent-comms.md` for a concrete agent‑to‑agent communications recipe (submit/events, PR reviews, notifications, and artifacts).
+
+
 ---
 
 ## Deploy & versioning
@@ -225,6 +228,9 @@ Idle‑only halo, robust c/x masks, and a themeable `--accent`. Respect `prefers
 - Benefits: 60–85% expected token reduction on real tasks; better traceability and determinism.
 - Status: design document added; wiring behind a provider flag/profile is planned (experimental).
 - Docs: `docs/feature_recipes/knowledge-first-context.md`
+
+See `docs/feature_recipes/agent-to-agent-comms.md` for a concrete agent‑to‑agent communications recipe (submit/events, PR reviews, notifications, and artifacts).
+
 
 Emits: when enabled, a single `context.summary` NDJSON record (version=2) is written once after context assembly (before streaming). It includes provider, quotas, max tokens, retrieval latency and counts, per‑section token usage, and truncation flags (no raw evidence content).
 
