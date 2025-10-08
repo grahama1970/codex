@@ -1,122 +1,76 @@
-# Feature Recipe: Knowledge‑First Context Orchestration
+# Knowledge‑First Context (Phase‑0 → Phase‑1)
 
-Status: Draft (RFC‑0)
+This document defines the design, acceptance criteria, and rollout plan for Knowledge‑First context in cxplus.
 
-Owner: cxplus
+Why: Reduce prompt size and drift by retrieving evidence from a memory system (via the memory‑agent MCP + ArangoDB) and strictly budgeting tokens across sections (recent, plan, evidence, tools).
 
-Goal: Make cxplus “Knowledge‑First” by default so we fetch compact, cited evidence from ArangoDB (via memory‑agent MCP) before calling an LLM, reducing volatile in‑memory chat context and token usage.
+## Goals
 
-## Problem
+- Deterministic prompt assembly with section budgets
+- Pluggable providers: `minimal` (existing behavior) and `arango` (MCP-backed)
+- Small, stable `context.summary` event for observability
 
-- Rolling transcripts bloat prompt tokens and require constant lossy summarization.
-- We already persist durable knowledge (facts, procedures, episodic artifacts) in ArangoDB but under‑use it during prompt assembly.
+## Provider Surface
 
-## Outcomes (Acceptance Criteria)
-
-- ≥60% reduction in average prompt tokens for real tasks vs chat‑first baseline.
-- Deterministic, schema‑first prompt sections with citations to Arango nodes.
-- Transcripts kept to a tiny sliding window (≤3 recent user/assistant turns).
-- Graceful degradation: if Arango/MCP is unavailable, run with minimal context + explicit warning.
-
-## Non‑Goals
-
-- Replacing ArangoDB or the memory‑agent MCP.
-- Building an RAG vector index inside cxplus (we rely on memory‑agent MCP for retrieval).
-
-## Architecture
-
-New crate: `codex-rs/context`.
-
-- `trait ContextProvider { fn build_bundle(&self, input: TurnInput) -> EvidenceBundle }`
-- `ArangoContextProvider` (default) talks to memory‑agent MCP.
-- `TokenBudgeter` allocates/trims tokens per section.
-
-Prompt sections (fixed order):
-
-1) Recent turns (≤3 exchanges)
-2) Task state (plan, cwd, flags)
-3) Evidence (facts, procedures, episodic artifacts) with citations
-4) Tool deltas (diffs/outputs since last turn)
-
-Token quotas (configurable): recent 15%, plan 10%, evidence 60%, tools 15%; unused quota reflows.
-
-## Retrieval Strategy (via memory‑agent MCP)
-
-1) Cheap intent parsing → tags and query terms (on‑device or current model with small budget)
-2) `memory.search { q, k, within_days, types }` → candidate nodes
-3) `memory.neighbors { id, depth, types }` → enrich with local graph
-4) Dedupe/score by novelty, authority, freshness; then trim to budget
-
-## Config (new)
-
-`~/.codex/config.toml`
-
-```
+```toml
 [context]
-provider = "arango"            # or "minimal"
-max_context_tokens = 8192
-
+provider = "minimal" # or "arango"
+max_context_tokens = 4096
 [context.budget]
 recent_pct = 15
 plan_pct = 10
 evidence_pct = 60
 tools_pct = 15
-
 [context.arango]
 endpoint = "http://localhost:8529"
 database = "codex"
-collection_facts = "facts"
-collection_procedures = "procedures"
-collection_episodes = "episodes"
-# mcp tool id providing memory.* endpoints
 mcp_tool = "memory-agent"
+search_k = 16
+neighbors_depth = 2
+timeout_ms = 2000
+max_evidence_items = 24
 ```
 
 Env toggles:
-- `CONTEXT_FORCE_MINIMAL=1` → bypass Arango, minimal context only
-- `CONTEXT_DEBUG=1` → print inclusion/trim decisions to stderr
+- `CONTEXT_FORCE_MINIMAL=1`
+- `CONTEXT_DEBUG=1`
+- `CONTEXT_MCP_FIXTURE=/abs/path/catalog.json`
 
-## Wire Points
+## Event: `context.summary`
 
-- `codex-core`: prompt builder calls `ContextProvider` before LLM request.
-- `exec`/`tui`/`app-server`: pass `TurnInput` (intent, cwd, changed files, policy) + budget.
+Stable shape (v2) emitted before streaming begins (one line):
 
-## Testing
+```json
+{
+  "kind": "context.summary",
+  "version": 2,
+  "provider": "Minimal|Arango",
+  "max_context_tokens": 4096,
+  "budget": {"recent_pct":15,"plan_pct":10,"evidence_pct":60,"tools_pct":15},
+  "retrieval_ms": 0,
+  "evidence_items": 0,
+  "search_k": 16,
+  "neighbors_depth": 2,
+  "reflowed_from": {"plan":0,"recent":0,"tools":0},
+  "total_tokens": 512,
+  "section_tokens": {"evidence":256,"plan":32,"recent":128,"tools":96},
+  "truncated": {"evidence":false,"plan":false,"recent":true,"tools":false}
+}
+```
 
-Unit:
-- `TokenBudgeter` trims by importance/novelty; respects quotas and reflow.
-- Evidence shaping keeps citations, never exceeds budget.
+## Acceptance Criteria (Phase‑0)
 
-Integration (fixtures):
-- Offline Arango fixtures exercised via MCP stubs; stable golden prompts.
-- Delta context: only new evidence appears after a file change.
+- Crate `codex-context` with `ContextProvider` trait and `MinimalContextProvider`, `ArangoContextProvider` (stubbed retrieval, error handling)
+- Token budgeter enforces quotas and trims; unit tests
+- Config surface parsed (default provider: minimal)
+- Prompt assembly calls provider behind config gate
+- Emit `context.summary` with token counts and retrieval metrics
+- Scenario: compares token counts vs baseline; skipped unless `CONTEXT_FEATURE=1`
 
-Scenarios (optional live):
-- `scenarios/test_context_budget.py` ensures token savings vs baseline for a known task.
+## Rollout Plan
 
-## Telemetry
-
-- Emit `context.summary` event per turn: selected_nodes, tokens_per_section, trimmed_counts, elapsed_ms.
-
-## Rollout
-
-Phase 0 (behind flag/profile):
-- Implement crate + config + tests; default provider remains “minimal”.
-
-Phase 1 (default on for exec):
-- Switch default provider to `arango` for `exec`; TUI opt‑in.
-
-Phase 2:
-- Remove transcript compaction; keep ≤3 turns; migrate old logs into durable summaries.
-
-## Risks & Mitigations
-
-- Arango/MCP latency → cache first‑hop results; set 8s timeout + partial results.
-- Over‑trimming relevant facts → feedback loop using tool outcomes to boost missed nodes next turn.
-
-## Milestones
-
-1) Crate + minimal provider + tests (2–3 days)
-2) MCP adapter + fixtures + scenario (2–3 days)
-3) Wire into exec default + docs (1–2 days)
+1. Default `minimal`; ship behind config
+2. Add fixtures and MCP stubs; validate budgeter
+3. Enable `arango` per environment; expand scenarios
+4. Collect metrics from `context.summary` lines; tighten budgets
 
