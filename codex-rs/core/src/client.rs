@@ -132,6 +132,11 @@ impl ModelClient {
         match self.provider.wire_api {
             WireApi::Responses => self.stream_responses(prompt).await,
             WireApi::Chat => {
+                if !self.config.is_provider_allowed(&self.provider) {
+                    return Err(CodexErr::UnsupportedOperation(
+                        "external model provider blocked by policy".to_string(),
+                    ));
+                }
                 // Optionally rebuild prompt with Knowledge-First sections (Phase-0).
                 let mut effective_prompt = prompt.clone();
                 if self.config.context_max_tokens > 0
@@ -292,6 +297,12 @@ impl ModelClient {
         payload_json: &Value,
         auth_manager: &Option<Arc<AuthManager>>,
     ) -> std::result::Result<ResponseStream, StreamAttemptError> {
+        // ITAR/air‑gapped policy: enforce allow/deny lists and local‑only policy
+        if !self.config.is_provider_allowed(&self.provider) {
+            return Err(StreamAttemptError::Fatal(CodexErr::UnsupportedOperation(
+                "external model provider blocked by policy".to_string(),
+            )));
+        }
         // Always fetch the latest auth in case a prior attempt refreshed the token.
         let auth = auth_manager.as_ref().and_then(|m| m.auth());
 

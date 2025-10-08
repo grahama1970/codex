@@ -249,6 +249,16 @@ pub struct Config {
     /// OTEL configuration (exporter type, endpoint, headers, etc.).
     pub otel: crate::config_types::OtelConfig,
 
+    /// When false, Codex will refuse to send requests to non-local model
+    /// providers (i.e., anything other than localhost/127.0.0.1). Useful for
+    /// ITAR or air‑gapped deployments where only local models are permitted.
+    pub allow_external_model_providers: bool,
+    /// Optional allowlist/denylist of external provider hosts (by hostname).
+    /// When the allowlist is non-empty, only those hosts are permitted.
+    /// The denylist always overrides and blocks matches.
+    pub external_provider_allowlist: Vec<String>,
+    pub external_provider_denylist: Vec<String>,
+
     // Context (Phase‑0)
     pub context_provider: ContextProviderKind,
     pub context_max_tokens: u32,
@@ -295,6 +305,51 @@ impl Config {
 
         // Step 4: merge with the strongly-typed overrides.
         Self::load_from_base_config_with_overrides(cfg, overrides, codex_home)
+    }
+
+    /// Enforce ITAR/air‑gapped policy against external providers.
+    pub fn is_provider_allowed(
+        &self,
+        provider: &crate::model_provider_info::ModelProviderInfo,
+    ) -> bool {
+        let host_opt = provider.host();
+        let is_local = provider.is_local();
+        let host = host_opt.unwrap_or_default();
+
+        // Denylist always blocks when host matches
+        if !host.is_empty()
+            && self
+                .external_provider_denylist
+                .iter()
+                .any(|h| h.eq_ignore_ascii_case(&host))
+        {
+            return false;
+        }
+
+        if !self.allow_external_model_providers {
+            // Only local allowed unless host is explicitly allowlisted
+            if is_local {
+                return true;
+            }
+            if !host.is_empty()
+                && self
+                    .external_provider_allowlist
+                    .iter()
+                    .any(|h| h.eq_ignore_ascii_case(&host))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        // External allowed: if allowlist is non-empty, require membership (locals always ok)
+        if !self.external_provider_allowlist.is_empty() && !is_local {
+            return self
+                .external_provider_allowlist
+                .iter()
+                .any(|h| h.eq_ignore_ascii_case(&host));
+        }
+        true
     }
 }
 
@@ -788,6 +843,20 @@ pub struct ConfigToml {
     pub otel: Option<crate::config_types::OtelConfigToml>,
     /// Knowledge‑First context settings (Phase‑0: default disabled)
     pub context: Option<ContextToml>,
+
+    /// When true, enforce a strict local-only posture:
+    /// - Disables external model providers (only localhost/127.0.0.1 allowed)
+    /// - Disables web search tool
+    /// - Forces OTEL exporter to None
+    /// Defaults to false.
+    pub local_only: Option<bool>,
+
+    /// When set to false, Codex will refuse to send requests to non-local
+    /// model providers (anything except localhost/127.0.0.1). Defaults to true.
+    pub allow_external_model_providers: Option<bool>,
+    /// Optional allowlist/denylist of external provider hosts (by hostname).
+    pub external_provider_allowlist: Option<Vec<String>>,
+    pub external_provider_denylist: Option<Vec<String>>,
 }
 
 impl From<ConfigToml> for UserSavedConfig {
@@ -1078,6 +1147,8 @@ impl Config {
             .or(cfg.review_model)
             .unwrap_or_else(default_review_model);
 
+        let local_only = cfg.local_only.unwrap_or(false);
+
         let config = Self {
             model,
             review_model,
@@ -1138,7 +1209,11 @@ impl Config {
             deterministic_seed,
             include_plan_tool: include_plan_tool.unwrap_or(false),
             include_apply_patch_tool: include_apply_patch_tool.unwrap_or(false),
-            tools_web_search_request,
+            tools_web_search_request: if local_only {
+                false
+            } else {
+                tools_web_search_request
+            },
             use_experimental_streamable_shell_tool: cfg
                 .experimental_use_exec_command_tool
                 .unwrap_or(false),
@@ -1160,13 +1235,24 @@ impl Config {
                 let environment = t
                     .environment
                     .unwrap_or(DEFAULT_OTEL_ENVIRONMENT.to_string());
-                let exporter = t.exporter.unwrap_or(OtelExporterKind::None);
+                let exporter = if local_only {
+                    OtelExporterKind::None
+                } else {
+                    t.exporter.unwrap_or(OtelExporterKind::None)
+                };
                 OtelConfig {
                     log_user_prompt,
                     environment,
                     exporter,
                 }
             },
+            allow_external_model_providers: if local_only {
+                false
+            } else {
+                cfg.allow_external_model_providers.unwrap_or(true)
+            },
+            external_provider_allowlist: cfg.external_provider_allowlist.unwrap_or_default(),
+            external_provider_denylist: cfg.external_provider_denylist.unwrap_or_default(),
             // Context (Phase‑0)
             context_provider: {
                 if std::env::var("CONTEXT_FORCE_MINIMAL").ok().as_deref() == Some("1") {
@@ -1997,6 +2083,9 @@ model_verbosity = "high"
             tui_notifications: Default::default(),
             otel: OtelConfig::default(),
             deterministic_seed: None,
+            allow_external_model_providers: true,
+            external_provider_allowlist: vec![],
+            external_provider_denylist: vec![],
             context_provider: ContextProviderKind::Minimal,
             context_max_tokens: 8192,
             context_budget: (15, 10, 60, 15),
@@ -2100,6 +2189,9 @@ model_verbosity = "high"
             tui_notifications: Default::default(),
             otel: OtelConfig::default(),
             deterministic_seed: None,
+            allow_external_model_providers: true,
+            external_provider_allowlist: vec![],
+            external_provider_denylist: vec![],
             context_provider: ContextProviderKind::Minimal,
             context_max_tokens: 8192,
             context_budget: (15, 10, 60, 15),
@@ -2179,6 +2271,9 @@ model_verbosity = "high"
             tui_notifications: Default::default(),
             otel: OtelConfig::default(),
             deterministic_seed: None,
+            allow_external_model_providers: true,
+            external_provider_allowlist: vec![],
+            external_provider_denylist: vec![],
             context_provider: ContextProviderKind::Minimal,
             context_max_tokens: 8192,
             context_budget: (15, 10, 60, 15),

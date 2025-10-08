@@ -165,6 +165,30 @@ Idle‑only halo, robust c/x masks, and a themeable `--accent`. Respect `prefers
 - Warmup + capacity helpers; CI‑friendly sandbox/approvals defaults.
  - Agent↔agent near‑instant communications for multi‑agent coordination.
 
+
+
+### Local‑Only (ITAR) Mode
+
+Set in `~/.codex/config.toml`:
+
+```toml
+# Enforce no outbound calls except localhost
+local_only = true
+
+# Optional fine‑grained controls (effective when local_only = false)
+allow_external_model_providers = false           # default true
+external_provider_allowlist = ["models.acme.local"]
+external_provider_denylist = ["openai.com", "api.anotherhost.com"]
+
+[tools]
+web_search = false                               # redundant when local_only = true
+```
+
+Behavior:
+- Blocks non‑local model providers unless explicitly allowlisted.
+- Disables web search tool and forces OTEL exporter off.
+- Locals (localhost/127.0.0.1/[::1]) always allowed.
+
 ## Feature Matrix (cxplus vs a typical LLM CLI)
 
 | Capability | Typical CLI | cxplus |
