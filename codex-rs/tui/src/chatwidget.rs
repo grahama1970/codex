@@ -1,3 +1,6 @@
+//! TUI chat widget: history pane, input, and inline helpers.
+//! - Integrates slash commands for discovery/warmup
+//! - Appends informational events without disrupting transcript parity
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::path::PathBuf;

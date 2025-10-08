@@ -616,9 +616,10 @@ impl ModelClient {
         original: &Prompt,
     ) -> (Prompt, Option<codex_context::ContextMetrics>) {
         if self.config.context_max_tokens > 0
-            && let Some((rebuilt, metrics)) = self.try_build_knowledge_first(original) {
-                return (rebuilt, Some(metrics));
-            }
+            && let Some((rebuilt, metrics)) = self.try_build_knowledge_first(original)
+        {
+            return (rebuilt, Some(metrics));
+        }
         (original.clone(), None)
     }
 }

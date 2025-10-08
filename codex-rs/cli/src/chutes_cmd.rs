@@ -1,3 +1,7 @@
+//! Chutes subcommands: `recommend`, `exec`, `warmup`, and helpers.
+//! - Cost/capability‑aware discovery with transparent skip reasons (debug)
+//! - Safe price‑cap behavior; prints a clear relaxation notice when all candidates have NaN output price
+//! - Optional warm‑up ping to reduce first‑token latency
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
