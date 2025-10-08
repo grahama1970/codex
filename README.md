@@ -40,14 +40,14 @@ It introduces **agent-to-agent communication**, **ArangoDB pre-hooks** for cited
 
 ## Why this fork
 
-- Tool-first context: fetch evidence from tools/datastores before calling the
+- Tool‑first context: fetch evidence from tools/datastores before calling the
   model to keep prompts small and decisions traceable.
-- Reproducible runs: `--seed <u64>` forces `temperature=0`, `top_p=1` and records
-  artifacts (events NDJSON + summary JSON) for diffable outputs in CI.
+- Reproducible runs: `--seed <u64>` forces sampling off (see Determinism Contract)
+  and records artifacts (events NDJSON + summary JSON) for diffable CI outputs.
 - Binary verification: `make package` → `make test` (offline) → `make scenarios`
   validates the exact compiled binary you ship.
-- Cost- and capability-aware routing: Chutes selects models by capability, latency
-  and price, and logs why options were included/excluded.
+- Cost/capability‑aware routing: Chutes selects models by capability, latency and
+  price, and logs why candidates were included/excluded.
 
 ### Local‑Only (ITAR) mode
 
@@ -68,6 +68,63 @@ Behavior when `local_only = true`:
 - Web search tool disabled; OTEL exporter forced to None; remote MCP (HTTP) disabled.
 - Notifier hooks (e.g., Slack webhook) disabled to avoid accidental egress.
 - Login flows (device code / ChatGPT / API key) are blocked at the CLI.
+
+#### No‑Egress checklist
+
+- Set `local_only = true` in `~/.codex/config.toml`.
+- Provider base URL points to `http://127.0.0.1/...` or `http://localhost/...`.
+- Login commands fail by design (exit code 1; message notes local‑only).
+- Optional: `[tools] web_search = false` (already implied by local‑only).
+
+Verify quickly:
+
+```bash
+printf 'sk-test' | codex login --with-api-key; echo $?   # expect 1 in local-only
+```
+
+### Determinism Contract (when `--seed <u64>` is set)
+
+- Responses API and Chat Completions paths enforce:
+  - `temperature = 0.0`, `top_p = 1.0`, `seed = <u64>`
+  - Defensive neutralization where supported: `frequency_penalty=0.0`, `presence_penalty=0.0`,
+    `top_k=0`, `typical_p=1.0`, `logit_bias={}`.
+- Artifacts (events NDJSON + summary JSON) capture the seed for reproducibility.
+- Caveats: external tools, live data, or time‑varying prompts can still introduce drift.
+  For CI, pin inputs/fixtures and avoid non‑deterministic tool calls.
+
+### Local provider example (Ollama)
+
+`oss` is a built‑in provider that defaults to `http://127.0.0.1:11434/v1`.
+
+```toml
+# ~/.codex/config.toml
+local_only = true
+model_provider = "oss"
+model = "gpt-oss"   # example; choose a local chat model your router exposes
+```
+
+Test:
+
+```bash
+codex exec "Say hello from a local model" --seed 42
+```
+
+### Artifacts (where and how to read)
+
+- Events: `./.codex/runs/*-events.ndjson` (one event per line)
+- Summary: `./.codex/runs/*-summary.json`
+
+Quick reads:
+
+```bash
+jq -r '.status, .model, .provider, .seed' ./.codex/runs/*-summary.json | paste - - - -
+jq -c 'select(.msg.type=="agent_message")' ./.codex/runs/*-events.ndjson | head -n 3
+```
+
+### MCP & Telemetry notes
+
+- MCP pre‑hook uses stdio; remote MCP over HTTP is disabled under local‑only.
+- OTEL exporter is forced to `None` under local‑only; otherwise configure as usual in `otel`.
 
 > **Try it in 60 seconds**
 >
