@@ -1,4 +1,4 @@
-.PHONY: build config package test scenarios verify clean rust-prepare
+.PHONY: build config package test scenarios verify clean rust-prepare copilot-review copilot-watch
 
 CODEX_RS_DIR := codex-rs
 BIN_NAME := codex
@@ -214,3 +214,12 @@ docs-book-gen: docs-gen docs-book-clean
 docs-book-build: docs-book-gen
 	@command -v mdbook >/dev/null 2>&1 || cargo install mdbook
 	@mdbook build docs/book
+
+
+# Copilot review helpers -------------------------------------------------------
+
+copilot-review:
+	./scripts/copilot_auto_review.sh
+
+copilot-watch:
+	./scripts/copilot_watch.sh
