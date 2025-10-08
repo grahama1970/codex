@@ -176,6 +176,13 @@ impl ModelProviderInfo {
         }
     }
 
+    pub fn host(&self) -> Option<String> {
+        let base = self.base_url.as_deref()?;
+        reqwest::Url::parse(base)
+            .ok()
+            .and_then(|u| u.host_str().map(std::string::ToString::to_string))
+    }
+
     pub(crate) fn is_azure_responses_endpoint(&self) -> bool {
         if self.wire_api != WireApi::Responses {
             return false;
