@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Notify locally (desktop) and/or Slack if SLACK_WEBHOOK is set.
+# Notify locally (desktop) and/or Slack if a webhook is set.
 # Usage: notify.sh "Message text" [title]
 
 MSG=${1:-"(no message)"}
@@ -12,9 +12,10 @@ elif command -v osascript >/dev/null 2>&1; then
   osascript -e "display notification \"$MSG\" with title \"$TITLE\"" || true
 fi
 
-if [ -n "${SLACK_WEBHOOK:-}" ]; then
+WEBHOOK="${SLACK_WEBHOOK:-${SLACK_WEBHOOK_PATH:-}}"
+if [ -n "${WEBHOOK}" ]; then
   payload=$(jq -n --arg text "$TITLE: $MSG" '{text:$text}')
-  curl -sS -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK" >/dev/null || true
+  curl -sS -X POST -H 'Content-type: application/json' --data "$payload" "$WEBHOOK" >/dev/null || true
 fi
 
 echo "$TITLE: $MSG"

@@ -58,6 +58,7 @@ pub mod model_family;
 mod openai_model_info;
 mod openai_tools;
 pub mod project_doc;
+pub mod responses_payload;
 mod rollout;
 pub(crate) mod safety;
 pub mod seatbelt;

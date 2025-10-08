@@ -8,8 +8,8 @@ fn long_words(n: usize) -> String {
     (0..n).map(|i| format!("w{} ", i)).collect::<String>()
 }
 
-#[test]
-fn quotas_normalize_to_100() {
+#[tokio::test]
+async fn quotas_normalize_to_100() {
     let q = SectionQuotas {
         recent_pct: 10,
         plan_pct: 10,
@@ -35,8 +35,8 @@ fn quotas_normalize_to_100() {
     );
 }
 
-#[test]
-fn minimal_provider_truncates_within_budget() {
+#[tokio::test]
+async fn minimal_provider_truncates_within_budget() {
     let quotas = SectionQuotas {
         recent_pct: 25,
         plan_pct: 25,
@@ -51,7 +51,7 @@ fn minimal_provider_truncates_within_budget() {
         max_context_tokens: 40, // 10 tokens per section
         quotas,
     };
-    let (bundle, metrics) = MinimalContextProvider.build(&input).expect("ok");
+    let (bundle, metrics) = MinimalContextProvider.build(&input).await.expect("ok");
 
     // Evidence is empty in minimal provider
     assert_eq!(bundle.evidence_tokens, 0);

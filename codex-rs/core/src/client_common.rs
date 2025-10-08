@@ -67,7 +67,7 @@ impl Prompt {
         self.input.clone()
     }
 
-    /// Phase‑0 helper: prepend deterministic context sections before instructions.
+    /// Phase-0 helper: prepend deterministic context sections before instructions.
     pub fn inject_context_prefix(&mut self, ctx: String) {
         if let Some(existing) = &self.base_instructions_override {
             let merged = format!("{ctx}\n{existing}");

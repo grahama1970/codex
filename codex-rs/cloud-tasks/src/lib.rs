@@ -145,7 +145,7 @@ fn spawn_apply(
 
 // logging helper lives in util module
 
-// (no standalone patch summarizer needed – UI displays raw diffs)
+// (no standalone patch summarizer needed - UI displays raw diffs)
 
 /// Entry point for the `codex cloud` subcommand.
 pub async fn run_main(_cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> anyhow::Result<()> {
@@ -391,9 +391,9 @@ pub async fn run_main(_cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> a
 
     let exit_code = loop {
         tokio::select! {
-            // Coalesced redraw requests: spinner animation and paste-burst micro‑flush.
+            // Coalesced redraw requests: spinner animation and paste-burst micro-flush.
             Some(()) = redraw_rx.recv() => {
-                // Micro‑flush pending first key held by paste‑burst.
+                // Micro-flush pending first key held by paste-burst.
                 if let Some(page) = app.new_task.as_mut() {
                     if page.composer.flush_paste_burst_if_due() { needs_redraw = true; }
                     if page.composer.is_in_paste_burst() {
@@ -453,7 +453,7 @@ pub async fn run_main(_cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> a
                                     app.status = format!("Submitted as {}", created.id.0);
                                     app.new_task = None;
                                     // Refresh tasks in background for current filter
-                                    app.status = format!("Submitted as {} — refreshing…", created.id.0);
+                                    app.status = format!("Submitted as {} - refreshing…", created.id.0);
                                     app.refresh_inflight = true;
                                     app.list_generation = app.list_generation.saturating_add(1);
                                     needs_redraw = true;
@@ -980,7 +980,7 @@ pub async fn run_main(_cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> a
                                             }
                                     }
                                     needs_redraw = true;
-                                    // If paste‑burst is active, schedule a micro‑flush frame.
+                                    // If paste-burst is active, schedule a micro-flush frame.
                                     if page.composer.is_in_paste_burst() {
                                         let _ = frame_tx.send(Instant::now() + codex_tui::ComposerInput::recommended_flush_delay());
                                     }
@@ -1218,7 +1218,7 @@ pub async fn run_main(_cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> a
                                             if let Some(h) = &r.repo_hints { hay.push(' '); hay.push_str(&h.to_lowercase()); }
                                             hay.contains(&q)
                                         }).collect();
-                                        // Keep original order (already sorted) — no need to re-sort
+                                        // Keep original order (already sorted) - no need to re-sort
                                         let idx = state.selected;
                                         if idx == 0 { app.env_filter = None; append_error_log("env.select: All"); }
                                         else {

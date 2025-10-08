@@ -287,9 +287,16 @@ pub(crate) async fn stream_chat_completions(
     if let Some(seed) = deterministic_seed
         && let Some(obj) = payload.as_object_mut()
     {
+        // Determinism contract: mirror Responses path – any new sampling/penalty knobs added upstream
+        // should be explicitly neutralized here to keep seeded runs reproducible.
         obj.insert("temperature".to_string(), json!(0.0));
         obj.insert("top_p".to_string(), json!(1.0));
         obj.insert("seed".to_string(), json!(seed));
+        obj.entry("frequency_penalty").or_insert(json!(0.0));
+        obj.entry("presence_penalty").or_insert(json!(0.0));
+        obj.entry("top_k").or_insert(json!(0));
+        obj.entry("typical_p").or_insert(json!(1.0));
+        obj.entry("logit_bias").or_insert(json!({}));
     }
 
     debug!(

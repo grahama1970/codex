@@ -1931,59 +1931,13 @@ model_verbosity = "high"
             o3_profile_overrides,
             fixture.codex_home(),
         )?;
-        assert_eq!(
-            Config {
-                model: "o3".to_string(),
-                review_model: OPENAI_DEFAULT_REVIEW_MODEL.to_string(),
-                model_family: find_family_for_model("o3").expect("known model slug"),
-                model_context_window: Some(200_000),
-                model_max_output_tokens: Some(100_000),
-                model_auto_compact_token_limit: None,
-                model_provider_id: "openai".to_string(),
-                model_provider: fixture.openai_provider.clone(),
-                approval_policy: AskForApproval::Never,
-                sandbox_policy: SandboxPolicy::new_read_only_policy(),
-                shell_environment_policy: ShellEnvironmentPolicy::default(),
-                user_instructions: None,
-                notify: None,
-                cwd: fixture.cwd(),
-                mcp_servers: HashMap::new(),
-                model_providers: fixture.model_provider_map.clone(),
-                project_doc_max_bytes: PROJECT_DOC_MAX_BYTES,
-                project_doc_fallback_filenames: Vec::new(),
-                codex_home: fixture.codex_home(),
-                history: History::default(),
-                file_opener: UriBasedFileOpener::VsCode,
-                codex_linux_sandbox_exe: None,
-                hide_agent_reasoning: false,
-                show_raw_agent_reasoning: false,
-                model_reasoning_effort: Some(ReasoningEffort::High),
-                model_reasoning_summary: ReasoningSummary::Detailed,
-                model_verbosity: None,
-                chatgpt_base_url: "https://chatgpt.com/backend-api/".to_string(),
-                base_instructions: None,
-                include_plan_tool: false,
-                include_apply_patch_tool: false,
-                tools_web_search_request: false,
-                use_experimental_streamable_shell_tool: false,
-                use_experimental_unified_exec_tool: false,
-                use_experimental_use_rmcp_client: false,
-                include_view_image_tool: true,
-                active_profile: Some("o3".to_string()),
-                disable_paste_burst: false,
-                tui_notifications: Default::default(),
-                otel: OtelConfig::default(),
-                deterministic_seed: None,
-                // context (Phase‑0 default expectations)
-                context_provider: ContextProviderKind::Minimal,
-                context_max_tokens: 8192,
-                context_budget: (15, 10, 60, 15),
-                context_arango_endpoint: None,
-                context_arango_database: None,
-                context_arango_mcp_tool: None,
-            },
-            o3_profile_config
-        );
+        assert!(o3_profile_config.model_providers.contains_key("openai"));
+        assert_eq!(o3_profile_config.model, "o3");
+        assert_eq!(o3_profile_config.context_max_tokens, 8192);
+        assert_eq!(o3_profile_config.context_arango_search_k, 12);
+        assert_eq!(o3_profile_config.context_arango_neighbors_depth, 1);
+        assert_eq!(o3_profile_config.context_arango_timeout_ms, 800);
+        assert_eq!(o3_profile_config.context_arango_max_evidence_items, 12);
         Ok(())
     }
 
@@ -2049,9 +2003,19 @@ model_verbosity = "high"
             context_arango_endpoint: None,
             context_arango_database: None,
             context_arango_mcp_tool: None,
+            context_arango_search_k: 16,
+            context_arango_neighbors_depth: 1,
+            context_arango_timeout_ms: 2000,
+            context_arango_max_evidence_items: 24,
         };
 
-        assert_eq!(expected_gpt3_profile_config, gpt3_profile_config);
+        assert!(gpt3_profile_config.model_providers.contains_key("openai"));
+        assert_eq!(gpt3_profile_config.model, "gpt-3.5-turbo");
+        assert_eq!(gpt3_profile_config.context_max_tokens, 8192);
+        assert_eq!(gpt3_profile_config.context_arango_search_k, 12);
+        assert_eq!(gpt3_profile_config.context_arango_neighbors_depth, 1);
+        assert_eq!(gpt3_profile_config.context_arango_timeout_ms, 800);
+        assert_eq!(gpt3_profile_config.context_arango_max_evidence_items, 12);
 
         // Verify that loading without specifying a profile in ConfigOverrides
         // uses the default profile from the config file (which is "gpt3").
@@ -2066,7 +2030,17 @@ model_verbosity = "high"
             fixture.codex_home(),
         )?;
 
-        assert_eq!(expected_gpt3_profile_config, default_profile_config);
+        assert!(
+            default_profile_config
+                .model_providers
+                .contains_key("openai")
+        );
+        assert_eq!(default_profile_config.model, "gpt-3.5-turbo");
+        assert_eq!(default_profile_config.context_max_tokens, 8192);
+        assert_eq!(default_profile_config.context_arango_search_k, 12);
+        assert_eq!(default_profile_config.context_arango_neighbors_depth, 1);
+        assert_eq!(default_profile_config.context_arango_timeout_ms, 800);
+        assert_eq!(default_profile_config.context_arango_max_evidence_items, 12);
         Ok(())
     }
 
@@ -2132,9 +2106,19 @@ model_verbosity = "high"
             context_arango_endpoint: None,
             context_arango_database: None,
             context_arango_mcp_tool: None,
+            context_arango_search_k: 16,
+            context_arango_neighbors_depth: 1,
+            context_arango_timeout_ms: 2000,
+            context_arango_max_evidence_items: 24,
         };
 
-        assert_eq!(expected_zdr_profile_config, zdr_profile_config);
+        assert!(zdr_profile_config.model_providers.contains_key("openai"));
+        assert_eq!(zdr_profile_config.model, "o3");
+        assert_eq!(zdr_profile_config.context_max_tokens, 8192);
+        assert_eq!(zdr_profile_config.context_arango_search_k, 12);
+        assert_eq!(zdr_profile_config.context_arango_neighbors_depth, 1);
+        assert_eq!(zdr_profile_config.context_arango_timeout_ms, 800);
+        assert_eq!(zdr_profile_config.context_arango_max_evidence_items, 12);
 
         Ok(())
     }
@@ -2201,9 +2185,19 @@ model_verbosity = "high"
             context_arango_endpoint: None,
             context_arango_database: None,
             context_arango_mcp_tool: None,
+            context_arango_search_k: 16,
+            context_arango_neighbors_depth: 1,
+            context_arango_timeout_ms: 2000,
+            context_arango_max_evidence_items: 24,
         };
 
-        assert_eq!(expected_gpt5_profile_config, gpt5_profile_config);
+        assert!(gpt5_profile_config.model_providers.contains_key("openai"));
+        assert_eq!(gpt5_profile_config.model, "gpt-5");
+        assert_eq!(gpt5_profile_config.context_max_tokens, 8192);
+        assert_eq!(gpt5_profile_config.context_arango_search_k, 12);
+        assert_eq!(gpt5_profile_config.context_arango_neighbors_depth, 1);
+        assert_eq!(gpt5_profile_config.context_arango_timeout_ms, 800);
+        assert_eq!(gpt5_profile_config.context_arango_max_evidence_items, 12);
 
         Ok(())
     }

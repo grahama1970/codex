@@ -50,6 +50,8 @@ pub struct RetrievalBundle {
     pub retrieval_ms: u64,
     pub evidence_items: usize,
     pub cache_hit: bool,
+    pub retry_count: Option<u8>,
+    pub fallback_reason: Option<String>,
 }
 
 /// Lightweight JSON-RPC client (single-method POST).
@@ -127,6 +129,8 @@ pub async fn perform_retrieval(
     if let Some(existing) = cache.get(&key).cloned() {
         return RetrievalBundle {
             cache_hit: true,
+            retry_count: existing.retry_count,
+            fallback_reason: existing.fallback_reason.clone(),
             ..existing
         };
     }
@@ -135,6 +139,7 @@ pub async fn perform_retrieval(
     let deadline = Duration::from_millis(cfg.timeout_ms);
     let client = JsonRpcClient::new(cfg.endpoint.clone(), cfg.debug);
 
+    let mut retry_attempts: u8 = 0;
     let fut = async {
         // memory.search
         let search_params = json!({
@@ -279,6 +284,7 @@ pub async fn perform_retrieval(
                 Err(_) => return fallback_bundle(t0, cfg, true),
                 Ok(Err(_)) => return fallback_bundle(t0, cfg, false),
                 Ok(Ok(())) => {
+                    retry_attempts = 1;
                     if nodes.is_empty() {
                         nodes = nodes_retry;
                     }
@@ -298,6 +304,8 @@ pub async fn perform_retrieval(
         evidence_items: final_nodes.len(),
         nodes: final_nodes,
         cache_hit: false,
+        retry_count: Some(retry_attempts),
+        fallback_reason: None,
     };
     cache.insert(key, bundle.clone());
     bundle
@@ -315,6 +323,8 @@ fn fallback_bundle(start: Instant, cfg: &RetrievalConfig, timeout_hit: bool) -> 
         retrieval_ms: start.elapsed().as_millis() as u64,
         evidence_items: 0,
         cache_hit: false,
+        retry_count: None,
+        fallback_reason: Some(if timeout_hit { "timeout" } else { "error" }.to_string()),
     }
 }
 
@@ -360,6 +370,8 @@ fn load_fixture(path: &str, _cfg: &RetrievalConfig) -> RetrievalBundle {
                 retrieval_ms: 5,
                 evidence_items: nodes.len(),
                 cache_hit: false,
+                retry_count: Some(0),
+                fallback_reason: None,
             }
         }
         Err(_) => RetrievalBundle {
@@ -367,6 +379,8 @@ fn load_fixture(path: &str, _cfg: &RetrievalConfig) -> RetrievalBundle {
             retrieval_ms: 0,
             evidence_items: 0,
             cache_hit: false,
+            retry_count: None,
+            fallback_reason: Some("error".to_string()),
         },
     }
 }

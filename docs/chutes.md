@@ -85,3 +85,12 @@ For CI isolation:
 - Run `codex chutes recommend --json` and assert stable output.
 - Use a second fixture where all `current_estimated_price.per_million_tokens.output.usd` values
   are null/whitespace to verify the price‑cap relaxation path emits its stderr notice.
+
+#### Relaxation notice
+
+When every candidate under a configured price cap reports a NaN output price, Codex emits a one‑time
+stderr notice and relaxes the cap to proceed with selection:
+
+```
+[chutes-relax] relaxing price cap (all candidates had NaN output price)
+```

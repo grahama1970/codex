@@ -3,6 +3,19 @@ set -euo pipefail
 # Open/update a PR from current branch, print PR number/URL, and start a background
 # watch loop that notifies when Copilot posts comments.
 
+load_env_file() {
+  local _envf="$1"
+  [ -f "$_envf" ] || return 0
+  while IFS='=' read -r k v; do
+    [ -z "${k:-}" ] && continue
+    case "$k" in \#*) continue;; esac
+    [ "${!k+x}" = x ] && continue
+    export "$k=$v"
+  done < <(grep -v '^[[:space:]]*#' "$_envf" | grep '=')
+}
+load_env_file ".env"
+load_env_file "$(dirname "$0")/../.env"
+
 REPO=${REPO:-$(gh repo view --json nameWithOwner -q .nameWithOwner)}
 BASE=${BASE:-$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)}
 HEAD=${HEAD:-$(git rev-parse --abbrev-ref HEAD)}

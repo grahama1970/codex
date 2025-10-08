@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use serde::Deserialize;
 use serde::Serialize;
 use sha1::Digest;
@@ -95,17 +96,28 @@ pub struct ContextMetrics {
     pub truncated_plan: bool,
     pub truncated_recent: bool,
     pub truncated_tools: bool,
+    pub cache_hit: bool,
+    pub retry_count: u8,
+    pub fallback_reason: Option<String>,
 }
 
 /// Trait for pluggable providers (minimal vs arango)
+#[async_trait]
 pub trait ContextProvider: Send + Sync {
-    fn build(&self, input: &TurnInput) -> Result<(EvidenceBundle, ContextMetrics), ContextError>;
+    async fn build(
+        &self,
+        input: &TurnInput,
+    ) -> Result<(EvidenceBundle, ContextMetrics), ContextError>;
 }
 
 pub struct MinimalContextProvider;
 
+#[async_trait]
 impl ContextProvider for MinimalContextProvider {
-    fn build(&self, input: &TurnInput) -> Result<(EvidenceBundle, ContextMetrics), ContextError> {
+    async fn build(
+        &self,
+        input: &TurnInput,
+    ) -> Result<(EvidenceBundle, ContextMetrics), ContextError> {
         let quotas = input.quotas.normalize();
         let budget = input.max_context_tokens.max(256);
         let recent_budget = (budget as f32 * (quotas.recent_pct as f32 / 100.0)) as usize;
@@ -155,12 +167,15 @@ impl ContextProvider for MinimalContextProvider {
             truncated_plan: bundle.truncated_plan,
             truncated_recent: bundle.truncated_recent,
             truncated_tools: bundle.truncated_tools,
+            cache_hit: false,
+            retry_count: 0,
+            fallback_reason: None,
         };
         Ok((bundle, metrics))
     }
 }
 
-/// Phase‑1 Arango/memory-agent.
+/// Phase-1 Arango/memory-agent.
 pub struct ArangoContextProvider {
     pub mcp_tool: String,
     pub endpoint: String,
@@ -174,9 +189,13 @@ pub struct ArangoContextProvider {
     pub fixture_path: Option<String>,
 }
 
+#[async_trait]
 impl ContextProvider for ArangoContextProvider {
-    fn build(&self, input: &TurnInput) -> Result<(EvidenceBundle, ContextMetrics), ContextError> {
-        // Retrieval (fixture or JSON‑RPC)
+    async fn build(
+        &self,
+        input: &TurnInput,
+    ) -> Result<(EvidenceBundle, ContextMetrics), ContextError> {
+        // Retrieval (fixture or JSON-RPC)
         let cfg = RetrievalConfig {
             endpoint: self.endpoint.clone(),
             search_k: self.search_k,
@@ -193,34 +212,8 @@ impl ContextProvider for ArangoContextProvider {
         // Execute retrieval without assuming a Tokio runtime context.
         // - If a runtime exists, run on a separate thread with a lightweight runtime.
         // - If not, create a current-thread runtime here and block_on once.
-        fn run_sync(cfg: &RetrievalConfig, q: &str) -> retrieval::RetrievalBundle {
-            let mut cache = HashMap::new();
-            // Try to detect an existing runtime; avoid Handle::block_on on a runtime thread.
-            let has_rt = tokio::runtime::Handle::try_current().is_ok();
-            if has_rt {
-                let cfg_cloned = cfg.clone();
-                let q_owned = q.to_string();
-                std::thread::spawn(move || {
-                    let rt = tokio::runtime::Builder::new_current_thread()
-                        .enable_time()
-                        .build()
-                        .expect("tokio rt");
-                    rt.block_on(async {
-                        let mut local_cache = std::collections::HashMap::new();
-                        perform_retrieval(&cfg_cloned, &q_owned, &mut local_cache).await
-                    })
-                })
-                .join()
-                .unwrap()
-            } else {
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .enable_time()
-                    .build()
-                    .expect("tokio rt");
-                rt.block_on(async { perform_retrieval(cfg, q, &mut cache).await })
-            }
-        }
-        let retrieval = run_sync(&cfg, &input.user_text);
+        let mut cache = HashMap::new();
+        let retrieval = perform_retrieval(&cfg, &input.user_text, &mut cache).await;
 
         // Shape evidence
         let lines = shape_evidence(
@@ -235,7 +228,7 @@ impl ContextProvider for ArangoContextProvider {
         };
 
         // Build minimal and merge
-        let (mut out, mut metrics) = MinimalContextProvider.build(input)?;
+        let (mut out, mut metrics) = MinimalContextProvider.build(input).await?;
         out.evidence = evidence_text;
         out.evidence_tokens = count_tokens(&out.evidence) as u32;
 
@@ -262,6 +255,9 @@ impl ContextProvider for ArangoContextProvider {
             out.recent_tokens + out.plan_tokens + out.evidence_tokens + out.tools_tokens;
         metrics.evidence_tokens = out.evidence_tokens;
         metrics.truncated_evidence = out.truncated_evidence;
+        metrics.cache_hit = retrieval.cache_hit;
+        metrics.retry_count = retrieval.retry_count.unwrap_or(0);
+        metrics.fallback_reason = retrieval.fallback_reason.clone();
 
         Ok((out, metrics))
     }
@@ -396,11 +392,4 @@ fn short_hash(id: &str) -> String {
         .collect()
 }
 
-fn one_line(s: &str) -> String {
-    let mut out = s.replace('\n', " ");
-    if out.len() > 220 {
-        out.truncate(220);
-        out.push_str(" …");
-    }
-    out
-}
+// Removed unused `one_line` helper.

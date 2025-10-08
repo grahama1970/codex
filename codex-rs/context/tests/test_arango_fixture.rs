@@ -5,9 +5,8 @@ use codex_context::TurnInput;
 use pretty_assertions::assert_eq;
 use std::fs;
 
-#[test]
-#[ignore]
-fn arango_provider_uses_fixture() {
+#[tokio::test]
+async fn arango_provider_uses_fixture() {
     // Create a small fixture file with search + neighbors items
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("fixture.json");
@@ -50,7 +49,7 @@ fn arango_provider_uses_fixture() {
         quotas,
     };
 
-    let (_bundle, metrics) = provider.build(&input).expect("ok");
+    let (_bundle, metrics) = provider.build(&input).await.expect("ok");
     // We expect 3 evidence items from the fixture and non-zero token accounting
     assert_eq!(metrics.evidence_items, 3);
     assert!(metrics.total_tokens > 0);

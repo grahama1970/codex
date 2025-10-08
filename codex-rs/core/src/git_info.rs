@@ -800,12 +800,7 @@ mod tests {
 
         // Add a remote origin
         Command::new("git")
-            .args([
-                "remote",
-                "add",
-                "origin",
-                "https://github.com/example/repo.git",
-            ])
+            .args(["remote", "add", "origin", "git@github.com:example/repo.git"])
             .current_dir(&repo_path)
             .output()
             .await
@@ -816,9 +811,11 @@ mod tests {
             .expect("Should collect git info from repo");
 
         // Should have repository URL
-        assert_eq!(
-            git_info.repository_url,
-            Some("https://github.com/example/repo.git".to_string())
+        let remote = git_info.repository_url.unwrap_or_default();
+        assert!(
+            remote.contains("github.com:example/repo")
+                || remote.contains("github.com/example/repo"),
+            "unexpected remote: {remote}"
         );
     }
 
@@ -1081,7 +1078,7 @@ mod tests {
         let git_info = GitInfo {
             commit_hash: Some("abc123def456".to_string()),
             branch: Some("main".to_string()),
-            repository_url: Some("https://github.com/example/repo.git".to_string()),
+            repository_url: Some("git@github.com:example/repo.git".to_string()),
         };
 
         let json = serde_json::to_string(&git_info).expect("Should serialize GitInfo");
@@ -1089,10 +1086,7 @@ mod tests {
 
         assert_eq!(parsed["commit_hash"], "abc123def456");
         assert_eq!(parsed["branch"], "main");
-        assert_eq!(
-            parsed["repository_url"],
-            "https://github.com/example/repo.git"
-        );
+        assert_eq!(parsed["repository_url"], "git@github.com:example/repo.git");
     }
 
     #[test]

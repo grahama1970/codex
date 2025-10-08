@@ -111,17 +111,17 @@ impl Widget for ShimmerGauge {
         // Track (border-ish)
         let track_style = Style::default().fg(Color::DarkGray);
         for x in 0..width {
-            buf.get_mut(area.x + x as u16, area.y)
-                .set_char(' ')
-                .set_style(track_style);
+            if let Some(cell) = buf.cell_mut((area.x + x as u16, area.y)) {
+                cell.set_char(' ').set_style(track_style);
+            }
         }
 
         // Fill (brand accent)
         let fill_style = crate::style::brand_accent_style();
         for x in 0..filled.min(width) {
-            buf.get_mut(area.x + x as u16, area.y)
-                .set_char('█')
-                .set_style(fill_style);
+            if let Some(cell) = buf.cell_mut((area.x + x as u16, area.y)) {
+                cell.set_char('█').set_style(fill_style);
+            }
         }
 
         // Shimmer (accent-secondary illusion via alternating density)
@@ -129,9 +129,13 @@ impl Widget for ShimmerGauge {
             let phase = (self.tick % 8) as usize;
             for x in 0..filled.min(width) {
                 if (x + phase).is_multiple_of(8) {
-                    buf.get_mut(area.x + x as u16, area.y).set_char('▓');
-                } else if (x + phase) % 8 == 4 {
-                    buf.get_mut(area.x + x as u16, area.y).set_char('▒');
+                    if let Some(cell) = buf.cell_mut((area.x + x as u16, area.y)) {
+                        cell.set_char('▓');
+                    }
+                } else if (x + phase) % 8 == 4
+                    && let Some(cell) = buf.cell_mut((area.x + x as u16, area.y))
+                {
+                    cell.set_char('▒');
                 }
             }
         }

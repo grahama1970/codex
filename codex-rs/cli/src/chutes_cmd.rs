@@ -727,8 +727,12 @@ pub async fn select_best(args: &RecommendArgs) -> Result<(String, Value)> {
         && price_nan_exclusions > 0
         && any_seen
     {
-        if debug {
-            eprintln!("[chutes-relax] relaxing price cap (all candidates had NaN price)");
+        // Emit a single notice per process to avoid duplicate lines across retries/loops.
+        use std::sync::atomic::AtomicBool;
+        use std::sync::atomic::Ordering;
+        static RELAX_NOTICE_EMITTED: AtomicBool = AtomicBool::new(false);
+        if !RELAX_NOTICE_EMITTED.swap(true, Ordering::SeqCst) {
+            eprintln!("[chutes-relax] relaxing price cap (all candidates had NaN output price)");
         }
         let mut relaxed_candidates: Vec<(f64, f64, i64, i64, String, Value)> = Vec::new();
         for item in items {

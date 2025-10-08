@@ -126,16 +126,16 @@ impl ModelClient {
     }
 
     /// Dispatches to either the Responses or Chat implementation depending on
-    /// the provider config.  Public callers always invoke `stream()` – the
+    /// the provider config.  Public callers always invoke `stream()` - the
     /// specialised helpers are private to avoid accidental misuse.
     pub async fn stream(&self, prompt: &Prompt) -> Result<ResponseStream> {
         match self.provider.wire_api {
             WireApi::Responses => self.stream_responses(prompt).await,
             WireApi::Chat => {
-                // Optionally rebuild prompt with Knowledge‑First sections (Phase‑0).
+                // Optionally rebuild prompt with Knowledge-First sections (Phase-0).
                 let mut effective_prompt = prompt.clone();
                 if self.config.context_max_tokens > 0
-                    && let Some((kf, _metrics)) = self.try_build_knowledge_first(prompt)
+                    && let Some((kf, _metrics)) = self.try_build_knowledge_first(prompt).await
                 {
                     effective_prompt = kf;
                 }
@@ -252,13 +252,10 @@ impl ModelClient {
 
         let mut payload_json = serde_json::to_value(&payload)?;
         // Deterministic mode (opt-in): enforce low-variance sampling when a seed is set.
-        if let Some(seed) = self.config.deterministic_seed
-            && let Some(obj) = payload_json.as_object_mut()
-        {
-            obj.insert("temperature".to_string(), serde_json::json!(0.0));
-            obj.insert("top_p".to_string(), serde_json::json!(1.0));
-            obj.insert("seed".to_string(), serde_json::json!(seed));
-        }
+        crate::responses_payload::apply_determinism(
+            &mut payload_json,
+            self.config.deterministic_seed,
+        );
         if azure_workaround {
             attach_item_ids(&mut payload_json, &input_with_instructions);
         }
@@ -371,7 +368,7 @@ impl ModelClient {
             Ok(res) => {
                 let status = res.status();
 
-                // Pull out Retry‑After header if present.
+                // Pull out Retry-After header if present.
                 let retry_after_secs = res
                     .headers()
                     .get(reqwest::header::RETRY_AFTER)
@@ -476,9 +473,9 @@ impl ModelClient {
 }
 
 impl ModelClient {
-    /// Phase‑0: Build knowledge‑first sections and inject into base instructions.
+    /// Phase-0: Build knowledge-first sections and inject into base instructions.
     /// Returns the rebuilt Prompt and context metrics when successful.
-    fn try_build_knowledge_first(
+    async fn try_build_knowledge_first(
         &self,
         prompt: &Prompt,
     ) -> Option<(Prompt, codex_context::ContextMetrics)> {
@@ -568,7 +565,7 @@ impl ModelClient {
         };
         let debug = std::env::var("CONTEXT_DEBUG").ok().as_deref() == Some("1");
         let t0 = std::time::Instant::now();
-        let (bundle, metrics) = match provider.build(&input) {
+        let (bundle, metrics) = match provider.build(&input).await {
             Ok(b) => b,
             Err(e) => {
                 if debug {
@@ -590,7 +587,7 @@ impl ModelClient {
             );
         }
         let mut rebuilt = prompt.clone();
-        // Phase‑1 order per spec: Evidence → Plan → Recent → Tools
+        // Phase-1 order per spec: Evidence → Plan → Recent → Tools
         let prefix = format!(
             "### Evidence (trimmed={})\n{}\n\n### Plan (trimmed={})\n{}\n\n### Recent (trimmed={})\n{}\n\n### Tools (trimmed={})\n{}\n\n---\n",
             bundle.truncated_evidence,
@@ -608,15 +605,15 @@ impl ModelClient {
 }
 
 impl ModelClient {
-    /// Public helper for callers that want to build Knowledge‑First context once
+    /// Public helper for callers that want to build Knowledge-First context once
     /// and access the computed metrics. If context is disabled or an error
     /// occurs, returns the original prompt and None.
-    pub fn prepare_prompt_with_context(
+    pub async fn prepare_prompt_with_context(
         &self,
         original: &Prompt,
     ) -> (Prompt, Option<codex_context::ContextMetrics>) {
         if self.config.context_max_tokens > 0
-            && let Some((rebuilt, metrics)) = self.try_build_knowledge_first(original)
+            && let Some((rebuilt, metrics)) = self.try_build_knowledge_first(original).await
         {
             return (rebuilt, Some(metrics));
         }
@@ -900,10 +897,10 @@ async fn process_sse<S>(
             // IMPORTANT: We used to ignore these events and forward the
             // duplicated `output` array embedded in the `response.completed`
             // payload.  That produced two concrete issues:
-            //   1. No real‑time streaming – the user only saw output after the
+            //   1. No real-time streaming - the user only saw output after the
             //      entire turn had finished, which broke the "typing" UX and
-            //      made long‑running turns look stalled.
-            //   2. Duplicate `function_call_output` items – both the
+            //      made long-running turns look stalled.
+            //   2. Duplicate `function_call_output` items - both the
             //      individual *and* the completed array were forwarded, which
             //      confused the backend and triggered 400
             //      "previous_response_not_found" errors because the duplicated
@@ -977,7 +974,7 @@ async fn process_sse<S>(
                     }
                 }
             }
-            // Final response completed – includes array of output items & id
+            // Final response completed - includes array of output items & id
             "response.completed" => {
                 if let Some(resp_val) = event.response {
                     match serde_json::from_value::<ResponseCompleted>(resp_val) {

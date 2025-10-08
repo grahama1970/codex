@@ -323,7 +323,7 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    let run_id = format!("exec-{}", ts_ms_early);
+    let run_id = format!("exec-{ts_ms_early}");
     let run_dir = summary_dir
         .clone()
         .unwrap_or_else(|| PathBuf::from(".codex").join("runs"));
@@ -444,9 +444,9 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         let mut metrics: ContextMetrics = ContextMetrics::default();
         match provider_kind {
             ContextProviderKind::Minimal => {
-                let _ = MinimalContextProvider
-                    .build(&input)
-                    .map(|(_b, m)| metrics = m);
+                if let Ok((_b, m)) = MinimalContextProvider.build(&input).await {
+                    metrics = m;
+                }
             }
             ContextProviderKind::Arango => {
                 let provider = ArangoContextProvider {
@@ -471,7 +471,9 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                         == Some("1"),
                     fixture_path: std::env::var("CONTEXT_MCP_FIXTURE").ok(),
                 };
-                let _ = provider.build(&input).map(|(_b, m)| metrics = m);
+                if let Ok((_b, m)) = provider.build(&input).await {
+                    metrics = m;
+                }
             }
         }
         let line = serde_json::json!({
@@ -489,6 +491,9 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
             },
             "retrieval_ms": metrics.retrieval_ms,
             "evidence_items": metrics.evidence_items,
+            "cache_hit": metrics.cache_hit,
+            "retry_count": metrics.retry_count,
+            "fallback_reason": metrics.fallback_reason,
             "search_k": config.context_arango_search_k,
             "neighbors_depth": config.context_arango_neighbors_depth,
             "reflowed_from": { "plan": metrics.reflowed_from_plan, "recent": metrics.reflowed_from_recent, "tools": metrics.reflowed_from_tools },
@@ -562,8 +567,8 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
             _ = tick.tick() => {
                 if timed_out.load(Ordering::SeqCst) {
                     // Emit a synthetic timeout marker once for visibility in NDJSON.
-                    if let Some(f) = events_file.as_mut() {
-                        if !wrote_timeout_event.load(Ordering::SeqCst) {
+                    if let Some(f) = events_file.as_mut()
+                        && !wrote_timeout_event.load(Ordering::SeqCst) {
                             let line = serde_json::json!({
                                 "ts_unix_ms": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
                                 "elapsed_ms": monotonic_start.elapsed().as_millis() as u64,
@@ -578,7 +583,6 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                             wrote_timeout_event.store(true, Ordering::SeqCst);
                             seq = seq.saturating_add(1);
                         }
-                    }
                     // If shutdown grace elapsed, break even if backend hasn't acked.
                     let grace_ms = shutdown_grace_ms.unwrap_or(800);
                     let elapsed_ok = {
