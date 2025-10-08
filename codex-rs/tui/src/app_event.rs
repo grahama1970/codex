@@ -1,9 +1,11 @@
 use std::path::PathBuf;
 
+use codex_common::model_presets::ModelPreset;
 use codex_core::protocol::ConversationPathResponseEvent;
 use codex_core::protocol::Event;
 use codex_file_search::FileMatch;
 
+use crate::bottom_pane::ApprovalRequest;
 use crate::history_cell::HistoryCell;
 
 use codex_core::protocol::AskForApproval;
@@ -59,6 +61,12 @@ pub(crate) enum AppEvent {
         effort: Option<ReasoningEffort>,
     },
 
+    /// Open the reasoning selection popup after picking a model.
+    OpenReasoningPopup {
+        model: String,
+        presets: Vec<ModelPreset>,
+    },
+
     /// Update the current approval policy in the running app and widget.
     UpdateAskForApprovalPolicy(AskForApproval),
 
@@ -76,4 +84,11 @@ pub(crate) enum AppEvent {
 
     /// Open the custom prompt option from the review popup.
     OpenReviewCustomPrompt,
+    /// Show a minimal waiting overlay in alt-screen (centered Working… tip).
+    OpenWaitingOverlay,
+    /// Close the waiting overlay if visible and restore inline view.
+    CloseWaitingOverlay,
+
+    /// Open the approval popup.
+    FullScreenApprovalRequest(ApprovalRequest),
 }

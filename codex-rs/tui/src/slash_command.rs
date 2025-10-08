@@ -14,6 +14,18 @@ pub enum SlashCommand {
     // more frequently used commands should be listed first.
     Model,
     Approvals,
+    Discover,
+    Warmup,
+    /// Enable spinner tips (session only)
+    AnimTipsOn,
+    /// Disable spinner tips (session only)
+    AnimTipsOff,
+    /// Switch to the light theme immediately (no restart).
+    Light,
+    /// Switch to the dark theme immediately (no restart).
+    Dark,
+    /// Switch to the dark-dim theme immediately (no restart).
+    DarkDim,
     Review,
     New,
     Init,
@@ -33,6 +45,13 @@ impl SlashCommand {
     /// User-visible description shown in the popup.
     pub fn description(self) -> &'static str {
         match self {
+            SlashCommand::Warmup => "warm-up the current/selected Chutes model (tiny ping)",
+            SlashCommand::Discover => "discover a coding-capable Chutes model (non‑SOTA)",
+            SlashCommand::AnimTipsOn => "enable spinner tips (session)",
+            SlashCommand::AnimTipsOff => "disable spinner tips (session)",
+            SlashCommand::Light => "switch to light theme (no restart)",
+            SlashCommand::Dark => "switch to dark theme (no restart)",
+            SlashCommand::DarkDim => "switch to dark-dim theme (no restart)",
             SlashCommand::New => "start a new chat during a conversation",
             SlashCommand::Init => "create an AGENTS.md file with instructions for Codex",
             SlashCommand::Compact => "summarize conversation to prevent hitting the context limit",
@@ -69,6 +88,13 @@ impl SlashCommand {
             | SlashCommand::Review
             | SlashCommand::Logout => false,
             SlashCommand::Diff
+            | SlashCommand::Discover
+            | SlashCommand::Warmup
+            | SlashCommand::AnimTipsOn
+            | SlashCommand::AnimTipsOff
+            | SlashCommand::Light
+            | SlashCommand::Dark
+            | SlashCommand::DarkDim
             | SlashCommand::Mention
             | SlashCommand::Status
             | SlashCommand::Mcp
@@ -99,3 +125,6 @@ pub fn built_in_slash_commands() -> Vec<(&'static str, SlashCommand)> {
 fn beta_features_enabled() -> bool {
     std::env::var_os("BETA_FEATURE").is_some()
 }
+// Slash commands exposed in the TUI to speed up common actions.
+// - `discover`: run Chutes recommendation and append result
+// - `warmup`: ping selected model to reduce cold-start latency

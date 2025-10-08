@@ -64,32 +64,88 @@ pub struct Cli {
     pub color: Color,
 
     /// Print events to stdout as JSONL.
-    #[arg(
-        long = "json",
-        default_value_t = false,
-        conflicts_with = "experimental_json"
-    )]
+    #[arg(long = "json", alias = "experimental-json", default_value_t = false)]
     pub json: bool,
-
-    #[arg(
-        long = "experimental-json",
-        default_value_t = false,
-        conflicts_with = "json"
-    )]
-    pub experimental_json: bool,
 
     /// Whether to include the plan tool in the conversation.
     #[arg(long = "include-plan-tool", default_value_t = false)]
     pub include_plan_tool: bool,
 
     /// Specifies file where the last message from the agent should be written.
-    #[arg(long = "output-last-message")]
+    #[arg(long = "output-last-message", short = 'o', value_name = "FILE")]
     pub last_message_file: Option<PathBuf>,
+
+    /// Optional global wall-clock timeout for the run in seconds.
+    /// When exceeded, Codex will send an interrupt and shut down gracefully.
+    #[arg(long = "run-timeout-secs")]
+    pub run_timeout_secs: Option<u64>,
+
+    /// Directory where a machine-readable run summary will be written.
+    /// Defaults to `.codex/runs` under the current working directory.
+    #[arg(long = "summary-dir", value_name = "DIR")]
+    pub summary_dir: Option<PathBuf>,
+
+    /// Grace period (ms) to wait after sending Interrupt before forcing Shutdown
+    /// when a run-timeout occurs. Default: 800ms.
+    #[arg(long = "shutdown-grace-ms")]
+    pub shutdown_grace_ms: Option<u64>,
 
     /// Initial instructions for the agent. If not provided as an argument (or
     /// if `-` is used), instructions are read from stdin.
     #[arg(value_name = "PROMPT")]
     pub prompt: Option<String>,
+
+    // --- Prehook options (MVP; upstream default is disabled) ---
+    /// Enable the pre-execution hook (default: disabled).
+    #[arg(long = "prehook-enabled", default_value_t = false)]
+    pub prehook_enabled: bool,
+
+    /// Prehook backend to use: mcp | script | chained (default: mcp).
+    #[arg(long = "prehook-backend", default_value = "mcp")]
+    pub prehook_backend: String,
+
+    /// On error policy: fail | warn | skip (default: fail).
+    #[arg(long = "prehook-on-error", default_value = "fail")]
+    pub prehook_on_error: String,
+
+    /// MCP server endpoint (e.g., stdio:/path/to/server [args...]).
+    #[arg(long = "prehook-mcp-server")]
+    pub prehook_mcp_server: Option<String>,
+
+    /// MCP tool name to call (default: codex.prehook.review).
+    #[arg(long = "prehook-mcp-tool")]
+    pub prehook_mcp_tool: Option<String>,
+
+    /// Script command to execute for script backend.
+    #[arg(long = "prehook-script")]
+    pub prehook_script_cmd: Option<String>,
+
+    /// Prehook timeout (ms; default 5000ms).
+    #[arg(long = "prehook-timeout-ms", default_value_t = 5000)]
+    pub prehook_timeout_ms: u64,
+
+    /// MCP connect timeout (ms). Overrides the default when set.
+    #[arg(long = "prehook-mcp-connect-timeout-ms")]
+    pub prehook_mcp_connect_timeout_ms: Option<u64>,
+
+    /// MCP call timeout (ms). Overrides the default when set.
+    #[arg(long = "prehook-mcp-call-timeout-ms")]
+    pub prehook_mcp_call_timeout_ms: Option<u64>,
+
+    /// Treat this headless run as if it were an interactive (CLI) session upstream.
+    /// Sets SessionSource::Cli instead of SessionSource::Exec (metrics / attribution parity).
+    #[arg(long = "force-cli-source", default_value_t = true)]
+    pub force_cli_source: bool,
+
+    /// Keep the configured approval policy instead of forcing AskForApproval::Never.
+    /// Use when you want identical approval gating behavior to interactive sessions.
+    #[arg(long = "keep-approval-policy", default_value_t = true)]
+    pub keep_approval_policy: bool,
+
+    /// Optional deterministic seed (foundation for reproducible sampling).
+    /// Currently persisted to summary only; later will drive model sampling & internal RNG.
+    #[arg(long = "seed", value_name = "U64")]
+    pub seed: Option<u64>,
 }
 
 #[derive(Debug, clap::Subcommand)]

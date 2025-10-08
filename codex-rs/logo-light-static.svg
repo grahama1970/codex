@@ -1,0 +1,42 @@
+<!-- cxplus — logo7 (light static snapshot) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" role="img" aria-labelledby="t d" text-rendering="geometricPrecision" data-static="true" focusable="false">
+  <title id="t">cxplus — wordmark (light, static)</title>
+  <desc id="d">Light-mode static snapshot of logo7. Animations disabled. Full cyan reveal and visible plus.</desc>
+  <style>:root{--accent:#2FD4CB;--fg:#0B1220;--bg:#FFFFFF;--ease:cubic-bezier(.25,.1,.25,1);--cycle:8s}</style>
+  <style>
+    .bg{ fill:var(--bg) }
+    .wm{ fill:var(--fg); font:700 44px/1.05 "Nunito","SF Pro Rounded","Avenir Next Rounded","Quicksand","Segoe UI Rounded","Inter",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue","Arial Rounded MT Bold",Arial,"Noto Sans","Liberation Sans",sans-serif; letter-spacing:-.3px; font-kerning:normal; font-feature-settings:"kern" 1,"liga" 1; text-rendering:optimizeLegibility; }
+    .wmCyan{ fill:var(--accent) }
+    .plus{   fill:var(--accent) }
+    .accentFill{ fill:var(--accent) }
+    svg[data-static="true"] .anim{ animation:none!important }
+    svg[data-static="true"] #cSweep{width:200px} svg[data-static="true"] #xSweep{width:200px}
+    svg[data-static="true"] #pClipRect{width:240px} svg[data-static="true"] #lClipRect{width:240px}
+    svg[data-static="true"] #uClipRect{width:240px} svg[data-static="true"] #sClipRect{width:260px}
+    svg[data-static="true"] #plusGlyph{opacity:1;transform:scale(1)} svg[data-static="true"] #plusR{transform:rotate(0)}
+  </style>
+  <rect class="bg" width="100%" height="100%" aria-hidden="true"/>
+  <defs>
+    <filter id="wmGlow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="1.25" result="wmBlur"/><feMerge><feMergeNode in="wmBlur"/></feMerge></filter>
+    <filter id="plusGlow" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="0.85" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <mask id="maskC" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" x="0" y="-140" width="210" height="300" style="mask-type:luminance"><rect x="0" y="-140" width="210" height="300" fill="black"/><text class="wm" x="0" y="0" fill="white" dominant-baseline="alphabetic">c</text></mask>
+    <mask id="maskX" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" x="22" y="-140" width="210" height="300" style="mask-type:luminance"><rect x="22" y="-140" width="210" height="300" fill="black"/><text class="wm" x="22" y="0" fill="white" dominant-baseline="alphabetic">x</text></mask>
+    <clipPath id="cpP" clipPathUnits="userSpaceOnUse"><rect id="pClipRect" class="anim" x="50" y="-200" width="0" height="400"/></clipPath>
+    <clipPath id="cpL" clipPathUnits="userSpaceOnUse"><rect id="lClipRect" class="anim" x="76" y="-200" width="0" height="400"/></clipPath>
+    <clipPath id="cpU" clipPathUnits="userSpaceOnUse"><rect id="uClipRect" class="anim" x="86" y="-200" width="0" height="400"/></clipPath>
+    <clipPath id="cpS" clipPathUnits="userSpaceOnUse"><rect id="sClipRect" class="anim" x="112" y="-200" width="0" height="400"/></clipPath>
+  </defs>
+  <g transform="translate(20,56)">
+    <text class="wm" x="0" y="0">c</text><text class="wm" x="22" y="0">x</text><text class="wm" x="50" y="0">p</text><text class="wm" x="76" y="0">l</text><text class="wm" x="86" y="0">u</text><text class="wm" x="112" y="0">s</text>
+    <g id="cyanOverlay">
+      <g mask="url(#maskC)"><rect id="cSweep" class="anim accentFill" x="0" y="-120" width="0" height="240"/></g>
+      <g mask="url(#maskX)"><rect id="xSweep" class="anim accentFill" x="22" y="-120" width="0" height="240"/></g>
+      <g clip-path="url(#cpP)"><text class="wm wmCyan" x="50" y="0">p</text></g>
+      <g clip-path="url(#cpL)"><text class="wm wmCyan" x="76" y="0">l</text></g>
+      <g clip-path="url(#cpU)"><text class="wm wmCyan" x="86" y="0">u</text></g>
+      <g clip-path="url(#cpS)"><text class="wm wmCyan" x="112" y="0">s</text></g>
+    </g>
+    <g id="plusAcc" transform="translate(140,-26)"><g id="plusR" class="anim"><g id="plusS" class="anim"><g id="plusGlyph" class="anim"><rect class="plus" x="-7" y="-2" width="14" height="4" rx="2"/><rect class="plus" x="-2" y="-7" width="4" height="14" rx="2"/></g></g></g></g>
+  </g>
+</svg>
+

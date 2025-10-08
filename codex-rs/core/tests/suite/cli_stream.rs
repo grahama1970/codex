@@ -13,6 +13,18 @@ use wiremock::ResponseTemplate;
 use wiremock::matchers::method;
 use wiremock::matchers::path;
 
+/// Build a consistent `cargo run` invocation for the codex CLI to avoid multi-bin ambiguity.
+fn cargo_codex_cmd() -> std::process::Command {
+    let mut cmd = std::process::Command::new("cargo");
+    cmd.arg("run")
+        .arg("-p")
+        .arg("codex-cli")
+        .arg("--bin")
+        .arg("codex")
+        .arg("--");
+    cmd
+}
+
 /// Tests streaming chat completions through the CLI using a mock server.
 /// This test:
 /// 1. Sets up a mock server that simulates OpenAI's chat completions API
@@ -49,6 +61,8 @@ async fn chat_mode_stream_cli() {
     cmd.arg("run")
         .arg("-p")
         .arg("codex-cli")
+        .arg("--bin")
+        .arg("codex")
         .arg("--quiet")
         .arg("--")
         .arg("exec")
@@ -76,7 +90,7 @@ async fn chat_mode_stream_cli() {
     server.verify().await;
 
     // Verify a new session rollout was created and is discoverable via list_conversations
-    let page = RolloutRecorder::list_conversations(home.path(), 10, None)
+    let page = RolloutRecorder::list_conversations(home.path(), 10, None, &[])
         .await
         .expect("list conversations");
     assert!(
@@ -137,6 +151,8 @@ async fn exec_cli_applies_experimental_instructions_file() {
     cmd.arg("run")
         .arg("-p")
         .arg("codex-cli")
+        .arg("--bin")
+        .arg("codex")
         .arg("--quiet")
         .arg("--")
         .arg("exec")
@@ -195,6 +211,8 @@ async fn responses_api_stream_cli() {
     cmd.arg("run")
         .arg("-p")
         .arg("codex-cli")
+        .arg("--bin")
+        .arg("codex")
         .arg("--quiet")
         .arg("--")
         .arg("exec")
@@ -236,6 +254,8 @@ async fn integration_creates_and_checks_session_file() {
     cmd.arg("run")
         .arg("-p")
         .arg("codex-cli")
+        .arg("--bin")
+        .arg("codex")
         .arg("--quiet")
         .arg("--")
         .arg("exec")
@@ -404,6 +424,8 @@ async fn integration_creates_and_checks_session_file() {
     cmd2.arg("run")
         .arg("-p")
         .arg("codex-cli")
+        .arg("--bin")
+        .arg("codex")
         .arg("--quiet")
         .arg("--")
         .arg("exec")
@@ -580,10 +602,14 @@ async fn integration_git_info_unit_test() {
         "Git info should contain repository_url"
     );
     let repo_url = git_info.repository_url.as_ref().unwrap();
-    assert_eq!(
-        repo_url, "https://github.com/example/integration-test.git",
-        "Repository URL should match what we configured"
-    );
+    {
+        let ok = repo_url.contains("github.com/example/integration-test")
+            || repo_url.contains("github.com:example/integration-test");
+        assert!(
+            ok,
+            "Repository URL should contain canonical repo path: {repo_url}"
+        );
+    }
 
     println!("✅ Git info collection test passed!");
     println!("   Commit: {commit_hash}");

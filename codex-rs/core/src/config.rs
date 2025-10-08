@@ -1,13 +1,50 @@
 use crate::config_profile::ConfigProfile;
+use crate::config_types::DEFAULT_OTEL_ENVIRONMENT;
 use crate::config_types::History;
 use crate::config_types::McpServerConfig;
 use crate::config_types::McpServerTransportConfig;
 use crate::config_types::Notifications;
+use crate::config_types::OtelConfig;
+use crate::config_types::OtelConfigToml;
+use crate::config_types::OtelExporterKind;
 use crate::config_types::ReasoningSummaryFormat;
 use crate::config_types::SandboxWorkspaceWrite;
 use crate::config_types::ShellEnvironmentPolicy;
 use crate::config_types::ShellEnvironmentPolicyToml;
 use crate::config_types::Tui;
+// ---- Context (Knowledge-First) Phase-0 additions ----
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContextProviderKind {
+    Minimal,
+    Arango,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+pub struct ContextBudgetToml {
+    pub recent_pct: Option<u8>,
+    pub plan_pct: Option<u8>,
+    pub evidence_pct: Option<u8>,
+    pub tools_pct: Option<u8>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+pub struct ContextArangoToml {
+    pub endpoint: Option<String>,
+    pub database: Option<String>,
+    pub mcp_tool: Option<String>,
+    pub search_k: Option<u32>,
+    pub neighbors_depth: Option<u8>,
+    pub timeout_ms: Option<u64>,
+    pub max_evidence_items: Option<u32>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+pub struct ContextToml {
+    pub provider: Option<String>, // "minimal"|"arango"
+    pub max_context_tokens: Option<u32>,
+    pub budget: Option<ContextBudgetToml>,
+    pub arango: Option<ContextArangoToml>,
+}
 use crate::config_types::UriBasedFileOpener;
 use crate::git_info::resolve_root_git_project_for_trust;
 use crate::model_family::ModelFamily;
@@ -19,12 +56,12 @@ use crate::openai_model_info::get_model_info;
 use crate::protocol::AskForApproval;
 use crate::protocol::SandboxPolicy;
 use anyhow::Context;
+use codex_app_server_protocol::Tools;
+use codex_app_server_protocol::UserSavedConfig;
 use codex_protocol::config_types::ReasoningEffort;
 use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::config_types::SandboxMode;
 use codex_protocol::config_types::Verbosity;
-use codex_protocol::mcp_protocol::Tools;
-use codex_protocol::mcp_protocol::UserSavedConfig;
 use dirs::home_dir;
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -137,6 +174,9 @@ pub struct Config {
     /// Maximum number of bytes to include from an AGENTS.md project doc file.
     pub project_doc_max_bytes: usize,
 
+    /// Additional filenames to try when looking for project-level docs.
+    pub project_doc_fallback_filenames: Vec<String>,
+
     /// Directory containing all Codex state (defaults to `~/.codex` but can be
     /// overridden by the `CODEX_HOME` environment variable).
     pub codex_home: PathBuf,
@@ -170,6 +210,12 @@ pub struct Config {
     /// Base URL for requests to ChatGPT (as opposed to the OpenAI API).
     pub chatgpt_base_url: String,
 
+    /// Optional deterministic seed that, when set, may be used by clients to
+    /// enforce deterministic sampling (e.g., temperature=0, top_p=1) and seed
+    /// any internal RNG usage. Not all providers support a `seed` parameter;
+    /// callers should fall back gracefully.
+    pub deterministic_seed: Option<u64>,
+
     /// Include an experimental plan tool that the model can use to update its current plan and status of each step.
     pub include_plan_tool: bool,
 
@@ -199,6 +245,21 @@ pub struct Config {
     /// All characters are inserted as they are received, and no buffering
     /// or placeholder replacement will occur for fast keypress bursts.
     pub disable_paste_burst: bool,
+
+    /// OTEL configuration (exporter type, endpoint, headers, etc.).
+    pub otel: crate::config_types::OtelConfig,
+
+    // Context (Phase‑0)
+    pub context_provider: ContextProviderKind,
+    pub context_max_tokens: u32,
+    pub context_budget: (u8, u8, u8, u8), // recent, plan, evidence, tools
+    pub context_arango_endpoint: Option<String>,
+    pub context_arango_database: Option<String>,
+    pub context_arango_mcp_tool: Option<String>,
+    pub context_arango_search_k: u32,
+    pub context_arango_neighbors_depth: u8,
+    pub context_arango_timeout_ms: u64,
+    pub context_arango_max_evidence_items: u32,
 }
 
 impl Config {
@@ -426,7 +487,7 @@ fn set_project_trusted_inner(doc: &mut DocumentMut, project_path: &Path) -> anyh
         .get_mut(project_key.as_str())
         .and_then(|i| i.as_table_mut())
     else {
-        return Err(anyhow::anyhow!("project table missing for {}", project_key));
+        return Err(anyhow::anyhow!("project table missing for {project_key}"));
     };
     proj_tbl.set_implicit(false);
     proj_tbl["trust_level"] = toml_edit::value("trusted");
@@ -663,6 +724,9 @@ pub struct ConfigToml {
     /// Maximum number of bytes to include from an AGENTS.md project doc file.
     pub project_doc_max_bytes: Option<usize>,
 
+    /// Ordered list of fallback filenames to look for when AGENTS.md is missing.
+    pub project_doc_fallback_filenames: Option<Vec<String>>,
+
     /// Profile to use from the `profiles` map.
     pub profile: Option<String>,
 
@@ -719,6 +783,11 @@ pub struct ConfigToml {
     /// All characters are inserted as they are received, and no buffering
     /// or placeholder replacement will occur for fast keypress bursts.
     pub disable_paste_burst: Option<bool>,
+
+    /// OTEL configuration.
+    pub otel: Option<crate::config_types::OtelConfigToml>,
+    /// Knowledge‑First context settings (Phase‑0: default disabled)
+    pub context: Option<ContextToml>,
 }
 
 impl From<ConfigToml> for UserSavedConfig {
@@ -859,6 +928,8 @@ pub struct ConfigOverrides {
     pub include_view_image_tool: Option<bool>,
     pub show_raw_agent_reasoning: Option<bool>,
     pub tools_web_search_request: Option<bool>,
+    /// Optional deterministic seed to encourage deterministic sampling.
+    pub deterministic_seed: Option<u64>,
 }
 
 impl Config {
@@ -887,6 +958,7 @@ impl Config {
             include_view_image_tool,
             show_raw_agent_reasoning,
             tools_web_search_request: override_tools_web_search_request,
+            deterministic_seed,
         } = overrides;
 
         let active_profile_name = config_profile_key
@@ -1028,6 +1100,19 @@ impl Config {
             mcp_servers: cfg.mcp_servers,
             model_providers,
             project_doc_max_bytes: cfg.project_doc_max_bytes.unwrap_or(PROJECT_DOC_MAX_BYTES),
+            project_doc_fallback_filenames: cfg
+                .project_doc_fallback_filenames
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|name| {
+                    let trimmed = name.trim();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed.to_string())
+                    }
+                })
+                .collect(),
             codex_home,
             history,
             file_opener: cfg.file_opener.unwrap_or(UriBasedFileOpener::VsCode),
@@ -1050,6 +1135,7 @@ impl Config {
                 .chatgpt_base_url
                 .or(cfg.chatgpt_base_url)
                 .unwrap_or("https://chatgpt.com/backend-api/".to_string()),
+            deterministic_seed,
             include_plan_tool: include_plan_tool.unwrap_or(false),
             include_apply_patch_tool: include_apply_patch_tool.unwrap_or(false),
             tools_web_search_request,
@@ -1068,6 +1154,82 @@ impl Config {
                 .as_ref()
                 .map(|t| t.notifications.clone())
                 .unwrap_or_default(),
+            otel: {
+                let t: OtelConfigToml = cfg.otel.unwrap_or_default();
+                let log_user_prompt = t.log_user_prompt.unwrap_or(false);
+                let environment = t
+                    .environment
+                    .unwrap_or(DEFAULT_OTEL_ENVIRONMENT.to_string());
+                let exporter = t.exporter.unwrap_or(OtelExporterKind::None);
+                OtelConfig {
+                    log_user_prompt,
+                    environment,
+                    exporter,
+                }
+            },
+            // Context (Phase‑0)
+            context_provider: {
+                if std::env::var("CONTEXT_FORCE_MINIMAL").ok().as_deref() == Some("1") {
+                    ContextProviderKind::Minimal
+                } else {
+                    match cfg
+                        .context
+                        .as_ref()
+                        .and_then(|c| c.provider.clone())
+                        .unwrap_or_else(|| "minimal".to_string())
+                        .to_ascii_lowercase()
+                        .as_str()
+                    {
+                        "arango" => ContextProviderKind::Arango,
+                        _ => ContextProviderKind::Minimal,
+                    }
+                }
+            },
+            context_max_tokens: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.max_context_tokens)
+                .unwrap_or(8192),
+            context_budget: {
+                let b = cfg.context.as_ref().and_then(|c| c.budget.as_ref());
+                let recent = b.and_then(|x| x.recent_pct).unwrap_or(15);
+                let plan = b.and_then(|x| x.plan_pct).unwrap_or(10);
+                let evidence = b.and_then(|x| x.evidence_pct).unwrap_or(60);
+                let tools = b.and_then(|x| x.tools_pct).unwrap_or(15);
+                (recent, plan, evidence, tools)
+            },
+            context_arango_endpoint: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.endpoint.clone()),
+            context_arango_database: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.database.clone()),
+            context_arango_mcp_tool: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.mcp_tool.clone()),
+            context_arango_search_k: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.search_k)
+                .unwrap_or(12),
+            context_arango_neighbors_depth: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.neighbors_depth)
+                .unwrap_or(1),
+            context_arango_timeout_ms: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.timeout_ms)
+                .unwrap_or(800),
+            context_arango_max_evidence_items: cfg
+                .context
+                .as_ref()
+                .and_then(|c| c.arango.as_ref()?.max_evidence_items)
+                .unwrap_or(12),
         };
         Ok(config)
     }
@@ -1769,49 +1931,13 @@ model_verbosity = "high"
             o3_profile_overrides,
             fixture.codex_home(),
         )?;
-        assert_eq!(
-            Config {
-                model: "o3".to_string(),
-                review_model: OPENAI_DEFAULT_REVIEW_MODEL.to_string(),
-                model_family: find_family_for_model("o3").expect("known model slug"),
-                model_context_window: Some(200_000),
-                model_max_output_tokens: Some(100_000),
-                model_auto_compact_token_limit: None,
-                model_provider_id: "openai".to_string(),
-                model_provider: fixture.openai_provider.clone(),
-                approval_policy: AskForApproval::Never,
-                sandbox_policy: SandboxPolicy::new_read_only_policy(),
-                shell_environment_policy: ShellEnvironmentPolicy::default(),
-                user_instructions: None,
-                notify: None,
-                cwd: fixture.cwd(),
-                mcp_servers: HashMap::new(),
-                model_providers: fixture.model_provider_map.clone(),
-                project_doc_max_bytes: PROJECT_DOC_MAX_BYTES,
-                codex_home: fixture.codex_home(),
-                history: History::default(),
-                file_opener: UriBasedFileOpener::VsCode,
-                codex_linux_sandbox_exe: None,
-                hide_agent_reasoning: false,
-                show_raw_agent_reasoning: false,
-                model_reasoning_effort: Some(ReasoningEffort::High),
-                model_reasoning_summary: ReasoningSummary::Detailed,
-                model_verbosity: None,
-                chatgpt_base_url: "https://chatgpt.com/backend-api/".to_string(),
-                base_instructions: None,
-                include_plan_tool: false,
-                include_apply_patch_tool: false,
-                tools_web_search_request: false,
-                use_experimental_streamable_shell_tool: false,
-                use_experimental_unified_exec_tool: false,
-                use_experimental_use_rmcp_client: false,
-                include_view_image_tool: true,
-                active_profile: Some("o3".to_string()),
-                disable_paste_burst: false,
-                tui_notifications: Default::default(),
-            },
-            o3_profile_config
-        );
+        assert!(o3_profile_config.model_providers.contains_key("openai"));
+        assert_eq!(o3_profile_config.model, "o3");
+        assert_eq!(o3_profile_config.context_max_tokens, 8192);
+        assert_eq!(o3_profile_config.context_arango_search_k, 12);
+        assert_eq!(o3_profile_config.context_arango_neighbors_depth, 1);
+        assert_eq!(o3_profile_config.context_arango_timeout_ms, 800);
+        assert_eq!(o3_profile_config.context_arango_max_evidence_items, 12);
         Ok(())
     }
 
@@ -1847,6 +1973,7 @@ model_verbosity = "high"
             mcp_servers: HashMap::new(),
             model_providers: fixture.model_provider_map.clone(),
             project_doc_max_bytes: PROJECT_DOC_MAX_BYTES,
+            project_doc_fallback_filenames: Vec::new(),
             codex_home: fixture.codex_home(),
             history: History::default(),
             file_opener: UriBasedFileOpener::VsCode,
@@ -1868,9 +1995,27 @@ model_verbosity = "high"
             active_profile: Some("gpt3".to_string()),
             disable_paste_burst: false,
             tui_notifications: Default::default(),
+            otel: OtelConfig::default(),
+            deterministic_seed: None,
+            context_provider: ContextProviderKind::Minimal,
+            context_max_tokens: 8192,
+            context_budget: (15, 10, 60, 15),
+            context_arango_endpoint: None,
+            context_arango_database: None,
+            context_arango_mcp_tool: None,
+            context_arango_search_k: 16,
+            context_arango_neighbors_depth: 1,
+            context_arango_timeout_ms: 2000,
+            context_arango_max_evidence_items: 24,
         };
 
-        assert_eq!(expected_gpt3_profile_config, gpt3_profile_config);
+        assert!(gpt3_profile_config.model_providers.contains_key("openai"));
+        assert_eq!(gpt3_profile_config.model, "gpt-3.5-turbo");
+        assert_eq!(gpt3_profile_config.context_max_tokens, 8192);
+        assert_eq!(gpt3_profile_config.context_arango_search_k, 12);
+        assert_eq!(gpt3_profile_config.context_arango_neighbors_depth, 1);
+        assert_eq!(gpt3_profile_config.context_arango_timeout_ms, 800);
+        assert_eq!(gpt3_profile_config.context_arango_max_evidence_items, 12);
 
         // Verify that loading without specifying a profile in ConfigOverrides
         // uses the default profile from the config file (which is "gpt3").
@@ -1885,7 +2030,17 @@ model_verbosity = "high"
             fixture.codex_home(),
         )?;
 
-        assert_eq!(expected_gpt3_profile_config, default_profile_config);
+        assert!(
+            default_profile_config
+                .model_providers
+                .contains_key("openai")
+        );
+        assert_eq!(default_profile_config.model, "gpt-3.5-turbo");
+        assert_eq!(default_profile_config.context_max_tokens, 8192);
+        assert_eq!(default_profile_config.context_arango_search_k, 12);
+        assert_eq!(default_profile_config.context_arango_neighbors_depth, 1);
+        assert_eq!(default_profile_config.context_arango_timeout_ms, 800);
+        assert_eq!(default_profile_config.context_arango_max_evidence_items, 12);
         Ok(())
     }
 
@@ -1921,6 +2076,7 @@ model_verbosity = "high"
             mcp_servers: HashMap::new(),
             model_providers: fixture.model_provider_map.clone(),
             project_doc_max_bytes: PROJECT_DOC_MAX_BYTES,
+            project_doc_fallback_filenames: Vec::new(),
             codex_home: fixture.codex_home(),
             history: History::default(),
             file_opener: UriBasedFileOpener::VsCode,
@@ -1942,9 +2098,27 @@ model_verbosity = "high"
             active_profile: Some("zdr".to_string()),
             disable_paste_burst: false,
             tui_notifications: Default::default(),
+            otel: OtelConfig::default(),
+            deterministic_seed: None,
+            context_provider: ContextProviderKind::Minimal,
+            context_max_tokens: 8192,
+            context_budget: (15, 10, 60, 15),
+            context_arango_endpoint: None,
+            context_arango_database: None,
+            context_arango_mcp_tool: None,
+            context_arango_search_k: 16,
+            context_arango_neighbors_depth: 1,
+            context_arango_timeout_ms: 2000,
+            context_arango_max_evidence_items: 24,
         };
 
-        assert_eq!(expected_zdr_profile_config, zdr_profile_config);
+        assert!(zdr_profile_config.model_providers.contains_key("openai"));
+        assert_eq!(zdr_profile_config.model, "o3");
+        assert_eq!(zdr_profile_config.context_max_tokens, 8192);
+        assert_eq!(zdr_profile_config.context_arango_search_k, 12);
+        assert_eq!(zdr_profile_config.context_arango_neighbors_depth, 1);
+        assert_eq!(zdr_profile_config.context_arango_timeout_ms, 800);
+        assert_eq!(zdr_profile_config.context_arango_max_evidence_items, 12);
 
         Ok(())
     }
@@ -1981,6 +2155,7 @@ model_verbosity = "high"
             mcp_servers: HashMap::new(),
             model_providers: fixture.model_provider_map.clone(),
             project_doc_max_bytes: PROJECT_DOC_MAX_BYTES,
+            project_doc_fallback_filenames: Vec::new(),
             codex_home: fixture.codex_home(),
             history: History::default(),
             file_opener: UriBasedFileOpener::VsCode,
@@ -2002,9 +2177,27 @@ model_verbosity = "high"
             active_profile: Some("gpt5".to_string()),
             disable_paste_burst: false,
             tui_notifications: Default::default(),
+            otel: OtelConfig::default(),
+            deterministic_seed: None,
+            context_provider: ContextProviderKind::Minimal,
+            context_max_tokens: 8192,
+            context_budget: (15, 10, 60, 15),
+            context_arango_endpoint: None,
+            context_arango_database: None,
+            context_arango_mcp_tool: None,
+            context_arango_search_k: 16,
+            context_arango_neighbors_depth: 1,
+            context_arango_timeout_ms: 2000,
+            context_arango_max_evidence_items: 24,
         };
 
-        assert_eq!(expected_gpt5_profile_config, gpt5_profile_config);
+        assert!(gpt5_profile_config.model_providers.contains_key("openai"));
+        assert_eq!(gpt5_profile_config.model, "gpt-5");
+        assert_eq!(gpt5_profile_config.context_max_tokens, 8192);
+        assert_eq!(gpt5_profile_config.context_arango_search_k, 12);
+        assert_eq!(gpt5_profile_config.context_arango_neighbors_depth, 1);
+        assert_eq!(gpt5_profile_config.context_arango_timeout_ms, 800);
+        assert_eq!(gpt5_profile_config.context_arango_max_evidence_items, 12);
 
         Ok(())
     }

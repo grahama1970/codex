@@ -1,6 +1,21 @@
 use std::time::Duration;
 
+use crate::ModelProviderInfo;
+use crate::client_common::Prompt;
+use crate::client_common::ResponseEvent;
+use crate::client_common::ResponseStream;
+use crate::error::CodexErr;
+use crate::error::Result;
+use crate::error::RetryLimitReachedError;
+use crate::error::UnexpectedResponseError;
+use crate::model_family::ModelFamily;
+use crate::openai_tools::create_tools_json_for_chat_completions_api;
+use crate::util::backoff;
 use bytes::Bytes;
+use codex_otel::otel_event_manager::OtelEventManager;
+use codex_protocol::models::ContentItem;
+use codex_protocol::models::ReasoningItemContent;
+use codex_protocol::models::ResponseItem;
 use eventsource_stream::Eventsource;
 use futures::Stream;
 use futures::StreamExt;
@@ -15,25 +30,14 @@ use tokio::time::timeout;
 use tracing::debug;
 use tracing::trace;
 
-use crate::ModelProviderInfo;
-use crate::client_common::Prompt;
-use crate::client_common::ResponseEvent;
-use crate::client_common::ResponseStream;
-use crate::error::CodexErr;
-use crate::error::Result;
-use crate::model_family::ModelFamily;
-use crate::openai_tools::create_tools_json_for_chat_completions_api;
-use crate::util::backoff;
-use codex_protocol::models::ContentItem;
-use codex_protocol::models::ReasoningItemContent;
-use codex_protocol::models::ResponseItem;
-
 /// Implementation for the classic Chat Completions API.
 pub(crate) async fn stream_chat_completions(
     prompt: &Prompt,
     model_family: &ModelFamily,
     client: &reqwest::Client,
     provider: &ModelProviderInfo,
+    otel_event_manager: &OtelEventManager,
+    deterministic_seed: Option<u64>,
 ) -> Result<ResponseStream> {
     if prompt.output_schema.is_some() {
         return Err(CodexErr::UnsupportedOperation(
@@ -274,12 +278,26 @@ pub(crate) async fn stream_chat_completions(
     }
 
     let tools_json = create_tools_json_for_chat_completions_api(&prompt.tools)?;
-    let payload = json!({
+    let mut payload = json!({
         "model": model_family.slug,
         "messages": messages,
         "stream": true,
         "tools": tools_json,
     });
+    if let Some(seed) = deterministic_seed
+        && let Some(obj) = payload.as_object_mut()
+    {
+        // Determinism contract: mirror Responses path – any new sampling/penalty knobs added upstream
+        // should be explicitly neutralized here to keep seeded runs reproducible.
+        obj.insert("temperature".to_string(), json!(0.0));
+        obj.insert("top_p".to_string(), json!(1.0));
+        obj.insert("seed".to_string(), json!(seed));
+        obj.entry("frequency_penalty").or_insert(json!(0.0));
+        obj.entry("presence_penalty").or_insert(json!(0.0));
+        obj.entry("top_k").or_insert(json!(0));
+        obj.entry("typical_p").or_insert(json!(1.0));
+        obj.entry("logit_bias").or_insert(json!({}));
+    }
 
     debug!(
         "POST to {}: {}",
@@ -294,10 +312,13 @@ pub(crate) async fn stream_chat_completions(
 
         let req_builder = provider.create_request_builder(client, &None).await?;
 
-        let res = req_builder
-            .header(reqwest::header::ACCEPT, "text/event-stream")
-            .json(&payload)
-            .send()
+        let res = otel_event_manager
+            .log_request(attempt, || {
+                req_builder
+                    .header(reqwest::header::ACCEPT, "text/event-stream")
+                    .json(&payload)
+                    .send()
+            })
             .await;
 
         match res {
@@ -308,6 +329,7 @@ pub(crate) async fn stream_chat_completions(
                     stream,
                     tx_event,
                     provider.stream_idle_timeout(),
+                    otel_event_manager.clone(),
                 ));
                 return Ok(ResponseStream { rx_event });
             }
@@ -315,11 +337,18 @@ pub(crate) async fn stream_chat_completions(
                 let status = res.status();
                 if !(status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error()) {
                     let body = (res.text().await).unwrap_or_default();
-                    return Err(CodexErr::UnexpectedStatus(status, body));
+                    return Err(CodexErr::UnexpectedStatus(UnexpectedResponseError {
+                        status,
+                        body,
+                        request_id: None,
+                    }));
                 }
 
                 if attempt > max_retries {
-                    return Err(CodexErr::RetryLimit(status));
+                    return Err(CodexErr::RetryLimit(RetryLimitReachedError {
+                        status,
+                        request_id: None,
+                    }));
                 }
 
                 let retry_after_secs = res
@@ -351,6 +380,7 @@ async fn process_chat_sse<S>(
     stream: S,
     tx_event: mpsc::Sender<Result<ResponseEvent>>,
     idle_timeout: Duration,
+    otel_event_manager: OtelEventManager,
 ) where
     S: Stream<Item = Result<Bytes>> + Unpin,
 {
@@ -374,7 +404,10 @@ async fn process_chat_sse<S>(
     let mut reasoning_text = String::new();
 
     loop {
-        let sse = match timeout(idle_timeout, stream.next()).await {
+        let sse = match otel_event_manager
+            .log_sse_event(|| timeout(idle_timeout, stream.next()))
+            .await
+        {
             Ok(Some(Ok(ev))) => ev,
             Ok(Some(Err(e))) => {
                 let _ = tx_event

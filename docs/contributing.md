@@ -33,7 +33,7 @@ If you want to add a new feature or change the behavior of an existing one, plea
 1. One maintainer will be assigned as a primary reviewer.
 2. If your PR adds a new feature that was not previously discussed and approved, we may choose to close your PR (see [Contributing](#contributing)).
 3. We may ask for changes - please do not take this personally. We value the work, but we also value consistency and long-term maintainability.
-5. When there is consensus that the PR meets the bar, a maintainer will squash-and-merge.
+4. When there is consensus that the PR meets the bar, a maintainer will squash-and-merge.
 
 ### Community values
 
@@ -46,6 +46,26 @@ If you want to add a new feature or change the behavior of an existing one, plea
 If you run into problems setting up the project, would like feedback on an idea, or just want to say _hi_ - please open a Discussion or jump into the relevant issue. We are happy to help.
 
 Together we can make Codex CLI an incredible tool. **Happy hacking!** :rocket:
+
+### Regenerating Reference Docs
+
+When you add or rename CLI flags, config keys, or events:
+
+```bash
+make docs-gen
+git add docs/generated
+```
+
+CI will fail if `make docs-drift` detects uncommitted changes.
+
+Note: files under `docs/generated/` are machine-generated. Please do not edit them manually—changes should come from the generator (`codex-rs/docs`) and be committed after running `make docs-gen`.
+
+Optional pre-commit hook to auto-regenerate:
+
+```
+git config core.hooksPath .githooks
+```
+This enables `.githooks/pre-commit`, which runs `scripts/pre-commit-docs.sh` to refresh docs and stage updates.
 
 ### Contributor license agreement (CLA)
 
@@ -91,4 +111,4 @@ Create a PR to update [`Formula/c/codex.rb`](https://github.com/Homebrew/homebre
 
 ### Security & responsible AI
 
-Have you discovered a vulnerability or have concerns about model output? Please e-mail **security@openai.com** and we will respond promptly. 
+Have you discovered a vulnerability or have concerns about model output? Please e-mail **security@openai.com** and we will respond promptly.

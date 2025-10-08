@@ -1,0 +1,150 @@
+<!-- cxplus_text_sweep_sync_fixed.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 120" role="img" aria-labelledby="t d"
+    text-rendering="geometricPrecision" data-static="false">
+    <title id="t">cxplus — Text Logo with Per-Letter Cyan Sweep & Synced '+'</title>
+    <desc id="d">A cohesive text logo. Letters tint cyan left→right; when 's' is cyan, a superscript '+' pops in at the
+        top-right of 's' and spins. System font, reduced-motion aware.</desc>
+    <style>
+        :root {
+            --fg: #E8ECF3;
+            /* Dark | Light: #0B1220 */
+            --bg: #0B1220;
+            /* Dark | Light: #FFFFFF */
+            --cyan: #2FD4CB;
+            /* Dark | Light: #0FA3B1 */
+            --cycle: 6s;
+            --pop: .42s;
+            --spin: 1s;
+            --tight: -1.0px;
+            /* tighter tracking */
+            --gapXP: 1.8px;
+            /* slight 'cx' → 'plus' spacing */
+            --plusGap: 2.0px;
+            /* '+' closeness to 's' */
+            --plusRise: -20px;
+            /* superscript offset */
+        }
+
+        .bg {
+            fill: var(--bg)
+        }
+
+        .wm {
+            fill: var(--fg);
+            font: 600 68px/1.0 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+            letter-spacing: var(--tight)
+        }
+
+        .l {
+            animation: tint var(--cycle) linear infinite;
+            fill: var(--fg)
+        }
+
+        .c {
+            animation-delay: 0s
+        }
+
+        .x {
+            animation-delay: calc(var(--cycle) * 1/6)
+        }
+
+        .p {
+            animation-delay: calc(var(--cycle) * 2/6)
+        }
+
+        .l2 {
+            animation-delay: calc(var(--cycle) * 3/6)
+        }
+
+        .u {
+            animation-delay: calc(var(--cycle) * 4/6)
+        }
+
+        .s {
+            animation-delay: calc(var(--cycle) * 5/6)
+        }
+
+        @keyframes tint {
+            0% {
+                fill: var(--fg)
+            }
+
+            6% {
+                fill: var(--cyan)
+            }
+
+            16% {
+                fill: var(--cyan)
+            }
+
+            18% {
+                fill: var(--fg)
+            }
+
+            100% {
+                fill: var(--fg)
+            }
+        }
+
+        /* '+' appears & spins exactly when 's' turns cyan */
+        #plus {
+            fill: var(--cyan);
+            transform-box: fill-box;
+            transform-origin: 50% 50%;
+            animation:
+                plusPop var(--pop) cubic-bezier(.2, .7, .2, 1) calc(var(--cycle) * 5/6) both,
+                plusSpin var(--spin) ease-out calc(var(--cycle) * 5/6) 1 forwards;
+        }
+
+        @keyframes plusPop {
+            from {
+                opacity: 0;
+                transform: scale(.7) translateY(-2px)
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0)
+            }
+        }
+
+        @keyframes plusSpin {
+            from {
+                transform: rotate(-20deg)
+            }
+
+            to {
+                transform: rotate(340deg)
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .l {
+                animation: none !important
+            }
+
+            #plus {
+                animation: none !important
+            }
+        }
+
+        svg[data-static="true"] .l,
+        svg[data-static="true"] #plus {
+            animation: none !important
+        }
+    </style>
+
+    <rect class="bg" width="100%" height="100%" aria-hidden="true" />
+
+    <!-- One text run with tiny break between 'x' and 'p'; '+' is a tspan glued to 's' -->
+    <text class="wm" x="36" y="86" aria-label="cxplus">
+        <tspan class="l c">c</tspan>
+        <tspan class="l x">x</tspan>
+        <tspan dx="var(--gapXP)"></tspan>
+        <tspan class="l p">p</tspan>
+        <tspan class="l l2">l</tspan>
+        <tspan class="l u">u</tspan>
+        <tspan class="l s">s</tspan>
+        <tspan id="plus" dx="var(--plusGap)" dy="var(--plusRise)">+</tspan>
+    </text>
+</svg>

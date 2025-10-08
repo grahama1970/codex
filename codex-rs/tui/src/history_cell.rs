@@ -1,11 +1,12 @@
 use crate::diff_render::create_diff_summary;
+use crate::diff_render::display_path_for;
 use crate::exec_cell::CommandOutput;
 use crate::exec_cell::OutputLinesParams;
 use crate::exec_cell::TOOL_CALL_MAX_LINES;
 use crate::exec_cell::output_lines;
 use crate::exec_cell::spinner;
 use crate::exec_command::relativize_to_home;
-use crate::exec_command::strip_bash_lc_and_escape;
+use crate::markdown::MarkdownCitationContext;
 use crate::markdown::append_markdown;
 use crate::render::line_utils::line_to_static;
 use crate::render::line_utils::prefix_lines;
@@ -20,13 +21,13 @@ use base64::Engine;
 use codex_core::config::Config;
 use codex_core::config_types::McpServerTransportConfig;
 use codex_core::config_types::ReasoningSummaryFormat;
-use codex_core::plan_tool::PlanItemArg;
-use codex_core::plan_tool::StepStatus;
-use codex_core::plan_tool::UpdatePlanArgs;
 use codex_core::protocol::FileChange;
 use codex_core::protocol::McpInvocation;
 use codex_core::protocol::SessionConfiguredEvent;
 use codex_core::protocol_config_types::ReasoningEffort as ReasoningEffortConfig;
+use codex_protocol::plan_tool::PlanItemArg;
+use codex_protocol::plan_tool::StepStatus;
+use codex_protocol::plan_tool::UpdatePlanArgs;
 use image::DynamicImage;
 use image::ImageReader;
 use mcp_types::EmbeddedResourceResource;
@@ -48,12 +49,6 @@ use std::time::Duration;
 use std::time::Instant;
 use tracing::error;
 use unicode_width::UnicodeWidthStr;
-
-#[derive(Clone, Debug)]
-pub(crate) enum PatchEventType {
-    ApprovalRequest,
-    ApplyBegin { auto_approved: bool },
-}
 
 /// Represents an event to display in the conversation history. Returns its
 /// `Vec<Line<'static>>` representation to make it easier to display in a
@@ -128,45 +123,51 @@ impl HistoryCell for UserHistoryCell {
 
 #[derive(Debug)]
 pub(crate) struct ReasoningSummaryCell {
-    _header: Vec<Line<'static>>,
-    content: Vec<Line<'static>>,
+    _header: String,
+    content: String,
+    citation_context: MarkdownCitationContext,
 }
 
 impl ReasoningSummaryCell {
-    pub(crate) fn new(header: Vec<Line<'static>>, content: Vec<Line<'static>>) -> Self {
+    pub(crate) fn new(
+        header: String,
+        content: String,
+        citation_context: MarkdownCitationContext,
+    ) -> Self {
         Self {
             _header: header,
             content,
+            citation_context,
         }
     }
 }
 
 impl HistoryCell for ReasoningSummaryCell {
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
-        let summary_lines = self
-            .content
-            .iter()
-            .map(|line| {
-                Line::from(
-                    line.spans
-                        .iter()
-                        .map(|span| {
-                            Span::styled(
-                                span.content.clone().into_owned(),
-                                span.style
-                                    .add_modifier(Modifier::ITALIC)
-                                    .add_modifier(Modifier::DIM),
-                            )
-                        })
-                        .collect::<Vec<_>>(),
-                )
+        let mut lines: Vec<Line<'static>> = Vec::new();
+        append_markdown(
+            &self.content,
+            Some((width as usize).saturating_sub(2)),
+            &mut lines,
+            self.citation_context.clone(),
+        );
+        let summary_style = Style::default().add_modifier(Modifier::DIM | Modifier::ITALIC);
+        let summary_lines = lines
+            .into_iter()
+            .map(|mut line| {
+                line.spans = line
+                    .spans
+                    .into_iter()
+                    .map(|span| span.patch_style(summary_style))
+                    .collect();
+                line
             })
             .collect::<Vec<_>>();
 
         word_wrap_lines(
             &summary_lines,
             RtOptions::new(width as usize)
-                .initial_indent("• ".into())
+                .initial_indent("• ".dim().into())
                 .subsequent_indent("  ".into()),
         )
     }
@@ -174,7 +175,14 @@ impl HistoryCell for ReasoningSummaryCell {
     fn transcript_lines(&self) -> Vec<Line<'static>> {
         let mut out: Vec<Line<'static>> = Vec::new();
         out.push("thinking".magenta().bold().into());
-        out.extend(self.content.clone());
+        let mut lines = Vec::new();
+        append_markdown(
+            &self.content,
+            None,
+            &mut lines,
+            self.citation_context.clone(),
+        );
+        out.extend(lines);
         out
     }
 }
@@ -200,7 +208,7 @@ impl HistoryCell for AgentMessageCell {
             &self.lines,
             RtOptions::new(width as usize)
                 .initial_indent(if self.is_first_line {
-                    "• ".into()
+                    "• ".dim().into()
                 } else {
                     "  ".into()
                 })
@@ -263,19 +271,13 @@ pub(crate) fn new_review_status_line(message: String) -> PlainHistoryCell {
 
 #[derive(Debug)]
 pub(crate) struct PatchHistoryCell {
-    event_type: PatchEventType,
     changes: HashMap<PathBuf, FileChange>,
     cwd: PathBuf,
 }
 
 impl HistoryCell for PatchHistoryCell {
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
-        create_diff_summary(
-            &self.changes,
-            self.event_type.clone(),
-            &self.cwd,
-            width as usize,
-        )
+        create_diff_summary(&self.changes, &self.cwd, width as usize)
     }
 }
 
@@ -390,7 +392,7 @@ pub(crate) fn new_session_info(
 
         // Help lines below the header (new copy and list)
         let help_lines: Vec<Line<'static>> = vec![
-            "  To get started, describe a task or try one of these commands:"
+            "  To get started with cxplus (Codex fork), describe a task or try one of these commands:"
                 .dim()
                 .into(),
             Line::from(""),
@@ -414,6 +416,31 @@ pub(crate) fn new_session_info(
                 "/model".into(),
                 " - choose what model and reasoning effort to use".dim(),
             ]),
+            Line::from(vec![
+                "  ".into(),
+                "/review".into(),
+                " - review any changes and find issues".dim(),
+            ]),
+            Line::from(vec![
+                "  ".into(),
+                "/discover".into(),
+                " - discover a coding-capable Chutes model (non‑SOTA)".dim(),
+            ]),
+            Line::from(vec![
+                "  ".into(),
+                "/warmup".into(),
+                " - warm-up the current/selected Chutes model (tiny ping)".dim(),
+            ]),
+            Line::from(vec![
+                "  ".into(),
+                "/light".into(),
+                " - switch to light theme (session)".dim(),
+            ]),
+            Line::from(vec![
+                "  ".into(),
+                "/dark".into(),
+                " - switch to dark theme (session)".dim(),
+            ]),
         ];
 
         CompositeHistoryCell {
@@ -426,7 +453,12 @@ pub(crate) fn new_session_info(
         CompositeHistoryCell { parts: vec![] }
     } else {
         let lines = vec![
-            "model changed:".magenta().bold().into(),
+            {
+                let s = Span::from("model changed:");
+                s.set_style(crate::style::brand_accent_style())
+                    .bold()
+                    .into()
+            },
             format!("requested: {}", config.model).into(),
             format!("used: {model}").into(),
         ];
@@ -512,10 +544,11 @@ impl HistoryCell for SessionHeaderHistoryCell {
 
         let make_row = |spans: Vec<Span<'static>>| Line::from(spans);
 
-        // Title line rendered inside the box: ">_ OpenAI Codex (vX)"
+        // Title line rendered inside the box: ">_ cxplus (Codex fork) (vX)"
         let title_spans: Vec<Span<'static>> = vec![
             Span::from(">_ ").dim(),
-            Span::from("OpenAI Codex").bold(),
+            // Brand clearly as a fork by using a distinct accent color
+            Span::from("cxplus (Codex fork)").magenta().bold(),
             Span::from(" ").dim(),
             Span::from(format!("(v{})", self.version)).dim(),
         ];
@@ -870,7 +903,7 @@ pub(crate) fn new_mcp_tools_output(
         lines.push(vec!["  • Server: ".into(), server.clone().into()].into());
 
         match &cfg.transport {
-            McpServerTransportConfig::Stdio { command, args, .. } => {
+            McpServerTransportConfig::Stdio { command, args, env } => {
                 let args_suffix = if args.is_empty() {
                     String::new()
                 } else {
@@ -878,6 +911,15 @@ pub(crate) fn new_mcp_tools_output(
                 };
                 let cmd_display = format!("{command}{args_suffix}");
                 lines.push(vec!["    • Command: ".into(), cmd_display.into()].into());
+
+                if let Some(env) = env.as_ref()
+                    && !env.is_empty()
+                {
+                    let mut env_pairs: Vec<String> =
+                        env.iter().map(|(k, v)| format!("{k}={v}")).collect();
+                    env_pairs.sort();
+                    lines.push(vec!["    • Env: ".into(), env_pairs.join(" ").into()].into());
+                }
             }
             McpServerTransportConfig::StreamableHttp { url, .. } => {
                 lines.push(vec!["    • URL: ".into(), url.clone().into()].into());
@@ -896,7 +938,10 @@ pub(crate) fn new_mcp_tools_output(
 }
 
 pub(crate) fn new_info_event(message: String, hint: Option<String>) -> PlainHistoryCell {
-    let mut line = vec!["• ".into(), message.into()];
+    let mut line = vec![
+        "• ".dim(),
+        Span::from(message).set_style(crate::style::state_info_style()),
+    ];
     if let Some(hint) = hint {
         line.push(" ".into());
         line.push(hint.dark_gray());
@@ -909,7 +954,8 @@ pub(crate) fn new_error_event(message: String) -> PlainHistoryCell {
     // Use a hair space (U+200A) to create a subtle, near-invisible separation
     // before the text. VS16 is intentionally omitted to keep spacing tighter
     // in terminals like Ghostty.
-    let lines: Vec<Line<'static>> = vec![vec![format!("■ {message}").red()].into()];
+    let styled = Span::from(format!("■ {message}")).set_style(crate::style::state_error_style());
+    let lines: Vec<Line<'static>> = vec![vec![styled].into()];
     PlainHistoryCell { lines }
 }
 
@@ -959,7 +1005,7 @@ impl HistoryCell for PlanUpdateCell {
         };
 
         let mut lines: Vec<Line<'static>> = vec![];
-        lines.push(vec!["• ".into(), "Updated Plan".bold()].into());
+        lines.push(vec!["• ".dim(), "Updated Plan".bold()].into());
 
         let mut indented_lines = vec![];
         let note = self
@@ -978,7 +1024,7 @@ impl HistoryCell for PlanUpdateCell {
                 indented_lines.extend(render_step(status, step));
             }
         }
-        lines.extend(prefix_lines(indented_lines, "  └ ".into(), "    ".into()));
+        lines.extend(prefix_lines(indented_lines, "  └ ".dim(), "    ".into()));
 
         lines
     }
@@ -988,12 +1034,10 @@ impl HistoryCell for PlanUpdateCell {
 /// a proposed patch. The summary lines should already be formatted (e.g.
 /// "A path/to/file.rs").
 pub(crate) fn new_patch_event(
-    event_type: PatchEventType,
     changes: HashMap<PathBuf, FileChange>,
     cwd: &Path,
 ) -> PatchHistoryCell {
     PatchHistoryCell {
-        event_type,
         changes,
         cwd: cwd.to_path_buf(),
     }
@@ -1024,23 +1068,13 @@ pub(crate) fn new_patch_apply_failure(stderr: String) -> PlainHistoryCell {
     PlainHistoryCell { lines }
 }
 
-/// Create a new history cell for a proposed command approval.
-/// Renders a header and the command preview similar to how proposed patches
-/// show a header and summary.
-pub(crate) fn new_proposed_command(command: &[String]) -> PlainHistoryCell {
-    let cmd = strip_bash_lc_and_escape(command);
+pub(crate) fn new_view_image_tool_call(path: PathBuf, cwd: &Path) -> PlainHistoryCell {
+    let display_path = display_path_for(&path, cwd);
 
-    let mut lines: Vec<Line<'static>> = Vec::new();
-    lines.push(Line::from(vec!["• ".into(), "Proposed Command".bold()]));
-
-    let highlighted_lines = crate::render::highlight::highlight_bash_to_lines(&cmd);
-    let initial_prefix: Span<'static> = "  └ ".dim();
-    let subsequent_prefix: Span<'static> = "    ".into();
-    lines.extend(prefix_lines(
-        highlighted_lines,
-        initial_prefix,
-        subsequent_prefix,
-    ));
+    let lines: Vec<Line<'static>> = vec![
+        vec!["• ".dim(), "Viewed Image".bold()].into(),
+        vec!["  └ ".dim(), display_path.dim()].into(),
+    ];
 
     PlainHistoryCell { lines }
 }
@@ -1051,7 +1085,7 @@ pub(crate) fn new_reasoning_block(
 ) -> TranscriptOnlyHistoryCell {
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from("thinking".magenta().italic()));
-    append_markdown(&full_reasoning_buffer, &mut lines, config);
+    append_markdown(&full_reasoning_buffer, None, &mut lines, config);
     TranscriptOnlyHistoryCell { lines }
 }
 
@@ -1075,14 +1109,12 @@ pub(crate) fn new_reasoning_summary_block(
                 // then we don't have a summary to inject into history
                 if after_close_idx < full_reasoning_buffer.len() {
                     let header_buffer = full_reasoning_buffer[..after_close_idx].to_string();
-                    let mut header_lines = Vec::new();
-                    append_markdown(&header_buffer, &mut header_lines, config);
-
                     let summary_buffer = full_reasoning_buffer[after_close_idx..].to_string();
-                    let mut summary_lines = Vec::new();
-                    append_markdown(&summary_buffer, &mut summary_lines, config);
-
-                    return Box::new(ReasoningSummaryCell::new(header_lines, summary_lines));
+                    return Box::new(ReasoningSummaryCell::new(
+                        header_buffer,
+                        summary_buffer,
+                        config.into(),
+                    ));
                 }
             }
         }
@@ -1963,3 +1995,5 @@ mod tests {
         );
     }
 }
+// History cell rendering and per-step status display for the TUI.
+// - Focus on readability and minimal styling; prefer Stylize helpers

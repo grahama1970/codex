@@ -24,7 +24,11 @@ codex-file-search = { workspace = true }
 codex-mcp-client = { workspace = true }
 codex-rmcp-client = { workspace = true }
 codex-protocol = { workspace = true }
+codex-app-server-protocol = { workspace = true }
+codex-otel = { workspace = true, features = ["otel"] }
+codex-utils-string = { workspace = true }
 dirs = { workspace = true }
+dunce = { workspace = true }
 env-flags = { workspace = true }
 eventsource-stream = { workspace = true }
 futures = { workspace = true }
@@ -41,6 +45,7 @@ serde_json = { workspace = true }
 sha1 = { workspace = true }
 shlex = { workspace = true }
 similar = { workspace = true }
+codex-context = { path = "../context" }
 strum_macros = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
@@ -87,8 +92,10 @@ escargot = { workspace = true }
 maplit = { workspace = true }
 predicates = { workspace = true }
 pretty_assertions = { workspace = true }
+serial_test = { workspace = true }
 tempfile = { workspace = true }
 tokio-test = { workspace = true }
+tracing-test = { workspace = true, features = ["no-env-filter"] }
 walkdir = { workspace = true }
 wiremock = { workspace = true }
 

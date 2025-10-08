@@ -1,103 +1,240 @@
+<!-- Hero: centered SVG with theme-aware sources -->
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="codex-rs/logo-dark-centered.svg" type="image/svg+xml">
+    <source media="(prefers-color-scheme: light)" srcset="codex-rs/logo-light-centered.svg" type="image/svg+xml">
+    <img
+      src="codex-rs/logo-light-centered.svg"
+      alt="cxplus logo"
+      width="600"
+      style="max-width:92vw;height:auto;"
+    >
+  </picture>
+</p>
 
-<p align="center"><code>npm i -g @openai/codex</code><br />or <code>brew install codex</code></p>
+<!-- Headline -->
+<p align="center">
+  <strong>cxplus</strong> — knowledge-first, deterministic Codex fork for agent-to-agent automation.
+</p>
 
-<p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
-</br>
-</br>If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="https://developers.openai.com/codex/ide">install in your IDE</a>
-</br>If you are looking for the <em>cloud-based agent</em> from OpenAI, <strong>Codex Web</strong>, go to <a href="https://chatgpt.com/codex">chatgpt.com/codex</a></p>
+<!-- Subline: pillars -->
+<p align="center">
+  <sub>Agent-to-agent • ArangoDB pre-hooks • Deterministic runs • Auditable context</sub>
+</p>
 
 <p align="center">
-  <img src="./.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
-  </p>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="Apache-2.0"></a>
+</p>
 
 ---
 
-## Quickstart
+# cxplus
 
-### Installing and running Codex CLI
+**cxplus** is a knowledge-first fork of OpenAI’s **Codex CLI**.  
+It introduces **agent-to-agent communication**, **ArangoDB pre-hooks** for cited context retrieval, and **deterministic, cost-aware execution** for CI/CD pipelines — keeping the familiar Codex interface while extending it for multi-agent automation.
 
-Install globally with your preferred package manager. If you use npm:
+> If you want Codex in your editor (VS Code, Cursor, Windsurf), see <a href="https://developers.openai.com/codex/ide">install in your IDE</a>.  
+> For OpenAI’s cloud agent (**Codex Web**), visit <a href="https://chatgpt.com/codex">chatgpt.com/codex</a>.
 
-```shell
-npm install -g @openai/codex
+---
+
+## Why this fork
+
+We ship automation with **predictable cost** and **fewer regressions**.
+
+- **Tool-first, Knowledge-first** → Call databases/tools **before** the model; compact prompts and auditable decisions.  
+- **Determinism on demand** → `--seed` + artifacts (NDJSON events, summary JSON) for reproducible runs and audits.  
+- **Confidence before release** → `make package` → `make test` (offline) → `make scenarios` (live) validates the **exact** binary.  
+- **Cost-aware discovery** → Chutes selects for capability **and** price (not just biggest SOTA), with transparent filter reasons.
+
+> **Try it in 60 seconds**
+>
+> ```bash
+> make package && RUSTUP_TOOLCHAIN=1.90.0 make test
+> ./dist/bin/codex exec "hello"    # inspect ./.codex/runs/*-events.ndjson
+> ```
+
+> **Fork scope & support**  
+> Experimental, personal fork; not affiliated with OpenAI’s Codex. See [FORK_POLICY.md](./FORK_POLICY.md).
+
+---
+
+## Chutes in 30 seconds
+
+```bash
+export CHUTES_API_KEY=…
+# Optional: deterministic discovery without network
+export CHUTES_CATALOG_FIXTURE=/abs/path/catalog.json
+
+# Discover a capable, budget-aligned coding/multimodal model
+dist/bin/cxplus chutes recommend --show-base
+
+# Warm-up (dry-run works without keys)
+dist/bin/cxplus chutes warmup --secs 4 --dry-run
+
+# Execute (JSON mode)
+dist/bin/cxplus chutes exec --json "Say hello"
+````
+
+**Why:** Route for capability + price, warm caches, and keep context small so spend goes to **code**, not transcripts.
+
+---
+
+## Using cxplus with [scillm](docs/SCILLM_LOCAL.md) (litellm fork)
+
+*See also:* [litellm upstream](https://github.com/BerriAI/litellm)
+
+cxplus serves as the operator-facing CLI around **scillm (litellm router)** + **Chutes**.
+
+```bash
+# Example: point cxplus at a local OpenAI-compatible proxy
+export OPENAI_API_BASE=http://localhost:4000/v1
+export OPENAI_API_KEY=sk-proxy-dev
+
+# Discover → warm-up → exec
+export CHUTES_API_KEY=…
+dist/bin/cxplus chutes recommend --show-base
+dist/bin/cxplus chutes warmup --secs 4 --dry-run
+dist/bin/cxplus chutes exec --json "List three refactor steps"
 ```
 
-Alternatively, if you use Homebrew:
+* Tiny context keeps routers spending tokens on **code**.
+* `--seed` makes nightly pipelines debuggable.
+* See the [scillm guide](docs/SCILLM_LOCAL.md) and [litellm upstream](https://github.com/BerriAI/litellm) for router setup.
 
-```shell
+---
+
+## Reliability & Determinism (scriptable semantics)
+
+* **Always-on artifacts** (default `./.codex/runs/` or `--summary-dir`):
+
+  * **Events NDJSON** — one event per line (`seq`, `run_id`), with a `run_timeout` marker on budget expiry.
+  * **Summary JSON** — `schema_version`, `status`, `exit_code`, `duration_ms`, `event_count`, **model/provider**, `events_path`, **seed** (when set), last error.
+* **Time budget & graceful stop** — `--run-timeout-secs <n>` sends Interrupt, waits a short grace (`--shutdown-grace-ms`, default **800ms**), then Shutdown (exit code **5**).
+* **Deterministic runs** — `--seed <u64>` persists; where supported we enforce **temperature=0** and **top_p=1**.
+
+### CI quick check (GitHub Actions)
+
+```yaml
+# .github/workflows/cxplus-check.yml
+name: cxplus-check
+on: [push, pull_request]
+jobs:
+  run-cxplus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y build-essential
+      - run: make package && RUSTUP_TOOLCHAIN=1.90.0 make test
+      - run: ./dist/bin/codex exec "hello"
+```
+
+---
+
+## Failure modes (fast fixes)
+
+* **“No suitable model”** → Relax filters: lower `--min-params`, loosen `--max-output-ppm`, remove `--require-capabilities` / `--require-modalities`.
+  For discovery analysis, set `CHUTES_DISCOVERY_DEBUG=1` to print filter reasons.
+* **Fixture returns nothing** → Confirm `CHUTES_CATALOG_FIXTURE` path; JSON must have top-level `items`.
+* **Warm-up fails** → Use `--dry-run` first; then set `CHUTES_API_KEY` and optionally `CHUTES_API_BASE`.
+* **Timeouts** → Increase `--run-timeout-secs`; tune `--shutdown-grace-ms` (default 800ms).
+* **Artifacts missing** → Check CWD and any `--summary-dir` override; verify write perms.
+
+---
+
+## Install & run (uses upstream Codex binary)
+
+Install the upstream Codex binary globally; cxplus builds on it.
+
+```bash
+# npm
+npm install -g @openai/codex
+# Homebrew
 brew install codex
 ```
 
-Then simply run `codex` to get started:
+Run:
 
-```shell
-codex
+```bash
+codex    # canonical binary
+# or the alias provided by this repo:
+cxplus
 ```
 
 <details>
-<summary>You can also go to the <a href="https://github.com/openai/codex/releases/latest">latest GitHub Release</a> and download the appropriate binary for your platform.</summary>
+<summary>Download a prebuilt binary</summary>
 
-Each GitHub Release contains many executables, but in practice, you likely want one of these:
+See the <a href="https://github.com/openai/codex/releases/latest">latest GitHub Release</a>:
 
-- macOS
-  - Apple Silicon/arm64: `codex-aarch64-apple-darwin.tar.gz`
-  - x86_64 (older Mac hardware): `codex-x86_64-apple-darwin.tar.gz`
-- Linux
-  - x86_64: `codex-x86_64-unknown-linux-musl.tar.gz`
-  - arm64: `codex-aarch64-unknown-linux-musl.tar.gz`
+* macOS: `codex-aarch64-apple-darwin.tar.gz` (Apple Silicon), `codex-x86_64-apple-darwin.tar.gz`
+* Linux: `codex-x86_64-unknown-linux-musl.tar.gz`, `codex-aarch64-unknown-linux-musl.tar.gz`
 
-Each archive contains a single entry with the platform baked into the name (e.g., `codex-x86_64-unknown-linux-musl`), so you likely want to rename it to `codex` after extracting it.
+Extract and rename to `codex` if desired.
 
 </details>
 
-### Using Codex with your ChatGPT plan
+---
 
-<p align="center">
-  <img src="./.github/codex-cli-login.png" alt="Codex CLI login" width="80%" />
-  </p>
+## Knowledge-first context (RFC)
 
-Run `codex` and select **Sign in with ChatGPT**. We recommend signing into your ChatGPT account to use Codex as part of your Plus, Pro, Team, Edu, or Enterprise plan. [Learn more about what's included in your ChatGPT plan](https://help.openai.com/en/articles/11369540-codex-in-chatgpt).
+Prompts are built from compact, cited **evidence** (ArangoDB via memory-agent MCP), not long transcripts.
 
-You can also use Codex with an API key, but this requires [additional setup](./docs/authentication.md#usage-based-billing-alternative-use-an-openai-api-key). If you previously used an API key for usage-based billing, see the [migration steps](./docs/authentication.md#migrating-from-usage-based-billing-api-key). If you're having trouble with login, please comment on [this issue](https://github.com/openai/codex/issues/1243).
-
-### Model Context Protocol (MCP)
-
-Codex CLI supports [MCP servers](./docs/advanced.md#model-context-protocol-mcp). Enable by adding an `mcp_servers` section to your `~/.codex/config.toml`.
-
-
-### Configuration
-
-Codex CLI supports a rich set of configuration options, with preferences stored in `~/.codex/config.toml`. For full configuration options, see [Configuration](./docs/config.md).
+* **Benefits:** 60–85% expected token reduction; better traceability/determinism.
+* **Status:** RFC/draft; gated behind a provider/profile switch.
+* **Design:** `docs/feature_recipes/knowledge-first-context.md`
 
 ---
 
-### Docs & FAQ
+## Make targets (essentials)
 
-- [**Getting started**](./docs/getting-started.md)
-  - [CLI usage](./docs/getting-started.md#cli-usage)
-  - [Running with a prompt as input](./docs/getting-started.md#running-with-a-prompt-as-input)
-  - [Example prompts](./docs/getting-started.md#example-prompts)
-  - [Memory with AGENTS.md](./docs/getting-started.md#memory-with-agentsmd)
-  - [Configuration](./docs/config.md)
-- [**Sandbox & approvals**](./docs/sandbox.md)
-- [**Authentication**](./docs/authentication.md)
-  - [Auth methods](./docs/authentication.md#forcing-a-specific-auth-method-advanced)
-  - [Login on a "Headless" machine](./docs/authentication.md#connecting-on-a-headless-machine)
-- [**Advanced**](./docs/advanced.md)
-  - [Non-interactive / CI mode](./docs/advanced.md#non-interactive--ci-mode)
-  - [Tracing / verbose logging](./docs/advanced.md#tracing--verbose-logging)
-  - [Model Context Protocol (MCP)](./docs/advanced.md#model-context-protocol-mcp)
-- [**Zero data retention (ZDR)**](./docs/zdr.md)
-- [**Contributing**](./docs/contributing.md)
-- [**Install & build**](./docs/install.md)
-  - [System Requirements](./docs/install.md#system-requirements)
-  - [DotSlash](./docs/install.md#dotslash)
-  - [Build from source](./docs/install.md#build-from-source)
-- [**FAQ**](./docs/faq.md)
-- [**Open source fund**](./docs/open-source-fund.md)
+* `make package` — build + config
+* `make test` — deterministic, offline tests (uses `dist/config` via `CODEX_HOME`)
+* `make scenarios` — live, post-compile
+* `RUN_LIVE=1 make verify` — test + live in one
+* `make release` — stamped binary in `dist/releases/`; updates `dist/bin/codex` + `dist/bin/cxplus`
+* `make install-local` — creates `~/.local/bin/cxplus` → `dist/bin/cxplus`
+
+---
+
+## Windows packaging
+
+```bash
+make package-windows   # writes dist/cxplus-windows.zip
+```
+
+Zip includes `cxplus.cmd` / `cxplus.ps1` wrappers and `codex` / `codex.exe` (when available). Put `cxplus.cmd` on your `%PATH%`.
+
+---
+
+## Brand assets (SVG)
+
+* `codex-rs/logo-dark-centered.svg` and `codex-rs/logo-light-centered.svg`
+
+  * Centered geometry: `viewBox="0 0 400 80"` with `translate(126.5,56)`
+  * Light wash fix: c/x masks force white glyphs for full accent sweep
+  * Themeable accent: override with `style="--accent:#FF4DDE"`
+  * Honors `prefers-reduced-motion` and `data-static="true"`
+
+**Accent override example (HTML):**
+
+```html
+<img src="codex-rs/logo-light-centered.svg" style="--accent:#FF4DDE" width="220" alt="cxplus logo">
+```
+
+Embed with the `<picture>` block at the top (as shown).
+
+---
+
+## Docs & FAQ
+
+* Getting started: `docs/getting-started.md`, `docs/config.md`, `docs/authentication.md`, `docs/advanced.md`
+* Sandbox & approvals: `docs/sandbox.md` • Exec: `docs/exec.md` • ZDR: `docs/zdr.md` • FAQ: `docs/faq.md`
+* Chutes: `docs/chutes.md` (discovery + troubleshooting) • Slash: `docs/slash-commands.md`
+* Knowledge-first RFC: `docs/feature_recipes/knowledge-first-context.md`
 
 ---
 
 ## License
 
-This repository is licensed under the [Apache-2.0 License](LICENSE).
+Licensed under the [Apache-2.0 License](LICENSE).
+

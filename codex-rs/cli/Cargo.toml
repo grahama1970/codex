@@ -2,9 +2,16 @@
 edition = "2024"
 name = "codex-cli"
 version = { workspace = true }
+authors = ["Graham Anderson <graham@grahama.co>"]
+description = "cxplus: a modern, low-strain TUI/CLI fork of Codex with Chutes integration, theming, reduced-motion, and post-compile scenarios. Fork of OpenAI Codex."
+
 
 [[bin]]
 name = "codex"
+path = "src/main.rs"
+
+[[bin]]
+name = "cxplus"
 path = "src/main.rs"
 
 [lib]
@@ -18,6 +25,7 @@ workspace = true
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 clap_complete = { workspace = true }
+codex-app-server = { workspace = true }
 codex-arg0 = { workspace = true }
 codex-chatgpt = { workspace = true }
 codex-common = { workspace = true, features = ["cli"] }
@@ -25,10 +33,14 @@ codex-core = { workspace = true }
 codex-exec = { workspace = true }
 codex-login = { workspace = true }
 codex-mcp-server = { workspace = true }
+codex-process-hardening = { workspace = true }
 codex-protocol = { workspace = true }
+codex-app-server-protocol = { workspace = true }
 codex-protocol-ts = { workspace = true }
 codex-responses-api-proxy = { workspace = true }
 codex-tui = { workspace = true }
+codex-rmcp-client = { workspace = true }
+codex-cloud-tasks = { path = "../cloud-tasks" }
 ctor = { workspace = true }
 owo-colors = { workspace = true }
 serde_json = { workspace = true }
@@ -40,17 +52,10 @@ tokio = { workspace = true, features = [
     "rt-multi-thread",
     "signal",
 ] }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-libc = { workspace = true }
-
-[target.'cfg(target_os = "android")'.dependencies]
-libc = { workspace = true }
-
-[target.'cfg(target_os = "macos")'.dependencies]
-libc = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+regex-lite = { workspace = true }
+toml = { workspace = true }
+chrono = { workspace = true }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

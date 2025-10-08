@@ -5,6 +5,7 @@ use std::time::Duration;
 use std::time::Instant;
 
 use codex_core::protocol::Op;
+use crossterm::event::KeyCode;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Stylize;
@@ -12,12 +13,14 @@ use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::WidgetRef;
 
+use crate::animations::OrbitSpinner;
+use crate::animations::ShimmerGauge;
 use crate::app_event::AppEvent;
 use crate::app_event_sender::AppEventSender;
 use crate::key_hint;
 use crate::shimmer::shimmer_spans;
 use crate::tui::FrameRequester;
-use crate::ui_consts::LIVE_PREFIX_COLS;
+use ratatui::prelude::Widget;
 
 pub(crate) struct StatusIndicatorWidget {
     /// Animated header text (defaults to "Working").
@@ -30,6 +33,7 @@ pub(crate) struct StatusIndicatorWidget {
     is_paused: bool,
     app_event_tx: AppEventSender,
     frame_requester: FrameRequester,
+    progress: Option<ProgressModel>,
 }
 
 // Format elapsed seconds into a compact human-friendly form used by the status line.
@@ -60,6 +64,7 @@ impl StatusIndicatorWidget {
 
             app_event_tx,
             frame_requester,
+            progress: None,
         }
     }
 
@@ -145,6 +150,12 @@ impl StatusIndicatorWidget {
     pub fn elapsed_seconds(&self) -> u64 {
         self.elapsed_seconds_at(Instant::now())
     }
+
+    /// Set an overall progress value and optional subtasks to render a determinate gauge.
+    pub(crate) fn set_progress(&mut self, model: Option<ProgressModel>) {
+        self.progress = model;
+        self.frame_requester.schedule_frame();
+    }
 }
 
 impl WidgetRef for StatusIndicatorWidget {
@@ -160,18 +171,30 @@ impl WidgetRef for StatusIndicatorWidget {
         let pretty_elapsed = fmt_elapsed_compact(elapsed);
 
         // Plain rendering: no borders or padding so the live cell is visually indistinguishable from terminal scrollback.
-        let mut spans = vec![" ".repeat(LIVE_PREFIX_COLS as usize).into()];
+        let mut spans = vec!["• ".dim()];
         spans.extend(shimmer_spans(&self.header));
         spans.extend(vec![
             " ".into(),
             format!("({pretty_elapsed} • ").dim(),
-            "Esc".dim().bold(),
+            key_hint::plain(KeyCode::Esc).into(),
             " to interrupt)".dim(),
         ]);
 
-        // Build lines: status, then queued messages, then spacer.
+        // Build lines: status, then optional determinate gauge, then queued messages, then spacer.
         let mut lines: Vec<Line<'static>> = Vec::new();
         lines.push(Line::from(spans));
+
+        // Inline determinate gauge (overall) when provided.
+        if let Some(p) = &self.progress {
+            let gauge_area = Rect::new(area.x, area.y + lines.len() as u16, area.width, 1);
+            let tick = elapsed * 10;
+            ShimmerGauge {
+                progress: p.overall_progress,
+                tick,
+            }
+            .render(gauge_area, buf);
+            lines.push(Line::from(""));
+        }
         if !self.queued_messages.is_empty() {
             lines.push(Line::from(""));
         }
@@ -189,13 +212,42 @@ impl WidgetRef for StatusIndicatorWidget {
             }
         }
         if !self.queued_messages.is_empty() {
-            let shortcut = key_hint::alt("↑");
-            lines.push(Line::from(vec!["   ".into(), shortcut, " edit".into()]).dim());
+            lines.push(
+                Line::from(vec![
+                    "   ".into(),
+                    key_hint::alt(KeyCode::Up).into(),
+                    " edit".into(),
+                ])
+                .dim(),
+            );
         }
 
         let paragraph = Paragraph::new(lines);
         paragraph.render_ref(area, buf);
+
+        // Tasteful inline orbit spinner near the status header for long waits.
+        // Default OFF to avoid snapshot churn; enable with CXPLUS_INLINE_SPINNER=1.
+        if std::env::var("CXPLUS_INLINE_SPINNER")
+            .map(|v| v == "1")
+            .unwrap_or(false)
+        {
+            let spin_area = Rect::new(area.x, area.y, 3, 1);
+            OrbitSpinner { tick: elapsed * 10 }.render(spin_area, buf);
+        }
     }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ProgressModel {
+    pub overall_progress: f64, // 0.0..=1.0
+    pub subtasks: Vec<Subtask>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct Subtask {
+    pub name: String,
+    pub done: u64,
+    pub total: u64,
 }
 
 #[cfg(test)]

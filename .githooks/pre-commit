@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+scripts/pre-commit-docs.sh
+

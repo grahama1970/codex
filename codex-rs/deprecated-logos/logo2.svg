@@ -1,0 +1,36 @@
+<!-- DEPRECATED: archived 2025-10-07. Use logo5.svg or logo5-static.svg. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96" role="img" aria-labelledby="t d" data-static="false">
+  <title id="t">cxplus — C‑Dial Wordmark</title>
+  <desc id="d">A rotated C-shaped gauge with a calm needle next to the cxplus wordmark. Themeable; reduced-motion aware.</desc>
+  <style>
+    :root{--accentPrimary:#7AA2F7;--fg:#E6EDF3;--bg:#0B1220;--track:#2A3038}
+    .bg{fill:var(--bg)}
+    .track{fill:none;stroke:var(--track);stroke-width:8;stroke-linecap:round}
+    .needle{stroke:var(--accentPrimary);stroke-width:6;stroke-linecap:round;transform-origin:48px 48px;
+      animation:sweep 6s ease-in-out infinite alternate}
+    .pivot{fill:var(--fg)}
+    .word{fill:var(--fg)}
+    .plus{fill:var(--accentPrimary)}
+    @keyframes sweep{from{transform:rotate(-36deg)} to{transform:rotate(-24deg)}}
+    @media (prefers-reduced-motion: reduce){.needle{animation:none!important;transform:rotate(-30deg)}}
+    svg[data-static="true"] .needle{animation:none!important;transform:rotate(-30deg)}
+  </style>
+  <rect class="bg" width="100%" height="100%"/>
+  <!-- C-shaped dial (center 48,48) -->
+  <g transform="translate(12,0)">
+    <!-- Partial ring (about 220° arc to resemble C) -->
+    <path class="track" d="M16,64 A48,48 0 1,1 80,16" />
+    <!-- Needle -->
+    <line class="needle" x1="48" y1="48" x2="92" y2="38"/>
+    <circle class="pivot" cx="48" cy="48" r="5"/>
+  </g>
+  <!-- Wordmark -->
+  <g transform="translate(120,64)" font-family="ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial" font-weight="700">
+    <text class="word" font-size="44" x="0" y="0">cx</text>
+    <g transform="translate(64,-26)">
+      <rect class="plus" x="0" y="22" width="28" height="8" rx="4"/>
+      <rect class="plus" x="10" y="12" width="8"  height="28" rx="4"/>
+    </g>
+    <text class="word" font-size="44" x="102" y="0">lus</text>
+  </g>
+</svg>

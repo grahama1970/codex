@@ -1,0 +1,20 @@
+<!-- cxplus — logo7 light (flat static for raster export) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" role="img" aria-labelledby="t d" focusable="false">
+  <title id="t">cxplus — wordmark (light, flat)</title>
+  <desc id="d">Static light-mode cxplus wordmark with accent plus; no CSS variables or animations.</desc>
+  <rect width="360" height="80" fill="#FFFFFF"/>
+  <g transform="translate(20,56)" fill="#0B1220" font-family="Nunito, 'SF Pro Rounded', 'Avenir Next Rounded', Quicksand, 'Segoe UI Rounded', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'Arial Rounded MT Bold', Arial, 'Noto Sans', 'Liberation Sans', sans-serif" font-weight="700" font-size="44" letter-spacing="-0.3">
+    <text x="0"  y="0">c</text>
+    <text x="22" y="0">x</text>
+    <text x="50" y="0">p</text>
+    <text x="76" y="0">l</text>
+    <text x="86" y="0">u</text>
+    <text x="112" y="0">s</text>
+    <!-- Plus accent -->
+    <g transform="translate(140,-26)" fill="#2FD4CB">
+      <rect x="-7" y="-2" width="14" height="4" rx="2"/>
+      <rect x="-2" y="-7" width="4" height="14" rx="2"/>
+    </g>
+  </g>
+</svg>
+

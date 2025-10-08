@@ -1,5 +1,9 @@
 # Codex CLI (Rust Implementation)
 
+> Experimental fork disclaimer
+>
+> This `codex-rs` workspace lives in an experimental, personal fork ("cxplus playground"). It is not intended for upstream merge into OpenAI’s Codex and carries no official support. See ../../FORK_POLICY.md.
+
 We provide Codex CLI as a standalone, native executable to ensure a zero-dependency install.
 
 ## Installing Codex
@@ -25,11 +29,13 @@ Codex supports a rich set of configuration options. Note that the Rust CLI uses 
 
 Codex CLI functions as an MCP client that can connect to MCP servers on startup. See the [`mcp_servers`](../docs/config.md#mcp_servers) section in the configuration documentation for details.
 
-It is still experimental, but you can also launch Codex as an MCP _server_ by running `codex mcp`. Use the [`@modelcontextprotocol/inspector`](https://github.com/modelcontextprotocol/inspector) to try it out:
+It is still experimental, but you can also launch Codex as an MCP _server_ by running `codex mcp-server`. Use the [`@modelcontextprotocol/inspector`](https://github.com/modelcontextprotocol/inspector) to try it out:
 
 ```shell
-npx @modelcontextprotocol/inspector codex mcp
+npx @modelcontextprotocol/inspector codex mcp-server
 ```
+
+Use `codex mcp` to add/list/get/remove MCP server launchers defined in `config.toml`, and `codex mcp-server` to run the MCP server directly.
 
 ### Notifications
 
@@ -38,6 +44,10 @@ You can enable notifications by configuring a script that is run whenever the ag
 ### `codex exec` to run Codex programmatically/non-interactively
 
 To run Codex non-interactively, run `codex exec PROMPT` (you can also pass the prompt via `stdin`) and Codex will work on your task until it decides that it is done and exits. Output is printed to the terminal directly. You can set the `RUST_LOG` environment variable to see more about what's going on.
+
+- Reliability helpers for headless runs:
+  - `--run-timeout-secs <n>`: enforce a wall‑clock budget; Codex will send an interrupt and shut down when exceeded and exit with code `5`.
+  - `--summary-dir <DIR>`: write a machine‑readable summary JSON to `<DIR>/.codex/runs/<run_id>-summary.json` (defaults to `.codex/runs`).
 
 ### Use `@` for file search
 
@@ -91,6 +101,28 @@ codex --sandbox danger-full-access
 ```
 
 The same setting can be persisted in `~/.codex/config.toml` via the top-level `sandbox_mode = "MODE"` key, e.g. `sandbox_mode = "workspace-write"`.
+
+## Brand Assets
+
+- Canonical logo (animated): `logo.svg`
+- Theme variants (animated): `logo-dark.svg`, `logo-light.svg`
+- Centered wordmark variants (animated): `logo-dark-centered.svg`, `logo-light-centered.svg`
+- Static snapshots (SVG): `logo-dark-static.svg`, `logo-light-static.svg`
+- Flat static (SVG, no CSS vars/animations): `logo-dark-flat.svg`, `logo-light-flat.svg`
+- PNG exports (720×160): `logo-dark.png`, `logo-light.png`
+- Legacy (older) assets remain for reference: the `logo5.*` family; deprecated experiments live under `deprecated-logos/` and should not be used.
+
+Embed examples:
+
+```html
+<img src="/codex-rs/logo.svg" alt="cxplus">                      <!-- animated -->
+<img src="/codex-rs/logo-dark-static.svg" alt="cxplus">          <!-- static dark -->
+<img src="/codex-rs/logo-light-static.svg" alt="cxplus">         <!-- static light -->
+```
+
+Notes:
+- Honors `prefers-reduced-motion` by freezing to a legible end state (fully revealed cyan + visible “+”).
+- To force static per instance when inlining SVG, add `data-static="true"` to the `<svg>` element.
 
 ## Code Organization
 
