@@ -249,6 +249,11 @@ pub struct Config {
     /// OTEL configuration (exporter type, endpoint, headers, etc.).
     pub otel: crate::config_types::OtelConfig,
 
+    /// When false, Codex will refuse to send requests to non-local model
+    /// providers (i.e., anything other than localhost/127.0.0.1). Useful for
+    /// ITAR or air‑gapped deployments where only local models are permitted.
+    pub allow_external_model_providers: bool,
+
     // Context (Phase‑0)
     pub context_provider: ContextProviderKind,
     pub context_max_tokens: u32,
@@ -788,6 +793,10 @@ pub struct ConfigToml {
     pub otel: Option<crate::config_types::OtelConfigToml>,
     /// Knowledge‑First context settings (Phase‑0: default disabled)
     pub context: Option<ContextToml>,
+
+    /// When set to false, Codex will refuse to send requests to non-local
+    /// model providers (anything except localhost/127.0.0.1). Defaults to true.
+    pub allow_external_model_providers: Option<bool>,
 }
 
 impl From<ConfigToml> for UserSavedConfig {
@@ -1167,6 +1176,9 @@ impl Config {
                     exporter,
                 }
             },
+            allow_external_model_providers: cfg
+                .allow_external_model_providers
+                .unwrap_or(true),
             // Context (Phase‑0)
             context_provider: {
                 if std::env::var("CONTEXT_FORCE_MINIMAL").ok().as_deref() == Some("1") {

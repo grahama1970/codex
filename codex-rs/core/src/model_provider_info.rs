@@ -89,6 +89,20 @@ pub struct ModelProviderInfo {
 }
 
 impl ModelProviderInfo {
+    pub fn is_local(&self) -> bool {
+        let base = self.base_url.as_deref().unwrap_or("");
+        let b = base.trim().to_ascii_lowercase();
+        if b.is_empty() {
+            return false;
+        }
+        // Very conservative allowlist for local endpoints
+        b.starts_with("http://127.0.0.1")
+            || b.starts_with("http://localhost")
+            || b.starts_with("https://127.0.0.1")
+            || b.starts_with("https://localhost")
+            || b.starts_with("http://[::1]")
+            || b.starts_with("https://[::1]")
+    }
     /// Construct a `POST` RequestBuilder for the given URL using the provided
     /// reqwest Client applying:
     ///   • provider-specific headers (static + env based)
