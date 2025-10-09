@@ -47,6 +47,49 @@ We ship automation with **predictable cost** and **fewer regressions**.
 - **Confidence before release** → `make package` → `make test` (offline) → `make scenarios` (live) validates the **exact** binary.  
 - **Cost-aware discovery** → Chutes selects for capability **and** price (not just biggest SOTA), with transparent filter reasons.
 
+### Local‑Only (No Egress)
+
+Enable a strict no‑egress posture:
+
+```toml
+# ~/.codex/config.toml
+local_only = true
+
+[tools]
+web_search = false  # implied by local_only = true
+```
+
+When `local_only = true`:
+- Only localhost/127.0.0.1/[::1] model endpoints are allowed.
+- HTTP clients bypass environment proxies via `CODEX_LOCAL_ONLY=1`.
+- Web search, remote MCP over HTTP, OTEL exporter, and notifier hooks are disabled.
+- Login flows (device code / ChatGPT / API key) are blocked at the CLI.
+
+Verify:
+
+```bash
+printf 'sk-test' | codex login --with-api-key; echo $?   # expect 1
+```
+
+### Determinism on demand (`--seed <u64>`) 
+
+- Where supported we enforce `temperature=0.0`, `top_p=1.0`, and set `seed=<u64>`.
+- We neutralize other sampling knobs when available (e.g., frequency/presence penalties, top_k/typical_p, logit_bias).
+- Artifacts (events NDJSON + summary JSON) include the seed for reproducibility.
+- Caveat: external tools/live data/time‑varying prompts can introduce drift—pin inputs/fixtures in CI.
+
+### Artifacts (where and how to read)
+
+- Events: `./.codex/runs/*-events.ndjson` (one event per line)
+- Summary: `./.codex/runs/*-summary.json`
+
+Quick reads:
+
+```bash
+jq -r '.status, .model, .provider, .seed' ./.codex/runs/*-summary.json | paste - - - -
+jq -c 'select(.msg.type=="agent_message")' ./.codex/runs/*-events.ndjson | head -n 3
+```
+
 > **Try it in 60 seconds**
 >
 > ```bash

@@ -165,6 +165,34 @@ Idle‑only halo, robust c/x masks, and a themeable `--accent`. Respect `prefers
 - Warmup + capacity helpers; CI‑friendly sandbox/approvals defaults.
  - Agent↔agent near‑instant communications for multi‑agent coordination.
 
+### Local‑Only (No Egress)
+
+Set in `~/.codex/config.toml`:
+
+```toml
+# Enforce no outbound calls except localhost
+local_only = true
+
+# Optional fine‑grained controls (effective when local_only = false)
+allow_external_model_providers = false
+external_provider_allowlist = ["models.acme.local"]
+external_provider_denylist = ["openai.com", "api.anotherhost.com"]
+
+[tools]
+web_search = false  # implied by local_only = true
+```
+
+Behavior:
+- Non‑local model providers are blocked unless explicitly allowlisted.
+- Web search disabled; OTEL exporter forced off.
+- Locals (localhost/127.0.0.1/[::1]) always allowed.
+- `CODEX_LOCAL_ONLY=1` ensures HTTP clients bypass environment proxies.
+
+### HTTP egress and proxies
+
+- All Codex HTTP egress uses a shared client policy that honors `CODEX_LOCAL_ONLY=1` to bypass `HTTP(S)_PROXY/ALL_PROXY` and applies sensible timeouts.
+- Context/aux crates that cannot adopt the shared client must at least mirror the proxy‑bypass behavior when `CODEX_LOCAL_ONLY=1` (see `codex-rs/core/src/default_client.rs`).
+
 ## Feature Matrix (cxplus vs a typical LLM CLI)
 
 | Capability | Typical CLI | cxplus |
