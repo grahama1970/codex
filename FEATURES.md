@@ -313,3 +313,11 @@ max_evidence_items = 12
 - Regenerate locally: `make docs-gen` (or `make docs-fix` to generate + stage).
 - CI gate: `make docs-drift` runs on PRs and pushes to `main` (fails on drift).
 - Optional site: mdBook scaffold under `docs/book`; build with `make docs-book-build`.
+
+## HTTP client policy (local_only / proxies)
+
+- All HTTP egress from cxplus must use `codex-rs/core/src/default_client.rs::create_client()` to inherit:
+  - `originator` + Codex UA
+  - `no_proxy()` when sandboxed or `CODEX_LOCAL_ONLY=1`
+  - sensible timeouts
+- Context/aux crates that cannot depend on `core` must mirror only the `no_proxy` behavior when `CODEX_LOCAL_ONLY=1` (see `codex-rs/context/src/retrieval.rs`).

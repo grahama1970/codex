@@ -159,6 +159,13 @@ fn is_sandboxed() -> bool {
     std::env::var(CODEX_SANDBOX_ENV_VAR).as_deref() == Ok("seatbelt")
 }
 
+pub fn is_local_only_enabled() -> bool {
+    if let Some(&b) = crate::config::LOCAL_ONLY.get() {
+        return b;
+    }
+    std::env::var("CODEX_LOCAL_ONLY").as_deref() == Ok("1")
+}
+
 fn is_local_only() -> bool {
     if let Some(&b) = crate::config::LOCAL_ONLY.get() {
         return b;

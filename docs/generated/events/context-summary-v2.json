@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "context.summary.v2",
+  "type": "object",
+  "required": [
+    "kind", "version", "provider", "max_context_tokens", "budget",
+    "retrieval_ms", "evidence_items", "search_k", "neighbors_depth",
+    "reflowed_from", "section_tokens", "truncated", "total_tokens",
+    "retry_count", "cache_hit"
+  ],
+  "properties": {
+    "kind": { "const": "context.summary" },
+    "version": { "type": "integer", "const": 2 },
+    "provider": { "type": "string" },
+    "max_context_tokens": { "type": "integer" },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "recent_pct": { "type": "integer" },
+        "plan_pct": { "type": "integer" },
+        "evidence_pct": { "type": "integer" },
+        "tools_pct": { "type": "integer" }
+      },
+      "required": ["recent_pct","plan_pct","evidence_pct","tools_pct"]
+    },
+    "retrieval_ms": { "type": "integer" },
+    "evidence_items": { "type": "integer" },
+    "search_k": { "type": "integer" },
+    "neighbors_depth": { "type": "integer" },
+    "retry_count": { "type": "integer" },
+    "cache_hit": { "type": "boolean" },
+    "fallback_reason": { "type": ["string","null"], "enum": ["timeout","error",null] },
+    "reflowed_from": {
+      "type": "object",
+      "properties": {
+        "plan": { "type": "integer" },
+        "recent": { "type": "integer" },
+        "tools": { "type": "integer" }
+      },
+      "required": ["plan","recent","tools"]
+    },
+    "section_tokens": {
+      "type": "object",
+      "properties": {
+        "evidence": { "type": "integer" },
+        "plan": { "type": "integer" },
+        "recent": { "type": "integer" },
+        "tools": { "type": "integer" }
+      },
+      "required": ["evidence","plan","recent","tools"]
+    },
+    "truncated": {
+      "type": "object",
+      "properties": {
+        "evidence": { "type": "boolean" },
+        "plan": { "type": "boolean" },
+        "recent": { "type": "boolean" },
+        "tools": { "type": "boolean" }
+      },
+      "required": ["evidence","plan","recent","tools"]
+    },
+    "total_tokens": { "type": "integer" }
+  },
+  "additionalProperties": true
+}

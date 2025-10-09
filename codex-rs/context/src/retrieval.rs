@@ -63,14 +63,12 @@ struct JsonRpcClient {
 
 impl JsonRpcClient {
     fn new(base: String, debug: bool) -> Self {
-        Self {
-            base,
-            debug,
-            http: reqwest::Client::builder()
-                .timeout(Duration::from_secs(10))
-                .build()
-                .unwrap(),
+        let mut b = reqwest::Client::builder().timeout(Duration::from_secs(10));
+        if std::env::var("CODEX_LOCAL_ONLY").as_deref() == Ok("1") {
+            b = b.no_proxy();
         }
+        let http = b.build().unwrap_or_else(|_| reqwest::Client::new());
+        Self { base, debug, http }
     }
 
     async fn call(&self, method: &str, params: Value) -> Result<Value> {

@@ -299,3 +299,10 @@ copilot-playwright-cdp:
 	  --meanDelay=$(MEAN_DELAY) \
 	  --waitStable=$(WAIT_STABLE) \
 	  --pollInterval=$(POLL_INTERVAL)
+
+
+mailbox-append:
+	@BODY="$(BODY)" TURN_ID="$(TURN_ID)" FROM="$(FROM)" CHANNEL="$(CHANNEL)" PRIORITY="$(PRIO)" TTL="$(TTL)" 		bash scripts/mailbox_append.sh
+
+mailbox-watch:
+	@MAILBOX="$(MAILBOX)" SINCE="$(SINCE)" ON_MSG='$(ON_MSG)' bash scripts/mailbox_watch.sh
