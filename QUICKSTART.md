@@ -185,3 +185,30 @@ Optionally, pass an explicit URL: `notify = ["codex-notify-slack", "--webhook", 
 - Reference is generated under `docs/generated/`.
 - Regenerate locally: `make docs-gen` (or `make docs-fix` to generate + stage changes).
 - CI checks for drift on PRs and `main` via `make docs-drift`.
+
+
+## CLI Review Loop (terminal‑first)
+
+Prereqs: logged in to GitHub; macOS Accessibility granted if using Copilot Web helpers.
+
+1. Build prompt:
+   ```bash
+   make copilot-prompt-send OUT=local/copilot_prompt.txt SEND=0 BROWSER=safari URL=https://github.com/copilot
+   ```
+2. Manually tweak in the browser, then auto‑send:
+   ```bash
+   make copilot-prompt-send OUT=local/copilot_prompt.txt SEND=1 BROWSER=safari URL=https://github.com/copilot
+   ```
+3. Wait for a stable response and save:
+   ```bash
+   make copilot-web-wait OUT=local/copilot_review.txt BROWSER=safari URL=https://github.com/copilot INTERVAL=1 STABLE=3 MAX=90
+   ```
+4. Process and surface TODOs / patches:
+   ```bash
+   make copilot-process-review IN=local/copilot_review.txt
+   ```
+5. Optional mailbox append/watch (idempotent JSONL):
+   ```bash
+   make mailbox-append BODY="$(cat local/copilot_review.txt)" CHANNEL=reviews PRIO=5 TTL=3600
+   make mailbox-watch MAILBOX=.codex/mailbox.jsonl
+   ```
