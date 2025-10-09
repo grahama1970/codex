@@ -39,6 +39,13 @@ pub(crate) async fn stream_chat_completions(
     otel_event_manager: &OtelEventManager,
     deterministic_seed: Option<u64>,
 ) -> Result<ResponseStream> {
+    // Enforce ITAR/air‑gapped policy at Chat path too: block obvious external endpoints.
+    if !provider.is_local() {
+        return Err(crate::error::CodexErr::UnsupportedOperation(
+            "external model provider blocked by policy".to_string(),
+        ));
+    }
+
     if prompt.output_schema.is_some() {
         return Err(CodexErr::UnsupportedOperation(
             "output_schema is not supported for Chat Completions API".to_string(),
@@ -901,4 +908,34 @@ impl<S> AggregatedChatStream<S> {
     pub(crate) fn streaming_mode(inner: S) -> Self {
         Self::new(inner, AggregateMode::Streaming)
     }
+}
+
+
+/// Determinism contract note:
+/// When a deterministic_seed is set, we must clamp/neutralize all sampling knobs to ensure reproducible output.
+/// Keep parity with Responses path if new fields are introduced upstream.
+pub fn build_chat_payload_for_test(
+    prompt: &crate::client_common::Prompt,
+    model_family: &ModelFamily,
+    provider: &ModelProviderInfo,
+    deterministic_seed: Option<u64>,
+) -> serde_json::Value {
+    let mut obj = serde_json::json!({
+        "model": provider.model_name(model_family),
+        "messages": prompt.get_formatted_input(),
+        "stream": true
+    });
+    if let Some(seed) = deterministic_seed {
+        let map = obj.as_object_mut().unwrap();
+        map.insert("temperature".into(), 0.0.into());
+        map.insert("top_p".into(), 1.0.into());
+        map.insert("seed".into(), seed.into());
+        // Defensive neutralization to prevent drift
+        map.entry("frequency_penalty").or_insert(0.0.into());
+        map.entry("presence_penalty").or_insert(0.0.into());
+        map.entry("top_k").or_insert(0.into());
+        map.entry("typical_p").or_insert(1.0.into());
+        map.entry("logit_bias").or_insert(serde_json::json!({}));
+    }
+    obj
 }

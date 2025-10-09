@@ -133,6 +133,25 @@ impl ModelClient {
         match self.provider.wire_api {
             WireApi::Responses => self.stream_responses(prompt).await,
             WireApi::Chat => {
+                // Policy: fail‑closed in local_only for non‑local endpoints (symmetry with Responses).
+                if crate::default_client::is_local_only_enabled() {
+                    let base = self.provider.base_url.as_deref().unwrap_or("");
+                    let is_local = base.starts_with("http://127.0.0.1")
+                        || base.starts_with("http://localhost")
+                        || base.starts_with("http+unix://")
+                        || base.is_empty();
+                    if !is_local {
+                        tracing::warn!(
+                            provider=%self.provider.name,
+                            base_url=%base,
+                            "policy: local_only denial (Chat path)"
+                        );
+                        return Err(CodexErr::UnsupportedOperation(
+                            "local_only denies egress on Chat path".to_string(),
+                        ));
+                    }
+                }
+
                 if !self.config.is_provider_allowed(&self.provider) {
                     return Err(CodexErr::UnsupportedOperation(
                         "external model provider blocked by policy".to_string(),
