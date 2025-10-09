@@ -148,7 +148,7 @@ pub fn create_client() -> reqwest::Client {
         .connect_timeout(std::time::Duration::from_millis(4_000))
         .timeout(std::time::Duration::from_millis(60_000))
         .pool_max_idle_per_host(8);
-    if is_sandboxed() || is_local_only() {
+    if is_sandboxed() || is_local_only_enabled() {
         builder = builder.no_proxy();
     }
 

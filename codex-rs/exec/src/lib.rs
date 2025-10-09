@@ -44,6 +44,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
+use std::sync::OnceLock;
+
+fn context_summary_emitted() -> 'static std::sync::atomic::AtomicBool {
+    static ONCE: OnceLock<std::sync::atomic::AtomicBool> = OnceLock::new();
+    ONCE.get_or_init(|| std::sync::atomic::AtomicBool::new(false))
+}
 use std::time::Duration;
 use std::time::Instant;
 use std::time::SystemTime;
@@ -423,6 +429,9 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     }];
     // Emit a single completed context.summary line with real metrics (pre-stream).
     if let Some(f) = events_file.as_mut() {
+        if context_summary_emitted().swap(true, Ordering::SeqCst) {
+            // Already emitted in this process; skip.
+        } else {
         use codex_core::config::ContextProviderKind;
         let provider_kind = &config.context_provider;
         // Build provider and compute metrics based on current prompt.
@@ -504,6 +513,7 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         if let Ok(s) = serde_json::to_string(&line) {
             let _ = std::io::Write::write_all(f, s.as_bytes());
             let _ = std::io::Write::write_all(f, b"\n");
+        }
         }
     }
     let initial_prompt_task_id = conversation
