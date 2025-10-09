@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "run_id": "exec-1759972560461",
+  "status": "error",
+  "exit_code": 1,
+  "timed_out": false,
+  "duration_ms": 8078,
+  "event_count": 9,
+  "model": "gpt-5",
+  "model_provider": {
+    "name": "OpenAI",
+    "base_url": null,
+    "env_key": null,
+    "env_key_instructions": null,
+    "wire_api": "responses",
+    "query_params": null,
+    "http_headers": {
+      "version": "0.0.0"
+    },
+    "env_http_headers": {
+      "OpenAI-Project": "OPENAI_PROJECT",
+      "OpenAI-Organization": "OPENAI_ORGANIZATION"
+    },
+    "request_max_retries": null,
+    "stream_max_retries": null,
+    "stream_idle_timeout_ms": null,
+    "requires_openai_auth": true
+  },
+  "cwd": "/home/graham/workspace/experiments/codex",
+  "started_unix_ms": 1759972560461,
+  "events_path": ".codex/runs/exec-1759972560461-events.ndjson",
+  "last_error": "unexpected status 400 Bad Request: {\"detail\":\"Unsupported parameter: temperature\"}",
+  "session_source": "Cli",
+  "seed": 42,
+  "approval_forced_never": false
+}

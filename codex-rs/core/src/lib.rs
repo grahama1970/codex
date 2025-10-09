@@ -9,6 +9,7 @@ mod apply_patch;
 pub mod auth;
 pub mod bash;
 mod chat_completions;
+pub use chat_completions::build_chat_payload_for_test;
 mod client;
 mod client_common;
 pub mod codex;

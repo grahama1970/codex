@@ -308,4 +308,4 @@ mailbox-watch:
 	@MAILBOX="$(MAILBOX)" SINCE="$(SINCE)" ON_MSG='$(ON_MSG)' bash scripts/mailbox_watch.sh
 
 coderabbit-review:
-	@CODERABBIT_TOKEN="$(CODERABBIT_TOKEN)" bash scripts/review_backend_coderabbit.sh --repo $(REPO) --pr $(PR) > $(OUT)
+	@CODERABBIT_TOKEN="$(CODERABBIT_TOKEN)" bash scripts/review_backend_coderabbit.sh --repo $(REPO) --pr $(PR) --out $(OUT)

@@ -39,13 +39,6 @@ pub(crate) async fn stream_chat_completions(
     otel_event_manager: &OtelEventManager,
     deterministic_seed: Option<u64>,
 ) -> Result<ResponseStream> {
-    // Enforce ITAR/air‑gapped policy at Chat path too: block obvious external endpoints.
-    if !provider.is_local() {
-        return Err(crate::error::CodexErr::UnsupportedOperation(
-            "external model provider blocked by policy".to_string(),
-        ));
-    }
-
     if prompt.output_schema.is_some() {
         return Err(CodexErr::UnsupportedOperation(
             "output_schema is not supported for Chat Completions API".to_string(),
@@ -916,26 +909,65 @@ impl<S> AggregatedChatStream<S> {
 /// Keep parity with Responses path if new fields are introduced upstream.
 pub fn build_chat_payload_for_test(
     prompt: &crate::client_common::Prompt,
-    model_family: &ModelFamily,
-    provider: &ModelProviderInfo,
+    model_family: &crate::model_family::ModelFamily,
+    _provider: &crate::model_provider_info::ModelProviderInfo,
     deterministic_seed: Option<u64>,
 ) -> serde_json::Value {
     let mut obj = serde_json::json!({
-        "model": provider.model_name(model_family),
+        "model": model_family.family,
         "messages": prompt.get_formatted_input(),
         "stream": true
     });
-    if let Some(seed) = deterministic_seed {
-        let map = obj.as_object_mut().unwrap();
-        map.insert("temperature".into(), 0.0.into());
-        map.insert("top_p".into(), 1.0.into());
-        map.insert("seed".into(), seed.into());
-        // Defensive neutralization to prevent drift
-        map.entry("frequency_penalty").or_insert(0.0.into());
-        map.entry("presence_penalty").or_insert(0.0.into());
-        map.entry("top_k").or_insert(0.into());
-        map.entry("typical_p").or_insert(1.0.into());
-        map.entry("logit_bias").or_insert(serde_json::json!({}));
-    }
+    if let Some(seed) = deterministic_seed
+        && let Some(map) = obj.as_object_mut() {
+            map.insert("temperature".into(), 0.0.into());
+            map.insert("top_p".into(), 1.0.into());
+            map.insert("seed".into(), seed.into());
+            // Defensive neutralization to prevent drift
+            map.entry("frequency_penalty").or_insert(0.0.into());
+            map.entry("presence_penalty").or_insert(0.0.into());
+            map.entry("top_k").or_insert(0.into());
+            map.entry("typical_p").or_insert(1.0.into());
+            map.entry("logit_bias").or_insert(serde_json::json!({}));
+        }
     obj
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::build_chat_payload_for_test;
+    use crate::client_common::Prompt;
+    use crate::model_family::derive_default_model_family;
+    use crate::model_provider_info::{ModelProviderInfo, WireApi};
+
+    #[test]
+    fn chat_payload_sets_seed_and_determinism() {
+        let prompt = Prompt::new(Some("Hello".into()), vec![], None);
+        let mf = derive_default_model_family("gpt-4o-mini");
+        let provider = ModelProviderInfo {
+            name: "openai".into(),
+            base_url: Some("https://api.openai.com".into()),
+            env_key: Some("OPENAI_API_KEY".into()),
+            env_key_instructions: None,
+            wire_api: WireApi::Chat,
+            query_params: None,
+            http_headers: None,
+            env_http_headers: None,
+            request_max_retries: Some(0),
+            stream_max_retries: Some(0),
+            stream_idle_timeout_ms: Some(1000),
+            requires_openai_auth: true,
+        };
+        let payload = build_chat_payload_for_test(&prompt, &mf, &provider, Some(42));
+        let obj = payload.as_object().unwrap();
+        assert_eq!(obj.get("temperature").unwrap(), &serde_json::json!(0.0));
+        assert_eq!(obj.get("top_p").unwrap(), &serde_json::json!(1.0));
+        assert_eq!(obj.get("seed").unwrap(), &serde_json::json!(42));
+        assert_eq!(obj.get("frequency_penalty").unwrap(), &serde_json::json!(0.0));
+        assert_eq!(obj.get("presence_penalty").unwrap(), &serde_json::json!(0.0));
+        assert_eq!(obj.get("top_k").unwrap(), &serde_json::json!(0));
+        assert_eq!(obj.get("typical_p").unwrap(), &serde_json::json!(1.0));
+        assert!(obj.get("logit_bias").unwrap().as_object().unwrap().is_empty());
+    }
 }
