@@ -148,7 +148,7 @@ pub fn create_client() -> reqwest::Client {
         .connect_timeout(std::time::Duration::from_millis(4_000))
         .timeout(std::time::Duration::from_millis(60_000))
         .pool_max_idle_per_host(8);
-    if is_sandboxed() || is_local_only_enabled() {
+    if is_sandboxed() || is_local_only() {
         builder = builder.no_proxy();
     }
 
@@ -159,18 +159,10 @@ fn is_sandboxed() -> bool {
     std::env::var(CODEX_SANDBOX_ENV_VAR).as_deref() == Ok("seatbelt")
 }
 
-pub fn is_local_only_enabled() -> bool {
-    if let Some(&b) = crate::config::LOCAL_ONLY.get() {
-        return b;
-    }
-    std::env::var("CODEX_LOCAL_ONLY").as_deref() == Ok("1")
-}
-
 fn is_local_only() -> bool {
-    if let Some(&b) = crate::config::LOCAL_ONLY.get() {
-        return b;
-    }
-    std::env::var("CODEX_LOCAL_ONLY").as_deref() == Ok("1")
+    std::env::var("CODEX_LOCAL_ONLY")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
 }
 
 #[cfg(test)]
