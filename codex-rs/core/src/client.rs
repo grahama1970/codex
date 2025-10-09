@@ -35,7 +35,6 @@ use crate::client_common::create_reasoning_param_for_request;
 use crate::client_common::create_text_param_for_request;
 use crate::config::Config;
 use crate::default_client::create_client;
-use crate::default_client::is_local_only_enabled;
 use crate::error::CodexErr;
 use crate::error::Result;
 use crate::error::UsageLimitReachedError;
@@ -133,30 +132,6 @@ impl ModelClient {
         match self.provider.wire_api {
             WireApi::Responses => self.stream_responses(prompt).await,
             WireApi::Chat => {
-                // Policy: fail‑closed in local_only for non‑local endpoints (symmetry with Responses).
-                if crate::default_client::is_local_only_enabled() {
-                    let base = self.provider.base_url.as_deref().unwrap_or("");
-                    let is_local = base.starts_with("http://127.0.0.1")
-                        || base.starts_with("http://localhost")
-                        || base.starts_with("http+unix://")
-                        || base.is_empty();
-                    if !is_local {
-                        tracing::warn!(
-                            provider=%self.provider.name,
-                            base_url=%base,
-                            "policy: local_only denial (Chat path)"
-                        );
-                        return Err(CodexErr::UnsupportedOperation(
-                            "local_only denies egress on Chat path".to_string(),
-                        ));
-                    }
-                }
-
-                if !self.config.is_provider_allowed(&self.provider) {
-                    return Err(CodexErr::UnsupportedOperation(
-                        "external model provider blocked by policy".to_string(),
-                    ));
-                }
                 // Optionally rebuild prompt with Knowledge-First sections (Phase-0).
                 let mut effective_prompt = prompt.clone();
                 if self.config.context_max_tokens > 0
@@ -317,31 +292,6 @@ impl ModelClient {
         payload_json: &Value,
         auth_manager: &Option<Arc<AuthManager>>,
     ) -> std::result::Result<ResponseStream, StreamAttemptError> {
-        // Additional local_only enforcement: deny non-local base URLs on Responses path
-        if is_local_only_enabled() {
-            let base = self.provider.base_url.as_deref().unwrap_or("");
-            let is_local = base.starts_with("http://127.0.0.1")
-                || base.starts_with("http://localhost")
-                || base.starts_with("http+unix://")
-                || base.is_empty();
-            if !is_local {
-                tracing::warn!(
-                    provider=%self.provider.name,
-                    base_url=%base,
-                    "policy: local_only denial (Responses path)"
-                );
-                return Err(StreamAttemptError::Fatal(CodexErr::UnsupportedOperation(
-                    "local_only denies egress on Responses path".to_string(),
-                )));
-            }
-        }
-
-        // ITAR/air‑gapped policy: enforce allow/deny lists and local‑only policy
-        if !self.config.is_provider_allowed(&self.provider) {
-            return Err(StreamAttemptError::Fatal(CodexErr::UnsupportedOperation(
-                "external model provider blocked by policy".to_string(),
-            )));
-        }
         // Always fetch the latest auth in case a prior attempt refreshed the token.
         let auth = auth_manager.as_ref().and_then(|m| m.auth());
 
