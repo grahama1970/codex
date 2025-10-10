@@ -225,6 +225,13 @@ Note: this requires local_only=false because it’s a remote endpoint.
 
 These codes are written into the summary JSON (`exit_code`) for reliable CI branching.
 
+### CI checks (what we enforce)
+
+- Pre‑stream provenance: `context.summary` v2 is the first NDJSON line (scenario in CI)
+- Deterministic runs: artifacts (events + summary) always present; seeds persisted
+- Rust workspace tests (all features)
+- Optional Runpod endpoint healthcheck (if secrets present)
+
 ### CI quick check (GitHub Actions)
 
 ```yaml

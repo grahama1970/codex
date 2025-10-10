@@ -238,6 +238,15 @@ Behavior:
 
 ## Safety & Ergonomics
 
+### HTTP egress policy (centralized)
+
+- All HTTP egress must use the centralized client built by `codex-rs/core/src/default_client.rs::create_client()`.
+- This ensures policies are consistently applied:
+  - Local‑only `no_proxy()` bypass
+  - Standard headers (originator, User‑Agent)
+  - Sensible timeouts
+- CI includes a full Rust workspace test job; optionally add a grep lint to forbid `reqwest::Client::new()` outside `default_client.rs`.
+
 - Write gating for slash (`ENABLE_SLASH_WRITE=1`) with one‑time notice
 - `/open` size guard (default 512KB) → override `OPEN_MAX_KB`
 - `/grep` truncation (default 200 lines) → override `GREP_MAX_LINES` and truncation marker
