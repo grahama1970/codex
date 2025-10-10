@@ -173,6 +173,20 @@ Place cxplus.cmd or cxplus.ps1 on PATH and invoke `cxplus …`.
 - Fixture mode set but no output → confirm file path and JSON shape (top‑level `items`).
 - Warm‑up network failures → use `--dry-run` first, then set `CHUTES_API_KEY` and `CHUTES_API_BASE`.
 
+### Quick policy & timeout checks
+
+```bash
+# Local‑only denies remote providers (policy error in JSON stream)
+dist/bin/codex -c local_only=true -c model_provider=openai -c model="gpt-5" exec --json "hello" || true
+
+# Timeout produces run_timeout marker and exit code 5
+dist/bin/codex exec "force timeout demo" --run-timeout-secs 1 || true
+grep -m1 '"kind":"run_timeout"' .codex/runs/*-events.ndjson | tail -n1
+jq '{status,exit_code,timed_out}' .codex/runs/*-summary.json | tail -n1
+```
+
+If a provider rejects determinism clamps (e.g., `temperature`), prefer the wire API your endpoint supports (chat vs responses) or run in local‑only mode until adapters add capability probes.
+
 ### Exit codes (for CI)
 
 - `0` — ok (no errors)

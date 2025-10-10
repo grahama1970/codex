@@ -232,6 +232,14 @@ These codes are written into the summary JSON (`exit_code`) for reliable CI bran
 - Rust workspace tests (all features)
 - Optional Runpod endpoint healthcheck (if secrets present)
 
+### Pilot playbook
+
+For a 2‑week dev/staging pilot with tight guardrails (local‑only default, deterministic artifacts, optional Runpod lane), see `PILOT_PLAYBOOK.md` for:
+
+- Guardrails and success criteria
+- Copy‑paste validation commands (seeded run, timeout, local‑only denial, router fixture, Runpod lane)
+- Known caveats (e.g., provider endpoints that reject `temperature` clamps) and mitigations
+
 ### CI quick check (GitHub Actions)
 
 ```yaml

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "run_id": "exec-1760100318472",
+  "status": "timeout",
+  "exit_code": 5,
+  "timed_out": true,
+  "interrupted": false,
+  "duration_ms": 1800,
+  "event_count": 5,
+  "model": "gpt-5",
+  "model_provider": {
+    "name": "OpenAI",
+    "base_url": null,
+    "env_key": null,
+    "env_key_instructions": null,
+    "wire_api": "responses",
+    "query_params": null,
+    "http_headers": {
+      "version": "0.0.0"
+    },
+    "env_http_headers": {
+      "OpenAI-Organization": "OPENAI_ORGANIZATION",
+      "OpenAI-Project": "OPENAI_PROJECT"
+    },
+    "request_max_retries": null,
+    "stream_max_retries": null,
+    "stream_idle_timeout_ms": null,
+    "requires_openai_auth": true
+  },
+  "cwd": "/home/graham/workspace/experiments/codex",
+  "started_unix_ms": 1760100318472,
+  "events_path": ".codex/runs/exec-1760100318472-events.ndjson",
+  "last_error": null,
+  "session_source": "Cli",
+  "seed": null,
+  "approval_forced_never": false
+}
