@@ -1,84 +1,140 @@
-# cxplus — Work Session Context (Oct 7, 2025)
+ Title: cxplus Review Context (CodeRabbit + Mailbox)
 
-This is the runbook to resume instantly tomorrow.
+  Overview
 
-- Branch: `feat/chutes-profiles-scenarios`
-- Scope today: Knowledge‑First plumbing + retrieval hardening + docs/branding refresh.
+  - cxplus is a terminal‑first, policy‑hardened, deterministic CLI.
+  - Key edges: Knowledge‑First pre‑hook (versioned context.summary
+    events), strict local‑only posture, seeded determinism parity across
+    Chat/Responses, async PR review via mailbox, snapshot‑tested TUI.
+  - This document explains how to run CodeRabbit from the CLI, capture
+    results, render unified diffs, and route everything through the
+    mailbox so I can watch and summarize.
 
-## What Landed (today)
+  What’s Installed
 
-- Single, completed `context.summary` v2 emission (pre‑stream) in `codex-exec` with real metrics gathered from the Knowledge‑First provider.
-- Core client now exposes a helper that builds Knowledge‑First context and returns metrics when desired.
-- Context provider (Arango) now uses the current Tokio runtime handle instead of creating a nested runtime.
-- Retrieval layer implements a proper 429 retry path with a short backoff under the remaining deadline.
-- Scenario test updated to assert v2 semantics. Docs adjusted accordingly.
+  - CodeRabbit CLI is already installed.
+  - Your token is set in /home/graham/.codex/config.toml; the adapter
+    accepts CODERABBIT_TOKEN from the environment.
 
-## Touched Files
+  Review Backends
 
-- `codex-rs/core/src/client.rs:582` — return metrics from knowledge‑first build; added `prepare_prompt_with_context`.
-- `codex-rs/context/src/lib.rs:201` — use `tokio::runtime::Handle::current().block_on`.
-- `codex-rs/context/src/retrieval.rs` — 429 retry + small refactor around timeout handling.
-- `codex-rs/exec/src/lib.rs` — emit a single `context.summary` line with metrics before streaming.
-- `codex-rs/exec/Cargo.toml` and `codex-rs/Cargo.toml` — added `codex-context` dependency for `codex-exec`.
-- `scenarios/test_context_budget.py` — asserts v2 record and (when fixture+Arango) non‑zero `evidence_items`.
-- `README.md`, `FEATURES.md` — wording changed to reflect single (completed) line semantics.
+  - Default: GitHub Copilot (web request + watcher).
+  - Optional: CodeRabbit CLI for deep PR diffs (adapter + diff renderer
+    included).
+  - We do not rebuild a full review engine; we orchestrate backends and
+    keep runs deterministic and auditable.
 
-## How to Build & Test (quick)
+  Local‑Only Policy
 
-- Format after code changes (required by AGENTS.md):
-  - `cd codex-rs && just fmt`
-- Lints (scoped to changed crates):
-  - `just fix -p codex-exec`
-  - `just fix -p codex-context`
-  - Note: `just fix -p codex-core` currently compiles but core tests include struct‑literal expectations that may need adjustments if we add new config fields in the future. We did not modify those tests today.
-- Run unit/integration tests for what changed:
-  - `cargo test -p codex-exec`
-  - `cargo test -p codex-context`
+  - Enforced: CODEX_LOCAL_ONLY=1 disables proxies and denies non‑local
+    providers with a WARN + fatal on both Responses and Chat paths.
+  - Context crate mirrors .no_proxy() so retrieval cannot leak via
+    proxies.
+  - To run CodeRabbit, ensure network egress is allowed:
+      - unset CODEX_LOCAL_ONLY
 
-## Scenario (events.ndjson contains context.summary v2)
+  Determinism Contract
 
-- Build a binary first (repo root): `make package` (produces `dist/bin/codex`).
-- Run the scenario (repo root):
-  - Offline/minimal verification:
-    - `CONTEXT_FEATURE=1 dist/bin/codex exec "Summarize this repository"`
-  - With fixture + Arango (offline, deterministic):
-    - `export CONTEXT_FEATURE=1`
-    - `export CONTEXT_MCP_FIXTURE=codex-rs/context/tests/fixtures/mcp_fixture.json` (add a fixture file before running)
-    - `dist/bin/codex exec "Summarize this repository"`
-- Inspect `.codex/runs/*-events.ndjson` and verify a single `{"kind":"context.summary","version":2,...}` line appears early with non‑zero metrics when fixture+Arango are used.
+  - With deterministic_seed set, Responses and Chat clamp temperature=0.0,
+    top_p=1.0 and neutralize penalties/top_k/typical/logit_bias.
+  - We emit a single, pre‑stream context.summary v2 line with:
+    provider, max_context_tokens, budget., retrieval_ms, evidence_items,
+    search_k, neighbors_depth, retry_count, cache_hit, fallback_reason,
+    reflowed_from., section_tokens., truncated., total_tokens.
 
-## Configuration knobs (recap)
+  Knowledge‑First Context (pre‑hook)
 
-- `[context]` in `~/.codex/config.toml`:
-  - `provider = "arango" | "minimal"`
-  - `max_context_tokens = 8192` (example)
-  - `[context.budget] recent_pct, plan_pct, evidence_pct, tools_pct`
-  - `[context.arango] endpoint, database, mcp_tool, search_k, neighbors_depth, timeout_ms, max_evidence_items`
-- Env during runs:
-  - `CONTEXT_DEBUG=1` — extra stderr diagnostics in context/retrieval
-  - `CONTEXT_MCP_FIXTURE=/path/to/fixture.json` — deterministic offline retrieval
-  - `CONTEXT_EVIDENCE_ALLOW_CODE=1` — allow code blocks in evidence shaping (default off)
+  - Retrieval via memory‑agent/Arango runs before model streaming.
+  - The shaped metrics and budgets are recorded in context.summary v2
+    (NDJSON).
+  - Use fixtures for deterministic runs where possible.
 
-## Next Steps (execute tomorrow)
+  CLI Review Loop (Copilot Web)
 
-P0 – Wire hooks + add scenarios
-- Prehook in `exec` (before first submit): use MCP preset (agent‑memory) to Augment prompt; handle Allow/Deny/Ask/Patch/Augment/RateLimit; emit `prehook_result` (NDJSON + OTEL).
-- Posthook pipeline: generic script posthook; keep Slack notifier compatibility; emit `posthook_result`.
-- Scenarios (compiled binary):
-  - `scenarios/prehook_augment_smoke.py` — asserts augmentation + event present.
-  - `scenarios/posthook_notifier_smoke.py` — asserts posthook executed.
-  - `scenarios/agent_comms_smoke.py` — two agents exchange 3–5 messages; assert <100ms local latency + NDJSON evidence.
+  - Build/paste (manual): make copilot-prompt-send OUT=local/
+    copilot_prompt.txt SEND=0 BROWSER=safari URL=https://github.com/
+    copilot
+  - Auto‑send: make copilot-prompt-send OUT=local/copilot_prompt.txt
+    SEND=1 BROWSER=safari URL=https://github.com/copilot
+  - Wait/stabilize: make copilot-web-wait OUT=local/copilot_review.txt
+    BROWSER=safari URL=https://github.com/copilot INTERVAL=1 STABLE=3
+    MAX=90
+  - Process: make copilot-process-review IN=local/copilot_review.txt
+  - Mailbox: make mailbox-append BODY="$(cat local/copilot_review.txt)"
+    CHANNEL=reviews PRIO=5 TTL=3600
+  - Watcher: make mailbox-watch MAILBOX=.codex/mailbox.jsonl
 
-P1 – Reliability & docs (2–3 days)
-- Generate `docs/generated/events/context-summary-v2.json` + index.
-- Chutes offline unit tests with fixtures (filters, NaN price caps, tie‑breaks, base URL).
-- Scenarios: Chutes exec (fixture), warmup delta capture, timeout/run_timeout marker, image input path.
-- Docs: `docs/agent-comms.md`; expand `docs/advanced.md` with pre/post‑hook usage.
+  CodeRabbit Flow (Primary for diffs)
 
-## Quick Resume Checklist
-1) `git switch feat/chutes-profiles-scenarios`
-2) `make package`
-3) Run new scenarios after P0 lands; today: verify context line quickly → `CONTEXT_FEATURE=1 dist/bin/codex exec "hello"` and check the newest `.codex/runs/*-events.ndjson` for `{"kind":"context.summary","version":2,...}`.
+  - Token (if needed): export CODERABBIT_TOKEN="$(rg -No
+    'coderabbit_token\s*=\s*"(.)"' /home/graham/.codex/config.toml | sed
+    -E 's/.="(.*)"/\1/')"
+  - Submit review:
+      - make coderabbit-review REPO=owner/repo PR=123 OUT=local/
+        coderabbit_review.jsonl
+      - Honors local‑only: denied if CODEX_LOCAL_ONLY=1
+      - Produces normalized mailbox JSONL (run_id/status/tags/body)
+  - Render unified diffs:
+      - bash scripts/cx_review_diff.sh --in local/coderabbit_review.jsonl
+  - Route into shared mailbox:
+      - cat local/coderabbit_review.jsonl >> .codex/mailbox.jsonl
+      - make mailbox-watch MAILBOX=.codex/mailbox.jsonl
+        ONLY_STATUS=processed
 
----
-This CONTEXT.md summarizes only today’s Knowledge‑First/metrics work stream. The Chutes auto‑discovery and profiles integration work remains in this branch and can be iterated separately.
+  Environment Variables
+
+  - CODEX_LOCAL_ONLY=1: no_proxy + fail‑closed on non‑local providers
+    (Chat + Responses).
+  - RUN_ID: set to group mailbox items (optional). Example:
+    RUN_ID=ci-$(date +%s)
+  - TAGS: comma‑separated tags stored in mailbox JSONL for routing.
+    Example: TAGS="coderabbit,pr-123"
+
+  Key Files
+
+  - Policy + Clients:
+      - codex-rs/core/src/default_client.rs
+      - codex-rs/core/src/client.rs
+  - Chat Determinism (test helper + unit test):
+      - codex-rs/core/src/chat_completions.rs
+  - Knowledge‑First Retrieval:
+      - codex-rs/context/src/lib.rs
+      - codex-rs/context/src/retrieval.rs
+  - Exec Event Emission:
+      - codex-rs/exec/src/lib.rs
+  - Mailbox + Tools:
+      - scripts/mailbox_append.sh
+      - scripts/mailbox_watch.sh
+      - scripts/review_backend_coderabbit.sh
+      - scripts/cx_review_diff.sh
+  - Docs:
+      - QUICKSTART.md (CLI Review Loop)
+      - FEATURES.md (HTTP client policy)
+      - docs/generated/events/context-summary-v2.json (schema)
+
+  What I’ll Do On Restart
+
+  - Tail .codex/mailbox.jsonl (ONLY_STATUS=processed when set), summarize
+    findings into an action‑ready TODO list with file:line anchors, and
+    apply safe diffs.
+  - For CodeRabbit runs, parse local/coderabbit_review.jsonl and render
+    unified diffs via scripts/cx_review_diff.sh before proposing a patch.
+
+  Safety and House Rules
+
+  - Do not modify CODEX_SANDBOX_* checks; they are intentional for test
+    early‑exit/sandbox semantics.
+  - Keep diffs surgical; prefer inlined format! args, collapsed ifs, and
+    method references per clippy rules.
+  - TUI styling: use ratatui Stylize helpers (e.g., .dim(), .red()); avoid
+    hardcoded white.
+
+  Quick Start (CodeRabbit)
+
+  - unset CODEX_LOCAL_ONLY
+  - export CODERABBIT_TOKEN="…"
+  - make coderabbit-review REPO=owner/repo PR=123 OUT=local/
+    coderabbit_review.jsonl
+  - bash scripts/cx_review_diff.sh --in local/coderabbit_review.jsonl
+  - cat local/coderabbit_review.jsonl >> .codex/mailbox.jsonl
+  - make mailbox-watch MAILBOX=.codex/mailbox.jsonl ONLY_STATUS=processed

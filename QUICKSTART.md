@@ -132,6 +132,31 @@ dist/bin/cxplus chutes recommend     # prints openai/<model-id>
 dist/bin/cxplus chutes exec --json "Say hello"
 ```
 
+Price cap example (skip reasons visible with `CHUTES_DISCOVERY_DEBUG=1`):
+
+```bash
+# Cap output price to 15 USD / 1M tokens and show why candidates were skipped
+export CHUTES_DISCOVERY_DEBUG=1
+dist/bin/cxplus chutes recommend --max-output-ppm 15 --show-base
+```
+
+## 7.1) Runpod quick start (OpenAI‑compatible)
+
+If you run an OpenAI‑compatible endpoint on Runpod (vLLM/SGLang template or your own image), set these envs and add the provider automatically during `make config`:
+
+```bash
+export RUNPOD_API_BASE=https://<your-endpoint>/v1
+export RUNPOD_API_KEY=rpv2-...
+make config   # adds [model_providers.runpod] to dist/config/config.toml
+
+# Use the Runpod provider for a one‑off run
+dist/bin/cxplus -c model_provider=runpod -c model="gpt-<your-model>" exec "hello" --seed 42
+```
+
+Notes:
+- If `local_only=true`, remote endpoints (like Runpod) are denied by policy.
+- For Responses API, set `wire_api = "responses"` in the provider block if your endpoint supports it; default is chat.
+
 ## 8) Windows packaging
 ```bash
 make package-windows   # writes dist/cxplus-windows.zip (cxplus.cmd/.ps1 + codex/codex.exe if present)
@@ -147,6 +172,14 @@ Place cxplus.cmd or cxplus.ps1 on PATH and invoke `cxplus …`.
 - “No suitable model” → try lowering `--min-params`, relaxing `--max-output-ppm`, removing `--require-capabilities`, or adjusting `--require-modalities`.
 - Fixture mode set but no output → confirm file path and JSON shape (top‑level `items`).
 - Warm‑up network failures → use `--dry-run` first, then set `CHUTES_API_KEY` and `CHUTES_API_BASE`.
+
+### Exit codes (for CI)
+
+- `0` — ok (no errors)
+- `1` — model/tool error during run
+- `5` — timed out or interrupted (graceful shutdown completed)
+
+The same value is written to each run’s summary JSON as `exit_code`.
 
 ## 11) Helpful envs (quick list)
 - Discovery: `CHUTES_API_KEY`, `CHUTES_API_BASE`, `CHUTES_CATALOG_FIXTURE`, `CHUTES_DISCOVERY_DEBUG`, `CHUTES_FORCE_PROVIDER_BASE`, `CHUTES_EXTRA_CAPS`

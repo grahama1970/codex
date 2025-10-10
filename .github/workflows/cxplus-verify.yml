@@ -1,0 +1,59 @@
+name: cxplus-verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  package-and-prestream-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust 1.90.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.90.0
+      - name: Install Python deps
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+      - name: Build package
+        run: make package
+      - name: Run deterministic tests
+        run: RUN_LIVE=0 make test
+      - name: Verify pre-stream context.summary
+        run: |
+          python3 -m pytest -q scenarios/test_context_summary_first_line.py
+
+  rust-workspace-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust 1.90.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.90.0
+      - name: Run full workspace tests (all features)
+        working-directory: codex-rs
+        run: cargo test --all-features
+
+  live-provider-healthcheck:
+    if: ${{ secrets.RUNPOD_API_KEY != '' && secrets.RUNPOD_API_BASE != '' }}
+    runs-on: ubuntu-latest
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+      RUNPOD_API_BASE: ${{ secrets.RUNPOD_API_BASE }}
+      RUNPOD_CHAT_MODEL: ${{ vars.RUNPOD_CHAT_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Quick /models check
+        run: |
+          curl -fsS -H "Authorization: Bearer $RUNPOD_API_KEY" "$RUNPOD_API_BASE/models" | head -c 400
+      - name: Optional chat.completions smoke (if model provided)
+        if: ${{ env.RUNPOD_CHAT_MODEL != '' }}
+        run: |
+          cat > body.json <<EOF
+          {"model":"${RUNPOD_CHAT_MODEL}","messages":[{"role":"user","content":"Say hi"}],"stream":false}
+          EOF
+          curl -fsS -H "Authorization: Bearer $RUNPOD_API_KEY" -H 'Content-Type: application/json' \
+            -d @body.json "$RUNPOD_API_BASE/chat/completions" | head -c 400

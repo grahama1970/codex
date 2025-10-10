@@ -30,6 +30,15 @@ $(CONFIG_DIR)/config.toml:
 	printf "base_url = \"%s\"\n" "$${CHUTES_API_BASE:-https://llm.chutes.ai/v1}" >> $(CONFIG_DIR)/config.toml; \
 	printf "env_key = \"CHUTES_API_KEY\"\n" >> $(CONFIG_DIR)/config.toml; \
 	printf "wire_api = \"chat\"\n" >> $(CONFIG_DIR)/config.toml; \
+	# Optional: Runpod provider (OpenAI-compatible). Add when RUNPOD_API_BASE is set in environment.
+	if [ -n "$$RUNPOD_API_BASE" ]; then \
+	  echo "" >> $(CONFIG_DIR)/config.toml; \
+	  echo "[model_providers.runpod]" >> $(CONFIG_DIR)/config.toml; \
+	  echo "name = \"Runpod (OpenAI-compatible)\"" >> $(CONFIG_DIR)/config.toml; \
+	  echo "base_url = \"$${RUNPOD_API_BASE}\"" >> $(CONFIG_DIR)/config.toml; \
+	  echo "env_key = \"RUNPOD_API_KEY\"" >> $(CONFIG_DIR)/config.toml; \
+	  echo "wire_api = \"chat\"" >> $(CONFIG_DIR)/config.toml; \
+	fi; \
 	echo "Wrote: $(CONFIG_DIR)/config.toml"
 
 package: build config

@@ -341,6 +341,11 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     let timed_out_at: Arc<tokio::sync::Mutex<Option<Instant>>> =
         Arc::new(tokio::sync::Mutex::new(None));
     let wrote_timeout_event = Arc::new(AtomicBool::new(false));
+    // Track user interrupt (Ctrl-C) to mirror graceful timeout semantics.
+    let interrupted = Arc::new(AtomicBool::new(false));
+    let interrupted_at: Arc<tokio::sync::Mutex<Option<Instant>>> =
+        Arc::new(tokio::sync::Mutex::new(None));
+    let wrote_interrupted_event = Arc::new(AtomicBool::new(false));
     let mut last_error_message: Option<String> = None;
     {
         let conv_for_timeout = conversation.clone();
@@ -364,37 +369,49 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                 let _ = conv_for_timeout.submit(Op::Shutdown).await;
             }
         });
+        // Ctrl-C handler: mark interrupted, submit Interrupt and a delayed Shutdown.
+        let conversation_for_ctrlc = conversation.clone();
+        let interrupted_flag = interrupted.clone();
+        let interrupted_at_ref = interrupted_at.clone();
+        let grace_ms_for_ctrlc = shutdown_grace_ms;
+        tokio::spawn(async move {
+            if tokio::signal::ctrl_c().await.is_ok() {
+                tracing::debug!("Keyboard interrupt");
+                interrupted_flag.store(true, Ordering::SeqCst);
+                {
+                    let mut t = interrupted_at_ref.lock().await;
+                    *t = Some(Instant::now());
+                }
+                let _ = conversation_for_ctrlc.submit(Op::Interrupt).await;
+                let conv2 = conversation_for_ctrlc.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(Duration::from_millis(grace_ms_for_ctrlc)).await;
+                    let _ = conv2.submit(Op::Shutdown).await;
+                });
+            }
+        });
+        // Event forwarder: drain Codex events until ShutdownComplete or error.
+        // Note: Ctrl‑C is handled by the dedicated handler above to preserve
+        // graceful semantics and allow late events during the grace window.
         let conversation = conversation.clone();
         tokio::spawn(async move {
             loop {
-                tokio::select! {
-                    _ = tokio::signal::ctrl_c() => {
-                        tracing::debug!("Keyboard interrupt");
-                        // Immediately notify Codex to abort any in‑flight task.
-                        conversation.submit(Op::Interrupt).await.ok();
-
-                        // Exit the inner loop and return to the main input prompt. The codex
-                        // will emit a `TurnInterrupted` (Error) event which is drained later.
-                        break;
-                    }
-                    res = conversation.next_event() => match res {
-                        Ok(event) => {
-                            debug!("Received event: {event:?}");
-
-                            let is_shutdown_complete = matches!(event.msg, EventMsg::ShutdownComplete);
-                            if let Err(e) = tx.send(event) {
-                                error!("Error sending event: {e:?}");
-                                break;
-                            }
-                            if is_shutdown_complete {
-                                info!("Received shutdown event, exiting event loop.");
-                                break;
-                            }
-                        },
-                        Err(e) => {
-                            error!("Error receiving event: {e:?}");
+                match conversation.next_event().await {
+                    Ok(event) => {
+                        debug!("Received event: {event:?}");
+                        let is_shutdown_complete = matches!(event.msg, EventMsg::ShutdownComplete);
+                        if let Err(e) = tx.send(event) {
+                            error!("Error sending event: {e:?}");
                             break;
                         }
+                        if is_shutdown_complete {
+                            info!("Received shutdown event, exiting event loop.");
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        error!("Error receiving event: {e:?}");
+                        break;
                     }
                 }
             }
@@ -486,15 +503,17 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                 }
             }
             let line = serde_json::json!({
-                "ts_unix_ms": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
-                "elapsed_ms": monotonic_start.elapsed().as_millis() as u64,
-                "kind": "context.summary",
-                "version": 2,
-                "provider": format!("{:?}", provider_kind),
-                "max_context_tokens": config.context_max_tokens,
-                "budget": {
-                  "recent_pct": config.context_budget.0,
-                  "plan_pct": config.context_budget.1,
+            "ts_unix_ms": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
+            "elapsed_ms": monotonic_start.elapsed().as_millis() as u64,
+            "kind": "context.summary",
+            "version": 2,
+            "seq": seq,
+            "run_id": run_id,
+            "provider": format!("{:?}", provider_kind),
+            "max_context_tokens": config.context_max_tokens,
+            "budget": {
+              "recent_pct": config.context_budget.0,
+              "plan_pct": config.context_budget.1,
                   "evidence_pct": config.context_budget.2,
                   "tools_pct": config.context_budget.3
                 },
@@ -514,6 +533,8 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                 let _ = std::io::Write::write_all(f, s.as_bytes());
                 let _ = std::io::Write::write_all(f, b"\n");
             }
+            // Advance sequence after the pre-stream context summary.
+            seq = seq.saturating_add(1);
         }
     }
     let initial_prompt_task_id = conversation
@@ -603,10 +624,62 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                         break;
                     }
                 }
+                // User interrupt handling: emit a synthetic marker and honor grace window.
+                if interrupted.load(Ordering::SeqCst) {
+                    if let Some(f) = events_file.as_mut()
+                        && !wrote_interrupted_event.load(Ordering::SeqCst) {
+                            let line = serde_json::json!({
+                                "ts_unix_ms": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
+                                "elapsed_ms": monotonic_start.elapsed().as_millis() as u64,
+                                "kind": "run_interrupted",
+                                "seq": seq,
+                                "run_id": run_id,
+                            });
+                            if let Ok(s) = serde_json::to_string(&line) {
+                                let _ = std::io::Write::write_all(f, s.as_bytes());
+                                let _ = std::io::Write::write_all(f, b"\n");
+                            }
+                            wrote_interrupted_event.store(true, Ordering::SeqCst);
+                            seq = seq.saturating_add(1);
+                        }
+                    let grace_ms = shutdown_grace_ms.unwrap_or(800);
+                    let elapsed_ok = {
+                        let g = interrupted_at.lock().await;
+                        g.map(|inst| inst.elapsed() >= Duration::from_millis(grace_ms)).unwrap_or(false)
+                    };
+                    if elapsed_ok {
+                        break;
+                    }
+                }
             }
         }
     }
     event_processor.print_final_output();
+
+    // Fallback: ensure run_timeout marker exists if we broke before the next tick.
+    if timed_out.load(Ordering::SeqCst)
+        && !wrote_timeout_event.load(Ordering::SeqCst)
+        && let Some(f) = events_file.as_mut()
+    {
+        let line = serde_json::json!({
+            "ts_unix_ms": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
+            "elapsed_ms": monotonic_start.elapsed().as_millis() as u64,
+            "kind": "run_timeout",
+            "seq": seq,
+            "run_id": run_id,
+        });
+        if let Ok(s) = serde_json::to_string(&line) {
+            let _ = std::io::Write::write_all(f, s.as_bytes());
+            let _ = std::io::Write::write_all(f, b"\n");
+            let _ = std::io::Write::flush(f);
+        }
+        wrote_timeout_event.store(true, Ordering::SeqCst);
+        seq = seq.saturating_add(1);
+    }
+    // Best-effort flush of NDJSON before writing summary.
+    if let Some(f) = events_file.as_mut() {
+        let _ = std::io::Write::flush(f);
+    }
 
     // Persist a small run summary to disk to make headless use reliable.
     let run_dir = summary_dir.unwrap_or_else(|| PathBuf::from(".codex").join("runs"));
@@ -617,14 +690,17 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         .as_millis();
     let summary_path = run_dir.join(format!("{run_id}-summary.json"));
     let elapsed_ms = monotonic_start.elapsed().as_millis() as u64;
+    let interrupted_now = interrupted.load(Ordering::SeqCst);
     let status = if timed_out.load(Ordering::SeqCst) {
         "timeout"
+    } else if interrupted_now {
+        "interrupted"
     } else if error_seen {
         "error"
     } else {
         "ok"
     };
-    let exit_code = if timed_out.load(Ordering::SeqCst) {
+    let exit_code = if timed_out.load(Ordering::SeqCst) || interrupted_now {
         5
     } else if error_seen {
         1
@@ -637,6 +713,7 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         "status": status,
         "exit_code": exit_code,
         "timed_out": timed_out.load(Ordering::SeqCst),
+        "interrupted": interrupted_now,
         "duration_ms": elapsed_ms,
         "event_count": seq,
         "model": config.model,
@@ -663,6 +740,16 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         eprintln!(
             "codex-exec timeout: {}s budget exceeded. Summary: {}  Events: {}",
             run_timeout_secs.unwrap_or_default(),
+            summary_path.display(),
+            events_path.display()
+        );
+        if let Some(msg) = &last_error_message {
+            eprintln!("last error: {msg}");
+        }
+        std::process::exit(5);
+    } else if interrupted_now {
+        eprintln!(
+            "codex-exec interrupted by user (SIGINT). Summary: {}  Events: {}",
             summary_path.display(),
             events_path.display()
         );

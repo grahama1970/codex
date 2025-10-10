@@ -287,16 +287,15 @@ pub(crate) async fn stream_chat_completions(
     if let Some(seed) = deterministic_seed
         && let Some(obj) = payload.as_object_mut()
     {
-        // Determinism contract: mirror Responses path – any new sampling/penalty knobs added upstream
-        // should be explicitly neutralized here to keep seeded runs reproducible.
+        // Determinism contract: unconditional neutralization for parity with Responses path.
         obj.insert("temperature".to_string(), json!(0.0));
         obj.insert("top_p".to_string(), json!(1.0));
         obj.insert("seed".to_string(), json!(seed));
-        obj.entry("frequency_penalty").or_insert(json!(0.0));
-        obj.entry("presence_penalty").or_insert(json!(0.0));
-        obj.entry("top_k").or_insert(json!(0));
-        obj.entry("typical_p").or_insert(json!(1.0));
-        obj.entry("logit_bias").or_insert(json!({}));
+        obj.insert("frequency_penalty".to_string(), json!(0.0));
+        obj.insert("presence_penalty".to_string(), json!(0.0));
+        obj.insert("top_k".to_string(), json!(0));
+        obj.insert("typical_p".to_string(), json!(1.0));
+        obj.insert("logit_bias".to_string(), json!({}));
     }
 
     debug!(
@@ -903,7 +902,6 @@ impl<S> AggregatedChatStream<S> {
     }
 }
 
-
 /// Determinism contract note:
 /// When a deterministic_seed is set, we must clamp/neutralize all sampling knobs to ensure reproducible output.
 /// Keep parity with Responses path if new fields are introduced upstream.
@@ -919,31 +917,32 @@ pub fn build_chat_payload_for_test(
         "stream": true
     });
     if let Some(seed) = deterministic_seed
-        && let Some(map) = obj.as_object_mut() {
-            map.insert("temperature".into(), 0.0.into());
-            map.insert("top_p".into(), 1.0.into());
-            map.insert("seed".into(), seed.into());
-            // Defensive neutralization to prevent drift
-            map.entry("frequency_penalty").or_insert(0.0.into());
-            map.entry("presence_penalty").or_insert(0.0.into());
-            map.entry("top_k").or_insert(0.into());
-            map.entry("typical_p").or_insert(1.0.into());
-            map.entry("logit_bias").or_insert(serde_json::json!({}));
-        }
+        && let Some(map) = obj.as_object_mut()
+    {
+        map.insert("temperature".into(), 0.0.into());
+        map.insert("top_p".into(), 1.0.into());
+        map.insert("seed".into(), seed.into());
+        // Defensive neutralization to prevent drift (unconditional for parity)
+        map.insert("frequency_penalty".into(), 0.0.into());
+        map.insert("presence_penalty".into(), 0.0.into());
+        map.insert("top_k".into(), 0.into());
+        map.insert("typical_p".into(), 1.0.into());
+        map.insert("logit_bias".into(), serde_json::json!({}));
+    }
     obj
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::build_chat_payload_for_test;
     use crate::client_common::Prompt;
     use crate::model_family::derive_default_model_family;
-    use crate::model_provider_info::{ModelProviderInfo, WireApi};
+    use crate::model_provider_info::ModelProviderInfo;
+    use crate::model_provider_info::WireApi;
 
     #[test]
     fn chat_payload_sets_seed_and_determinism() {
-        let prompt = Prompt::new(Some("Hello".into()), vec![], None);
+        let prompt = Prompt::default();
         let mf = derive_default_model_family("gpt-4o-mini");
         let provider = ModelProviderInfo {
             name: "openai".into(),
@@ -964,10 +963,22 @@ mod tests {
         assert_eq!(obj.get("temperature").unwrap(), &serde_json::json!(0.0));
         assert_eq!(obj.get("top_p").unwrap(), &serde_json::json!(1.0));
         assert_eq!(obj.get("seed").unwrap(), &serde_json::json!(42));
-        assert_eq!(obj.get("frequency_penalty").unwrap(), &serde_json::json!(0.0));
-        assert_eq!(obj.get("presence_penalty").unwrap(), &serde_json::json!(0.0));
+        assert_eq!(
+            obj.get("frequency_penalty").unwrap(),
+            &serde_json::json!(0.0)
+        );
+        assert_eq!(
+            obj.get("presence_penalty").unwrap(),
+            &serde_json::json!(0.0)
+        );
         assert_eq!(obj.get("top_k").unwrap(), &serde_json::json!(0));
         assert_eq!(obj.get("typical_p").unwrap(), &serde_json::json!(1.0));
-        assert!(obj.get("logit_bias").unwrap().as_object().unwrap().is_empty());
+        assert!(
+            obj.get("logit_bias")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .is_empty()
+        );
     }
 }

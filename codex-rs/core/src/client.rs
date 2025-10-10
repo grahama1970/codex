@@ -345,9 +345,27 @@ impl ModelClient {
         // Always fetch the latest auth in case a prior attempt refreshed the token.
         let auth = auth_manager.as_ref().and_then(|m| m.auth());
 
+        let full_url = self.provider.get_full_url(&auth);
+
+        // Local-only posture: deny non-local endpoints when CODEX_LOCAL_ONLY=1
+        let local_only = std::env::var("CODEX_LOCAL_ONLY")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        if local_only {
+            if let Ok(u) = reqwest::Url::parse(&full_url) {
+                let host = u.host_str().unwrap_or("");
+                let is_local = host == "localhost" || host == "127.0.0.1" || host == "::1";
+                if !is_local {
+                    return Err(StreamAttemptError::Fatal(CodexErr::UnsupportedOperation(
+                        format!("local-only mode forbids non-local endpoint: {}", full_url),
+                    )));
+                }
+            }
+        }
+
         trace!(
             "POST to {}: {:?}",
-            self.provider.get_full_url(&auth),
+            full_url,
             serde_json::to_string(payload_json)
         );
 

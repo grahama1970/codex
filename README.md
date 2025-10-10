@@ -181,6 +181,31 @@ dist/bin/cxplus chutes exec --json "List three refactor steps"
 * `--seed` makes nightly pipelines debuggable.
 * See the [scillm guide](docs/SCILLM_LOCAL.md) and [litellm upstream](https://github.com/BerriAI/litellm) for router setup.
 
+### Runpod (OpenAI‑compatible) quick start
+
+If you prefer a managed GPU endpoint, add a Runpod provider (OpenAI‑compatible) and point cxplus at it:
+
+```toml
+# ~/.codex/config.toml (or dist/config/config.toml)
+[model_providers.runpod]
+name = "Runpod (OpenAI-compatible)"
+base_url = "https://<your-endpoint>/v1"
+env_key = "RUNPOD_API_KEY"
+wire_api = "chat"   # or "responses" if your endpoint supports it
+
+model_provider = "runpod"
+model = "gpt-<your-model>"
+```
+
+Then run:
+
+```bash
+export RUNPOD_API_KEY=rpv2-...
+cxplus exec "hello from runpod" --seed 42
+```
+
+Note: this requires local_only=false because it’s a remote endpoint.
+
 ---
 
 ## Reliability & Determinism (scriptable semantics)
@@ -191,6 +216,14 @@ dist/bin/cxplus chutes exec --json "List three refactor steps"
   * **Summary JSON** — `schema_version`, `status`, `exit_code`, `duration_ms`, `event_count`, **model/provider**, `events_path`, **seed** (when set), last error.
 * **Time budget & graceful stop** — `--run-timeout-secs <n>` sends Interrupt, waits a short grace (`--shutdown-grace-ms`, default **800ms**), then Shutdown (exit code **5**).
 * **Deterministic runs** — `--seed <u64>` persists; where supported I enforce **temperature=0** and **top_p=1**.
+
+### Exit Codes (operator‑friendly)
+
+- `0` — ok (no errors)
+- `1` — model/tool error during run
+- `5` — timed out or interrupted (graceful shutdown completed)
+
+These codes are written into the summary JSON (`exit_code`) for reliable CI branching.
 
 ### CI quick check (GitHub Actions)
 
@@ -316,4 +349,3 @@ Embed with the `<picture>` block at the top (as shown).
 ## License
 
 Licensed under the [Apache-2.0 License](LICENSE).
-
