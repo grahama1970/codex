@@ -1,0 +1,62 @@
+name: release-cxplus
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag name (optional). Leave blank to auto-generate."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute tag
+        id: meta
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            short=$(git rev-parse --short HEAD)
+            echo "tag=cxplus-kf-$(date +%Y%m%d)-$short" >> "$GITHUB_OUTPUT"
+          fi
+          echo "TAG=$(cat $GITHUB_OUTPUT)"
+
+      - name: Set up Rust 1.90.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.90.0
+
+      - name: Build package
+        run: make package
+
+      - name: Create tag and push
+        run: |
+          git config user.email "actions@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git tag "${{ steps.meta.outputs.tag }}"
+          git push origin "${{ steps.meta.outputs.tag }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: cxplus pilot: ${{ steps.meta.outputs.tag }}
+          body: |
+            Knowledge‑First pilot build.
+
+            - TUI Knowledge‑First banner
+            - CI fixture lane
+            - Docs: quick start + compose template
+            - Deterministic fixture under scenarios/fixtures/knowledge_fixture.json
+          files: |
+            dist/bin/codex
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
