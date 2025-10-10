@@ -18,6 +18,7 @@ codex-cli/README.md
 
 # ignore Nix derivation results
 result
+.codex/runs/
 
 # editor
 .vscode/

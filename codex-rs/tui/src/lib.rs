@@ -300,6 +300,34 @@ async fn run_ratatui_app(
 
     let mut tui = Tui::new(terminal);
 
+    // Show Knowledge‑First banner when enabled (env or config), so pilots see it immediately.
+    {
+        use ratatui::style::Stylize as _;
+        use ratatui::text::Line;
+        let env_on = std::env::var("CONTEXT_FEATURE")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        let cfg_on = matches!(
+            config.context_provider,
+            codex_core::config::ContextProviderKind::Arango
+        ) && config.context_max_tokens > 0;
+        if env_on || cfg_on {
+            let mut lines: Vec<Line<'static>> = vec![
+                vec![
+                    "📚 ".into(),
+                    "Knowledge‑First".bold().cyan(),
+                    " mode enabled".into(),
+                ]
+                .into(),
+            ];
+            if std::env::var("CONTEXT_MCP_FIXTURE").is_ok() {
+                lines.push(vec!["  └ ".into(), "fixture".dim()].into());
+            }
+            lines.push("".into());
+            tui.insert_history_lines(lines);
+        }
+    }
+
     // Show update banner in terminal history (instead of stderr) so it is visible
     // within the TUI scrollback. Building spans keeps styling consistent.
     #[cfg(not(debug_assertions))]

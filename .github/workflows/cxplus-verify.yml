@@ -57,3 +57,23 @@ jobs:
           EOF
           curl -fsS -H "Authorization: Bearer $RUNPOD_API_KEY" -H 'Content-Type: application/json' \
             -d @body.json "$RUNPOD_API_BASE/chat/completions" | head -c 400
+
+  knowledge-first-fixture:
+    name: Knowledge-First fixture lane (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust 1.90.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.90.0
+      - name: Build package
+        run: make package
+      - name: Run with fixture (Arango provider)
+        env:
+          CONTEXT_MCP_FIXTURE: scenarios/fixtures/knowledge_fixture.json
+        run: |
+          # Force Knowledge‑First provider via CLI overrides
+          dist/bin/codex -c context.provider=arango exec "hello fixture" --seed 42 || true
+          echo "First NDJSON line:" && head -n1 .codex/runs/*-events.ndjson

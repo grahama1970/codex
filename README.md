@@ -159,6 +159,35 @@ dist/bin/cxplus chutes exec --json "Say hello"
 
 ---
 
+## Knowledge‑First quick start
+
+You can exercise the Knowledge‑First prehook from any repository using the packaged binary in this repo (dist/bin/codex). No external services are required if you use a fixture.
+
+- Copy the fixture into your repo (or reuse this repo’s): `scenarios/fixtures/knowledge_fixture.json`.
+- Run a deterministic exec with the Arango provider forced via CLI and the fixture provided via env:
+
+```
+CONTEXT_MCP_FIXTURE=scenarios/fixtures/knowledge_fixture.json \
+  dist/bin/codex -c context.provider=arango exec "hello" --seed 42
+```
+
+Expected:
+- The TUI shows “Knowledge‑First mode enabled” and a “fixture” line.
+- Artifacts are created under `./.codex/runs/`. The first line of the `*-events.ndjson` is `kind=context.summary`; the `*-summary.json` includes `status`, `exit_code`, `model`, and (when used) `seed`.
+
+Live MCP/Arango (optional): use the template at `docs/knowledge-first/docker-compose.yml` and run with:
+
+```
+dist/bin/codex -c context.provider=arango \
+  -c context.arango.endpoint=http://localhost:8080/jsonrpc \
+  -c context.arango.mcp_tool=memory-agent \
+  exec "summarize the repo" --seed 4242
+```
+
+Note: in `local_only=true` environments, fixture mode works; live HTTP endpoints may be blocked by policy.
+
+---
+
 ## Using cxplus with [scillm](docs/SCILLM_LOCAL.md) (litellm fork)
 
 *See also:* [litellm upstream](https://github.com/BerriAI/litellm)

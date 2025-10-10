@@ -20,17 +20,17 @@ Repo/branch: grahama1970/codex@main
 - Risks: policy drift if any egress bypasses `create_client()`; reliance on external discovery (Chutes); determinism regression if new knobs appear.
 - Mitigations: enforce single egress path (lint), add clamp tests for both wire APIs, keep Runpod healthcheck optional.
 
-## Parity matrix
+## Parity matrix (CLI‑only scope)
 
-| Capability/Tool | cxplus | Copilot PR Reviewer | Cursor CLI | Aider | llm (Simon Willison) | LiteLLM router | OpenDevin/OpenHands |
+| Capability/Tool | cxplus | llm (Datasette) | Aider | LiteLLM router (CLI/proxy) | OpenHands | OpenDevin | Runpod (endpoint) |
 |---|---|---|---|---|---|---|---|
-| Determinism/artifacts | Strong: artifacts+seed+exit codes (docs+CI) | N/A | Limited determinism; editor‑centric | Params only; no default artifacts | Params only; no run artifacts | Pass‑through; no artifacts | Framework; varies; no default artifacts |
-| Local‑only policy | Centralized, enforced | Cloud | Mixed | Can be local; varies | Strong local models | Router can be local | Mixed |
-| Pre‑stream provenance | Yes (context.summary first) | N/A | Not typical | Not typical | Not typical | N/A | Not typical |
-| Provider routing/readiness | Chutes + Runpod docs/CI | N/A | Router dependent | Provider flag | Plugins | Core routing | Backend‑dependent |
-| TUI slash functions | Implemented, guarded | N/A | Editor palette | CLI flags | CLI/plugins | N/A | Framework UIs |
+| Determinism/artifacts | Strong: artifacts+seed+exit codes (docs+CI) | Default SQLite logging; `-o seed` for OpenAI | Chat/LLM history; no seed option documented | Logs/spend UI; not determinism‑oriented by default | Trajectory JSON export; no seed contract | Agent logs vary; no seed contract by default | Infra provider; determinism N/A |
+| Local‑only policy | Centralized, enforced | Supports local providers; no global egress block | Can target local endpoints; no global egress block | Can run locally; policy up to operator | CLI/headless possible with local models; no explicit no‑egress contract | Local deployments possible; no explicit no‑egress | Remote by design |
+| Pre‑stream provenance | Yes (context.summary first) | No pre‑stream provenance concept | Post‑hoc history/logs | Proxy/request logs; not a pre‑stream record | Trajectories capture actions; not guaranteed first record | Varies; no standard pre‑stream record | N/A |
+| Provider routing/readiness | Chutes + Runpod docs/CI | Multi‑provider via plugins; user selects model | Multi‑provider by config; not a router | Router with load‑balancing, fallbacks, budgets, timeouts | Multiple backends; not a cost/cap router | Integrates backends; not a cost/cap router | Endpoint only; routing external |
+| TUI/UX helpers | TUI + slash; CI ergonomics | Solid CLI; less operator TUI focus | Rich CLI with in‑chat commands | Admin UI + CLI; operator‑oriented proxy | GUI/CLI/headless modes | CLI/headless | Infra console; not agent UX |
 
-Notes: cxplus cells are backed by Evidence below.
+Notes: cxplus cells are backed by Evidence below; competitors limited to CLI/proxy tools and endpoint infra.
 
 ## Evidence (file:line anchors)
 
@@ -108,4 +108,3 @@ Notes: cxplus cells are backed by Evidence below.
 
 - Smoke test: `make package && RUN_LIVE=0 make test && ./dist/bin/codex exec "hello" --seed 42` — expect artifacts in `./.codex/runs/`, first NDJSON line `context.summary`, summary `exit_code=0`.
 - Risks: Chutes reliability (external catalogs and warm‑ups) can drift/fail; mitigate via local router or Runpod, fixture‑based discovery in CI, price caps, debug flags.
-
