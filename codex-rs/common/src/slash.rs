@@ -137,10 +137,38 @@ pub fn parse(line: &str) -> Option<SlashCommand> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn discover_unknown_flag_surfaces_parse_error() {
+        let Some(SlashCommand::Unknown { raw }) = parse("/discover --bogus 1") else {
+            panic!("expected Unknown for bad flag");
+        };
+        assert!(
+            raw.contains("parse-error"),
+            "unknown flag should surface parse-error message: {raw}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests_unknown_flag {
+    use super::*;
+    #[test]
+    fn discover_unknown_flag_surfaces_parse_error() {
+        let Some(SlashCommand::Unknown { raw }) = parse("/discover --bogus 1") else {
+            panic!("expected Unknown for bad flag");
+        };
+        assert!(raw.contains("parse-error"), "unknown flag should surface parse-error message: {raw}");
+    }
+}
 fn parse_discover_flags(args: &[String]) -> (DiscoverArgs, Vec<String>) {
     let mut out = DiscoverArgs::default();
     let mut errors = Vec::new();
     let mut i = 0;
+    let is_flag = |s: &str| s.starts_with("--");
     while i < args.len() {
         match args[i].as_str() {
             "--min-params" if i + 1 < args.len() => {
@@ -172,7 +200,13 @@ fn parse_discover_flags(args: &[String]) -> (DiscoverArgs, Vec<String>) {
                 out.require_capabilities = Some(args[i + 1].clone());
                 i += 2;
             }
-            _ => i += 1,
+            _ => {
+                // Tighten: treat unknown --flags as parse errors
+                if is_flag(&args[i]) {
+                    errors.push(format!("unknown flag '{}'", args[i]));
+                }
+                i += 1;
+            }
         }
     }
     (out, errors)
@@ -221,7 +255,7 @@ fn parse_path_line(spec: &str) -> (String, Option<usize>) {
 }
 
 #[cfg(test)]
-mod tests {
+mod tests_basic {
     use super::*;
     #[test]
     fn parses_basic_help() {

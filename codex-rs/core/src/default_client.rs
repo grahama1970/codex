@@ -152,7 +152,13 @@ pub fn create_client() -> reqwest::Client {
         builder = builder.no_proxy();
     }
 
-    builder.build().unwrap_or_else(|_| reqwest::Client::new())
+    match builder.build() {
+        Ok(client) => client,
+        Err(e) => {
+            tracing::warn!("Falling back to default reqwest client: {e}");
+            reqwest::Client::new()
+        }
+    }
 }
 
 fn is_sandboxed() -> bool {
@@ -166,12 +172,7 @@ pub fn is_local_only_enabled() -> bool {
     std::env::var("CODEX_LOCAL_ONLY").as_deref() == Ok("1")
 }
 
-fn is_local_only() -> bool {
-    if let Some(&b) = crate::config::LOCAL_ONLY.get() {
-        return b;
-    }
-    std::env::var("CODEX_LOCAL_ONLY").as_deref() == Ok("1")
-}
+// removed duplicate is_local_only(); use is_local_only_enabled() instead
 
 #[cfg(test)]
 mod tests {

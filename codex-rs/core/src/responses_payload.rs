@@ -21,3 +21,32 @@ pub fn apply_determinism(payload: &mut Value, deterministic_seed: Option<u64>) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_determinism_sets_seed_and_neutralizes() {
+        let mut payload = serde_json::json!({
+            "model": "gpt-5",
+            "input": [{"role": "user", "content": [{"type":"input_text","text":"hi"}]}]
+        });
+        apply_determinism(&mut payload, Some(42));
+        let obj = payload.as_object().unwrap();
+        assert_eq!(obj.get("temperature"), Some(&serde_json::json!(0.0)));
+        assert_eq!(obj.get("top_p"), Some(&serde_json::json!(1.0)));
+        assert_eq!(obj.get("seed"), Some(&serde_json::json!(42)));
+        assert_eq!(obj.get("frequency_penalty"), Some(&serde_json::json!(0.0)));
+        assert_eq!(obj.get("presence_penalty"), Some(&serde_json::json!(0.0)));
+        assert_eq!(obj.get("top_k"), Some(&serde_json::json!(0)));
+        assert_eq!(obj.get("typical_p"), Some(&serde_json::json!(1.0)));
+        assert!(
+            obj.get("logit_bias")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
