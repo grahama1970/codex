@@ -76,10 +76,53 @@ Expect: a normal run (remote egress), artifacts present; use only in environment
 - Some endpoints reject clamp fields (e.g., `temperature`) on specific wire paths. If you see a `400` like “Unsupported parameter: temperature”, the seed clamp was active but the endpoint does not accept that field. Mitigations:
   - Prefer the wire API (chat vs responses) that supports determinism for your provider.
   - Keep local‑only profiles off remote endpoints.
-  - (Roadmap) Add capability probes to suppress unsupported clamp fields per provider.
+- (Roadmap) Add capability probes to suppress unsupported clamp fields per provider.
+
+## Knowledge‑First (Arango/MCP) — Opt‑in track during pilot
+
+Knowledge‑First is the core reason cxplus exists. Enable a small, opt‑in lane so the main pilot remains predictable while retrieval infra stabilizes.
+
+### Two ways to enable
+
+1) Deterministic fixture (no infra):
+
+```bash
+export CONTEXT_MCP_FIXTURE=/abs/path/fixture.json   # static retrieval data
+
+# Force provider via CLI (no config changes needed)
+dist/bin/codex -c context.provider=arango exec "hello" --seed 42
+head -n1 .codex/runs/*-events.ndjson   # expect kind=context.summary v2 with evidence/metrics fields
+```
+
+2) Live Arango + memory‑agent MCP:
+
+```bash
+// Optional debugging and safety knobs
+export CONTEXT_DEBUG=1
+export CONTEXT_EVIDENCE_ALLOW_CODE=0   # set 1 only if you allow code in evidence
+
+# Start/point to your memory‑agent MCP and ArangoDB; cxplus defaults:
+# endpoint=http://localhost:8529 database=codex tool=memory-agent
+
+dist/bin/codex -c context.provider=arango \
+  -c context.arango.endpoint=http://localhost:8080/jsonrpc \
+  -c context.arango.mcp_tool=memory-agent \
+  exec "summarize the repo" --seed 4242
+head -n1 .codex/runs/*-events.ndjson
+```
+
+### Success criteria (Knowledge‑First lane)
+
+- `context.summary` remains the first NDJSON line.
+- `retrieval_ms > 0` and `evidence_items > 0` on at least one run.
+- With fixture set, runs are deterministic and include `seed` in summary.
+- No unintended egress in local‑only environments.
 
 ## Owner & rollback
 
 - Owners: designate a maintainer for stamped releases (see `make release`, `make switch`, `make rollback`).
 - Store `dist/releases/codex-<stamp>` as the artifact of record; use symlink switch to promote/rollback.
 
+## Docker compose (reference)
+
+- A minimal ArangoDB + memory‑agent template is in `docs/knowledge-first/docker-compose.yml`. Replace the `memory-agent` image with your org’s build and set the `endpoint` via `-c context.arango.endpoint` as shown above.

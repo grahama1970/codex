@@ -161,7 +161,10 @@ mod tests_unknown_flag {
         let Some(SlashCommand::Unknown { raw }) = parse("/discover --bogus 1") else {
             panic!("expected Unknown for bad flag");
         };
-        assert!(raw.contains("parse-error"), "unknown flag should surface parse-error message: {raw}");
+        assert!(
+            raw.contains("parse-error"),
+            "unknown flag should surface parse-error message: {raw}"
+        );
     }
 }
 fn parse_discover_flags(args: &[String]) -> (DiscoverArgs, Vec<String>) {
